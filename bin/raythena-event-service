@@ -1,0 +1,151 @@
+#!/usr/bin/env python
+
+"""
+
+DESCRIPTION
+
+    ATLAS Event Service implementation with Ray
+    -----------------------------------------------------------------
+    Ray-based implementation of the ATLAS Event Service (AES), a fine-grained event processing workflow aimed at improving the efficiency of ATLAS workflows on opportunistic resources, specifically HPCs. The AES is implemented as an event processing task farm that distributes packets of events to several worker processes running on multiple nodes. Each worker in the task farm runs an event-processing application (Athena) as a daemon. In Raythena we replaced the event task farm workers with stateful components of Ray called Actors, which process packets of events and return data processing results. In addition to stateful Actors, Raythena also utilizes stateless Tasks for merging intermediate outputs produced by the Actors. The whole system is orchestrated by Ray, which assigns work to Actors and Tasks in a distributed, possibly heterogeneous, environment.
+
+AUTHOR
+
+    Miha Muskinja <MihaMuskinja@lbl.gov>
+
+VERSION
+
+    1.0.0
+"""
+
+import os
+import ray
+
+from Raythena.EventService import Driver
+from Raythena.Config import EventServiceConfig
+from Raythena.HelperFunctions import getParameter, getUniqueDir
+
+
+if __name__ == "__main__":
+    import optparse
+    parser = optparse.OptionParser(usage=globals()['__doc__'])
+
+    # ----------------------------------------------------
+    # required
+    # ----------------------------------------------------
+    parser.add_option('-e', '--event-ranges',
+                      action="store", dest="event_ranges",
+                      help="path to eventRanges file")
+    parser.add_option('-c', '--config',
+                      action="store", dest="config",
+                      help="yaml configuration file")
+    # ----------------------------------------------------
+    # required to run on a cluster
+    # ----------------------------------------------------
+    parser.add_option('-r', '--redis-address',
+                      action="store", dest="redis_address",
+                      help="redis-address of the head node")
+    parser.add_option('-p', '--redis-password',
+                      action="store", dest="redis_password",
+                      help="password for the resdis server")
+    # ----------------------------------------------------
+    # optional
+    # ----------------------------------------------------
+    parser.add_option('--number-of-actors',
+                      action="store", dest="number_of_actors",
+                      help="number of Athena actors")
+    parser.add_option('--extra-nodes',
+                      action="store", dest="extra_nodes",
+                      help="number of extra ray nodes")
+    parser.add_option('--max-ranges',
+                      action="store", dest="max_ranges",
+                      help="maximum number of processed ranges")
+    parser.add_option('--run-dir',
+                      action="store", dest="run_dir",
+                      help="base path to run directory")
+    parser.add_option('--merge-dir',
+                      action="store", dest="merge_dir",
+                      help="path to the folder with output merged datasets")
+    # ----------------------------------------------------
+    # very optional (should really be in the configuration)
+    # ----------------------------------------------------
+    parser.add_option('--asetup',
+                      action="store", dest="asetup",
+                      help="Athena asetup environment")
+    parser.add_option('--proxy-evnt-file',
+                      action="store", dest="proxy_evnt_file",
+                      help="Proxy EVNT file needed to initialize I/O")
+    parser.add_option('--cores-per-actor',
+                      action="store", dest="cores_per_actor",
+                      help="number of cores per Athena actor")
+    parser.add_option('--merge-event-size',
+                      action="store", dest="merge_event_size",
+                      help="size of output merged files")
+    parser.add_option('--max-retries',
+                      action="store", dest="max_retries",
+                      help="maximum number of retries per event range")
+    parser.add_option('--yampl-communication-channel',
+                      action="store", dest="yampl_communication_channel",
+                      help="yampl communication channel")
+    # ----------------------------------------------------
+    # interactive mode for debugging
+    # ----------------------------------------------------
+    parser.add_option('-i', '--interactive',
+                      action="store_true", dest="interactive",
+                      help="interactive mode", default=False)
+
+    # parse input arguments
+    options, args = parser.parse_args()
+
+    # required parameters
+    assert options.config
+    assert options.event_ranges
+
+    # import config
+    config = EventServiceConfig(options.config)
+
+    # initialize Ray
+    if options.redis_address:
+        # running on cluster
+        ray.init(redis_address="%s" % options.redis_address,
+                 redis_password="%s" % options.redis_password)
+    else:
+        # running locally
+        import random
+        import string
+        ray.init(num_cpus=config.actors+config.extra_nodes,
+                 include_webui=True, ignore_reinit_error=True,
+                 redis_password=''.join(random.SystemRandom().choice(string.ascii_uppercase + string.digits) for _ in range(12)))
+
+    # do not override run directories
+    run_dir = getUniqueDir(getParameter(config, options, 'run_dir'))
+    merge_dir = getUniqueDir(getParameter(config, options, 'merge_dir'))
+
+    # Driver application:
+    # parameters from the yaml config are used by default,
+    # and command line arguments will override those.
+    driver = Driver(
+        event_ranges=options.event_ranges,
+        extra_setup_commands=config.extra_setup_commands,
+        extra_pre_exec=config.extra_pre_exec,
+        geometry_version=config.geometry_version,
+        physics_list=config.physics_list,
+        conditions_tag=config.conditions_tag,
+        run_dir=run_dir,
+        merge_dir=merge_dir,
+        max_ranges=getParameter(config, options, 'max_ranges'),
+        number_of_actors=getParameter(config, options, 'number_of_actors'),
+        asetup=getParameter(config, options, 'asetup'),
+        cores_per_actor=getParameter(config, options, 'cores_per_actor'),
+        merge_event_size=getParameter(config, options, 'merge_event_size'),
+        max_retries=getParameter(config, options, 'max_retries'),
+        proxy_evnt_file=getParameter(config, options, 'proxy_evnt_file'),
+        yampl_communication_channel=getParameter(config, options, 'yampl_communication_channel'),
+    )
+
+    if options.interactive:
+        # running interactively
+        import code
+        code.interact(local=locals())
+    else:
+        driver.execute()
+        ray.global_state.chrome_tracing_dump(filename="timeline.json")
