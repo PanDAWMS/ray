@@ -8,6 +8,7 @@ setup(
    packages=find_packages(),
    scripts=[
        'bin/raythena-event-service',
+       'bin/start-ray',
    ],
    install_requires=[
        'ray',

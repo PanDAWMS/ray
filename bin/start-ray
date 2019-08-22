@@ -1,0 +1,8 @@
+#!/bin/bash
+
+HOST_IP=$1
+PASSWORD=$2
+
+ray start --redis-address ${HOST_IP}:6379 --redis-password $PASSWORD
+
+sleep 36000
