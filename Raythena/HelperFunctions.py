@@ -1,4 +1,5 @@
 import os
+import stat
 
 def getParameter(config, options, parameter):
     configPar = getattr(config, parameter)
@@ -28,15 +29,28 @@ def getUniqueDir(path):
         outPath = path + "_%s" % n
     return outPath
 
-def getSetupCommand(asetup, extra_setup_commands, run_dir):
-    command = """mkdir -p %s; \
-                    cd %s; \
-                    source /cvmfs/atlas.cern.ch/repo/ATLASLocalRootBase/user/atlasLocalSetup.sh; \
-                    asetup %s; \
-                    echo "asetup done!"; \
-                    """ % (run_dir, run_dir, asetup)
+def get_setup_command(asetup, extra_setup_commands, run_dir):
+    command = """cd %s; \
+                 source /global/project/projectdirs/atlas/scripts/setupATLAS.sh; \
+                 setupATLAS; \
+                 asetup %s; \
+                 echo "asetup done!";""" % (run_dir, asetup)
     
     for c in extra_setup_commands:
         command += """%s;
         """ % c
     return command
+
+def make_run_dir_and_script(run_dir, command, script_name):
+    # make the run directory
+    if not os.path.exists(run_dir):
+        os.makedirs(run_dir)
+
+    # make a shell script with the command
+    run_script = os.path.join(run_dir, script_name)
+    with open(run_script, 'w+') as f:
+        f.write(command)
+    st = os.stat(run_script)
+    os.chmod(run_script, st.st_mode | stat.S_IEXEC)
+    return run_script
+

@@ -8,7 +8,8 @@ import collections
 import ray
 import yampl
 
-from Raythena.HelperFunctions import getSetupCommand
+from Raythena.HelperFunctions import get_setup_command
+from Raythena.HelperFunctions import make_run_dir_and_script
 
 
 class Driver(object):
@@ -247,23 +248,23 @@ class Driver(object):
 @ray.remote
 def mergeJob(asetup, extra_setup_commands, run_dir, datasets, outfile, outDir):
     folder_name = outfile
+    run_dir_merge = os.path.join(run_dir, folder_name)
 
     out = os.path.join(outDir, outfile)
     inDS = ",".join(datasets)
 
-    command = getSetupCommand(
-        asetup, extra_setup_commands, os.path.join(run_dir, folder_name))
+    command = get_setup_command(
+        asetup, extra_setup_commands, run_dir_merge)
     command += "mkdir -p %s;" % outDir
     command += """HITSMerge_tf.py \
         '--inputHITSFile' '%s' \
         '--outputHITS_MRGFile' '%s' \
         2>&1 > log.mergeJob""" % (inDS, out)
 
-    # launch merge job and wait
-    print ("start merge job with output %s for datasets %s" % (
-        out, inDS))
+    script_path = make_run_dir_and_script(run_dir_merge, command, 'merge_job.sh')
+    print(script_path)
 
-    p = Popen(command, shell=True, stdin=PIPE,
+    p = Popen("shifter %s" % script_path, shell=True, stdin=PIPE,
               stdout=PIPE, stderr=PIPE)
 
     p.communicate()
@@ -302,10 +303,13 @@ class AthenaMP(object):
         self.results = []
 
         # Generate the Bash command for launching AthenaMP
-        self.makeAthenaMPCommand()
+        command = self.makeAthenaMPCommand()
+        run_dir = "%s/%s/" % (self.run_dir, self.name)
+        script_path = make_run_dir_and_script(run_dir, command, 'athena_mp.sh')
+        print(script_path)
 
         # Launch AthenaMP and continue
-        p = Popen(self.command, shell=True, stdin=None,
+        p = Popen("shifter %s" % script_path, shell=True, stdin=None,
                   stdout=None, stderr=None, close_fds=True)
 
         # Create a yampl server object
@@ -360,7 +364,7 @@ class AthenaMP(object):
 
     def makeAthenaMPCommand(self):
         run_dir = "%s/%s/" % (self.run_dir, self.name)
-        command = getSetupCommand(
+        command = get_setup_command(
             self.asetup, self.extra_setup_commands, run_dir)
 
         preExec_YamplConfig = """'from AthenaMP.AthenaMPFlags import jobproperties as jps; \
@@ -385,11 +389,11 @@ class AthenaMP(object):
             '--eventService=True' \
             '--multiprocess' \
             '--preExec' %s %s \
-            2>&1 > /dev/null """ % (self.num_cores,
-                                    os.path.basename(self.proxy_evnt_file),
-                                    self.geometry_version,
-                                    self.physics_list,
-                                    self.conditions_tag,
-                                    extra_pre_exec, preExec_YamplConfig)
+            2>&1 > log.AthenaMP""" % (self.num_cores,
+                                      os.path.basename(self.proxy_evnt_file),
+                                      self.geometry_version,
+                                      self.physics_list,
+                                      self.conditions_tag,
+                                      extra_pre_exec, preExec_YamplConfig)
 
-        self.command = command
+        return command
