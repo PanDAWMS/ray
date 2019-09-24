@@ -5,7 +5,7 @@ max_retries: 3
 number_of_actors: 2
 extra_nodes: 0
 max_ranges: 100
-asetup: Athena,master,latest,slc6
+asetup: Athena,master,latest
 geometry_version: ATLAS-R2-2016-01-00-00_VALIDATION
 physics_list: QGSP_BERT
 conditions_tag: OFLCOND-MC12-SIM-00

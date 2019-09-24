@@ -264,7 +264,7 @@ def mergeJob(asetup, extra_setup_commands, run_dir, datasets, outfile, outDir):
     script_path = make_run_dir_and_script(run_dir_merge, command, 'merge_job.sh')
     print(script_path)
 
-    p = Popen("shifter %s" % script_path, shell=True, stdin=PIPE,
+    p = Popen("%s" % script_path, shell=True, stdin=PIPE,
               stdout=PIPE, stderr=PIPE)
 
     p.communicate()
@@ -309,7 +309,7 @@ class AthenaMP(object):
         print(script_path)
 
         # Launch AthenaMP and continue
-        p = Popen("shifter %s" % script_path, shell=True, stdin=None,
+        p = Popen("%s" % script_path, shell=True, stdin=None,
                   stdout=None, stderr=None, close_fds=True)
 
         # Create a yampl server object
