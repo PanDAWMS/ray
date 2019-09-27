@@ -1,7 +1,7 @@
 import os
 import re
 
-from subprocess import *
+from subprocess import PIPE, Popen
 from time import sleep, strftime
 import collections
 
@@ -123,7 +123,7 @@ class Driver(object):
             self.process(ready_ids)
 
             # progress tracking
-            print ("%s / %s" % (self.processedRanges, self.numRanges))
+            print("%s / %s" % (self.processedRanges, self.numRanges))
 
             # exit contidion
             if self.processedRanges == self.numRanges:
@@ -147,13 +147,13 @@ class Driver(object):
             self.readyActors += [self[athena]]
 
             # process the result
-            if result == None:
+            if result is None:
                 self.submitNextRange(athena)
             else:
                 self.appendResult(result)
 
             # remote merge tasks
-            if len(self.results)*self.eventsPerRange >= self.merge_event_size:
+            if len(self.results) * self.eventsPerRange >= self.merge_event_size:
                 self.mergeEvents()
 
     def submitNextRange(self, athena):
@@ -174,9 +174,9 @@ class Driver(object):
 
     def mergeEvents(self):
         events = [self.results.pop().split(",")[0]
-                  for _ in range(self.merge_event_size/self.eventsPerRange)]
+                  for _ in range(self.merge_event_size / self.eventsPerRange)]
         outName = "myHITS.pool.root.Merged-%s" % (
-            (self.eventsPerRange*self.processedRanges)/self.merge_event_size)
+            (self.eventsPerRange * self.processedRanges) / self.merge_event_size)
         self.mergedDatasets += [mergeJob.remote(
             self.asetup, self.extra_setup_commands, self.run_dir, events, outName, self.merge_dir)]
 
@@ -188,14 +188,14 @@ class Driver(object):
         assert len(expression) == 1, "Error not recognised..."
         rangeID = expression[0]
         # save the ERROR message
-        if not rangeID in self.failedEventRanges.keys():
+        if rangeID not in self.failedEventRanges.keys():
             self.failedEventRanges[rangeID] = [(result)]
         else:
             self.failedEventRanges[rangeID] += [(result)]
         # do not process it again
         # if already retried a max a mount of times
         if self.numberOfRetries[rangeID] >= self.max_retries:
-            print ("Range: %s failed %s times. Will not process it." % (
+            print("Range: %s failed %s times. Will not process it." % (
                 rangeID, self.max_retries))
             # increase the processed ranges counter
             self.processedRanges += 1
@@ -210,19 +210,19 @@ class Driver(object):
         return readyActors
 
     def finalize(self):
-        print ("--- merged output ---")
+        print("--- merged output ---")
         for Output, Input in ray.get(self.mergedDatasets):
-            print Output
+            print(Output)
             for inp in sorted(Input.split(",")):
-                print ("    %s" % inp)
+                print("    %s" % inp)
 
-        print ("--- failed event ranges ---")
+        print("--- failed event ranges ---")
         for eventRange, msg in self.failedEventRanges.iteritems():
-            print ("%s %s" % (eventRange, msg))
+            print("%s %s" % (eventRange, msg))
 
-        print ("--- un-merged event ranges ---")
+        print("--- un-merged event ranges ---")
         for eventRange in self.results:
-            print (eventRange)
+            print(eventRange)
 
     def createActor(self, name, yampl_communication_channel):
         actor = AthenaMP.remote(name,
@@ -309,8 +309,8 @@ class AthenaMP(object):
         print(script_path)
 
         # Launch AthenaMP and continue
-        p = Popen("shifter %s" % script_path, shell=True, stdin=None,
-                  stdout=None, stderr=None, close_fds=True)
+        Popen("shifter %s" % script_path, shell=True, stdin=None,
+              stdout=None, stderr=None, close_fds=True)
 
         # Create a yampl server object
         self.createYamplServer()
@@ -327,40 +327,40 @@ class AthenaMP(object):
                     # no new message received
                     sleep(0.1)
                 elif buf == "AthenaMP_has_finished":
-                    print ("[%s] This should not happen: %s" % (self.name, buf))
+                    print("[%s] This should not happen: %s" % (self.name, buf))
                     return None, None
                 elif buf == "Ready for events":
-                    print ("[%s] AthenaMP is ready for an event range" % self.name)
+                    print("[%s] AthenaMP is ready for an event range" % self.name)
                     return self.name, None
                 else:
-                    print ("[%s] Received message: %s at %s" % (self.name, buf, strftime("%H:%M:%S")))
+                    print("[%s] Received message: %s at %s" % (self.name, buf, strftime("%H:%M:%S")))
                     return self.name, buf
 
-            except Exception, e:
+            except Exception as e:
                 # this has never happened so far...
-                print ("Caught exception: %s" % e)
+                print("Caught exception: %s" % e)
                 sleep(1)
 
     def submitRange(self, eventRange):
         self.sendYamplMessage(eventRange)
 
     def terminateAthenaMP(self):
-        print ("Closing AthenaMP... %s" % self.name)
+        print("Closing AthenaMP... %s" % self.name)
         self.sendYamplMessage("No more events")
 
     def sendYamplMessage(self, message):
         self.yampl_server.send_raw(message)
-        print ("Sent %s" % message)
+        print("Sent %s" % message)
 
     def createYamplServer(self):
         # Create the server socket
         try:
             self.yampl_server = yampl.ServerSocket(
                 self.yampl_communication_channel, "local")
-        except Exception, e:
-            print ("Could not create Yampl server socket: %s" % e)
+        except Exception as e:
+            print("Could not create Yampl server socket: %s" % e)
         else:
-            print ("Created a Yampl server socket")
+            print("Created a Yampl server socket")
 
     def makeAthenaMPCommand(self):
         run_dir = "%s/%s/" % (self.run_dir, self.name)

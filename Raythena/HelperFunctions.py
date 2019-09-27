@@ -1,10 +1,11 @@
 import os
 import stat
 
+
 def getParameter(config, options, parameter):
     configPar = getattr(config, parameter)
     optionsPar = getattr(options, parameter)
-    print ("%s %s %s" % (parameter, configPar, optionsPar))
+    print("%s %s %s" % (parameter, configPar, optionsPar))
 
     # convert to int if necessary
     if optionsPar:
@@ -21,6 +22,7 @@ def getParameter(config, options, parameter):
     else:
         return configPar
 
+
 def getUniqueDir(path):
     n = 0
     outPath = path
@@ -29,17 +31,19 @@ def getUniqueDir(path):
         outPath = path + "_%s" % n
     return outPath
 
+
 def get_setup_command(asetup, extra_setup_commands, run_dir):
     command = """cd %s; \
                  source /global/project/projectdirs/atlas/scripts/setupATLAS.sh; \
                  setupATLAS; \
                  asetup %s; \
                  echo "asetup done!";""" % (run_dir, asetup)
-    
+
     for c in extra_setup_commands:
         command += """%s;
         """ % c
     return command
+
 
 def make_run_dir_and_script(run_dir, command, script_name):
     # make the run directory
@@ -53,4 +57,3 @@ def make_run_dir_and_script(run_dir, command, script_name):
     st = os.stat(run_script)
     os.chmod(run_script, st.st_mode | stat.S_IEXEC)
     return run_script
-
