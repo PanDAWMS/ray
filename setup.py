@@ -8,9 +8,15 @@ setup(
     packages=find_packages(),
     scripts=[
         'bin/raythena-event-service',
-        'bin/start-ray',
+        'bin/ray_start_head',
+        'bin/ray_start_worker',
+        'bin/run_raythena'
+    ],
+    data_files=[
+        ('conf', ['conf/cori.yaml'])
     ],
     install_requires=[
         'ray',
+        'psutil'
     ],
 )

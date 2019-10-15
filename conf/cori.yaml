@@ -10,8 +10,8 @@ geometry_version: ATLAS-R2-2016-01-00-00_VALIDATION
 physics_list: QGSP_BERT
 conditions_tag: OFLCOND-MC12-SIM-00
 yampl_communication_channel: EventService_EventRanges
-run_dir: /global/cscratch1/sd/mmuskinj/raythena/run
-merge_dir: /global/cscratch1/sd/mmuskinj/raythena/merge
+run_dir: /global/cscratch1/sd/esseivaj/raythena/run
+merge_dir: /global/cscratch1/sd/esseivaj/raythena/merge
 proxy_evnt_file: /global/project/projectdirs/atlas/mmuskinj/raythena/EVNT.01469903._009502.pool.root.1
 extra_setup_commands:
   - export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/project/projectdirs/atlas/sw/ldpatch

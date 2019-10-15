@@ -1,0 +1,3 @@
+#!/bin/bash
+
+ray start --block --head --redis-port=6379 --redis-password=$1
