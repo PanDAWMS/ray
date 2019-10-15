@@ -1,3 +1,5 @@
 #!/bin/bash
 
+source /cvmfs/atlas.cern.ch/repo/sw/local/setup-yampl.sh
+
 ray start --redis-address=$1:6379 --redis-password=$2 --block
