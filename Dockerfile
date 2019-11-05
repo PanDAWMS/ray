@@ -14,6 +14,7 @@ ENV LANG=en_US.utf8 \
     RAYTHENA_PILOT_VENV=pilot \
     ENTRYPOINT_BIN=${ENTRYPOINT_BIN} \
     RAYTHENA_PILOT_DIR=/opt/pilot2
+ENV RAYTHENA_CONF_DIR=${CONDA_HOME}/envs/${RAYTHENA_RAY_VENV}/conf
 
 RUN curl -o ${CONDA_INSTALLER} ${CONDA_DOWNLOAD_URL}; \
     chmod +x ${CONDA_INSTALLER}; \
@@ -29,7 +30,7 @@ COPY . ${BUILD_DIR}/
 RUN git clone https://github.com/PanDAWMS/pilot2.git ${RAYTHENA_PILOT_DIR}
 COPY entrypoint.sh ${ENTRYPOINT_BIN}
 RUN chmod +x ${ENTRYPOINT_BIN}; \
-    source ${RAYTHENA_RAYTHENA_CONDA_BIN}/activate; \
+    source ${RAYTHENA_CONDA_BIN}/activate; \
     conda activate ${RAYTHENA_RAY_VENV}; \
     source /opt/lcg/binutils/*/x86_64-*/setup.sh; \
     source /opt/lcg/gcc/*/x86_64-*/setup.sh; \
