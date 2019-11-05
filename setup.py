@@ -7,16 +7,17 @@ setup(
     author_email='MihaMuskinja@lbl.gov',
     packages=find_packages(),
     scripts=[
-        'bin/raythena-event-service',
         'bin/ray_start_head',
         'bin/ray_start_worker',
-        'bin/run_raythena'
+        'bin/raythena'
     ],
     data_files=[
         ('conf', ['conf/cori.yaml'])
     ],
     install_requires=[
         'ray',
-        'psutil'
+        'psutil',
+        'uvloop',
+        'aiohttp'
     ],
 )

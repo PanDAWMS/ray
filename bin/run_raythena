@@ -1,5 +1,0 @@
-#!/bin/bash
-
-source /cvmfs/atlas.cern.ch/repo/sw/local/setup-yampl.sh
-
-raythena-event-service --redis-address $1:6379 --redis-password $2 -c /usr/local/conf/cori.yaml -e /global/u2/m/mmuskinj/work/RayAthena/share/EventRanges10.txt --max-ranges 1000 --number-of-actors 4 --cores-per-actor 32
