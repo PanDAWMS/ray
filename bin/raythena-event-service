@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 
 """
 
@@ -114,7 +114,7 @@ if __name__ == "__main__":
     # initialize Ray
     if options.redis_address:
         # running on cluster
-        ray.init(redis_address="%s" % options.redis_address,
+        ray.init(address="%s" % options.redis_address,
                  redis_password="%s" % options.redis_password)
     else:
         # running locally

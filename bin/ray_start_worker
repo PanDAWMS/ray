@@ -1,5 +1,8 @@
 #!/bin/bash
+HEAD_IP=$1
+REDIS_PASSWORD=$2
 
-source /cvmfs/atlas.cern.ch/repo/sw/local/setup-yampl.sh
+shift
+shift
 
-ray start --redis-address=$1:6379 --redis-password=$2 --block
+ray start --address=$HEAD_IP:6379 --redis-password=$REDIS_PASSWORD --block "$@"

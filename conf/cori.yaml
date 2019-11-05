@@ -1,20 +1,13 @@
-config_name: cori
-cores_per_actor: 32
-merge_event_size: 100
-max_retries: 3
-number_of_actors: 2
-extra_nodes: 0
-max_ranges: 100
-asetup: Athena,master,latest
-geometry_version: ATLAS-R2-2016-01-00-00_VALIDATION
-physics_list: QGSP_BERT
-conditions_tag: OFLCOND-MC12-SIM-00
-yampl_communication_channel: EventService_EventRanges
-run_dir: /global/cscratch1/sd/esseivaj/raythena/run
-merge_dir: /global/cscratch1/sd/esseivaj/raythena/merge
-proxy_evnt_file: /global/project/projectdirs/atlas/mmuskinj/raythena/EVNT.01469903._009502.pool.root.1
-extra_setup_commands:
-  - export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/project/projectdirs/atlas/sw/ldpatch
-extra_pre_exec:
-  - from AthenaCommon.DetFlags import DetFlags;DetFlags.ID_setOn();DetFlags.Calo_setOff();DetFlags.Muon_setOff();DetFlags.Lucid_setOff();DetFlags.Truth_setOff()
+pilot:
+  workdir: $SCRATCH/raythena/pilot
 
+harverster:
+  endpoint: $SCRATCH/raythena/harvester
+
+resource:
+  max_actors: 0
+  merge_event_size: 100
+
+logging:
+  level: info
+  logdir: logs
