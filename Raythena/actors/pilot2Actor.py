@@ -63,12 +63,15 @@ class Pilot2Actor:
     def terminate_actor(self):
         logger.info(f"stopping actor {self.id}")
         self.pilot_process.send_signal(signal.SIGTERM)
+
+        self.communicator.stop()
+        # stop the communicator first since communicate blocks the thread. communicate() should be moved to another thread,
+        # wait for its completion using while not join() -> async_sleep()
         stdout, stderr = self.pilot_process.communicate()
         logger.info("========== Pilot stdout ==========")
         logger.info("\n" + str(stdout, encoding='utf-8'))
         logger.error("========== Pilot stderr ==========")
         logger.error("\n" + str(stderr, encoding='utf-8'))
-        self.communicator.stop()
 
     def async_sleep(self, delay):
         asyncio.get_event_loop().run_until_complete(asyncio.sleep(delay))

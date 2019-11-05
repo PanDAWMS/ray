@@ -53,20 +53,23 @@ class Actor(BaseCommunicator):
         logging.debug(f"Routing {request.method} {request.path}")
         return await self.router.route(request.path, request=request)
 
-    async def handle_getJob(self, request):
+    async def parse_qs_body(self, request):
+        body = dict()
         if request.can_read_body:
             body = await request.text()
             body = parse_qs(body)
-            logging.debug(f"Body: {body}")
+        return body
+
+    async def handle_getJob(self, request):
+        body = await self.parse_qs_body(request)
+        logging.debug(f"Body: {body}")
         logger.debug(f"Serving job {self.actor.job}")
         return web.json_response(self.actor.job)
 
     async def handle_updateJob(self, request):
-        body = str()
-        if request.can_read_body:
-            body = await request.json()
-            logging.debug(f"Body: {body}")
-        return body
+        body = await self.parse_qs_body(request)
+        logging.debug(f"Body: {body}")
+        return web.json_response(body)
 
     async def handle_updateJobsInBulk(self, request):
         raise NotImplementedError(f"{request.path} handler not implemented")
