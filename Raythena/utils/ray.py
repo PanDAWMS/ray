@@ -4,6 +4,20 @@ import ray
 logger = logging.getLogger(__name__)
 
 
+def build_nodes_resource_list(config, run_actor_on_head=False):
+    nodes = ray.nodes()
+    if len(nodes) == 1:  # only a head node
+        run_actor_on_head = True
+    head_ip = config.ray_head_ip
+    resource_list = set()
+    for node in nodes:
+        naddr = node['NodeManagerAddress']
+        if not run_actor_on_head and naddr == head_ip:
+            continue
+        resource_list.add(f"node:{naddr}")
+    return resource_list
+
+
 def is_external_cluster(config):
     return config.ray_head_ip is not None and config.ray_redis_port is not None
 
