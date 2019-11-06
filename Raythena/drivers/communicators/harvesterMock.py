@@ -1,5 +1,6 @@
 import time
 import hashlib
+import os
 from .baseCommunicator import BaseCommunicator
 
 
@@ -12,11 +13,15 @@ class HarvesterMock(BaseCommunicator):
     def get_event_ranges(self, evnt_request):
 
         if self.event_ranges is None:
-            import ast
             self.event_ranges = dict()
-            for r in open('eventranges.txt').readlines():
-                evtrange = ast.literal_eval(r)[0]
-                self.event_ranges[evtrange['eventRangeID']] = r
+            for i in range(10000):
+                rangeId = f"Range-{i+1:05}"
+                self.event_ranges[rangeId] = {
+                    'lastEvent': i + 1,
+                    'eventRangeID': rangeId,
+                    'startEvent': i + 1,
+                    'PFN': os.path.join(os.getcwd(), "EVNT.01469903._009502.pool.root.1"),
+                    'GUID': '9C81A8C7-FA15-D940-942B-2E40AF22C4D6'}
         return self.event_ranges
 
     def update_job(self, job_status):
@@ -34,7 +39,7 @@ class HarvesterMock(BaseCommunicator):
         hash.update(str(time.time()).encode('utf-8'))
         log_guid = hash.hexdigest()
 
-        guid = '74DFB3ED-DAA7-E011-8954-001E4F3D9CB1,74DFB3ED-DAA7-E011-8954-001E4F3D9CB1'
+        guid = '9C81A8C7-FA15-D940-942B-2E40AF22C4D6'
 
         hash.update(str(time.time()).encode('utf-8'))
         job_name = hash.hexdigest()
@@ -55,7 +60,7 @@ class HarvesterMock(BaseCommunicator):
                 u'cloud': u'US',
                 u'StatusCode': 0,
                 u'homepackage': u'Athena/22.0.6',
-                u'inFiles': u'EVNT.12458444._000048.pool.root.1,EVNT.12458444._000052.pool.root.1',
+                u'inFiles': u'EVNT.01469903._009502.pool.root.1',
                 u'processingType': u'pilot-ptest',
                 u'ddmEndPointOut': u'UTA_SWT2_DATADISK,UTA_SWT2_DATADISK',
                 u'fsize': u'118612262',
