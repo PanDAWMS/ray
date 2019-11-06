@@ -1,12 +1,12 @@
 pilot:
-  workdir: $SCRATCH/raythena/pilot
+  workdir: $SCRATCH/raythena/pilotworkdir
 
 harverster:
   endpoint: $SCRATCH/raythena/harvester
 
 resource:
-  max_actors: 0
   merge_event_size: 100
+  core_per_node: 64
 
 logging:
   level: info
