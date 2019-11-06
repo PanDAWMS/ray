@@ -49,11 +49,30 @@ class Pilot2Actor:
     def build_pilot_command(self):
         """
         """
+        cwd = os.getcwd()
+        pilot_dir = os.path.expandvars(self.config.pilot.get('workdir', cwd))
+        if not os.path.isdir(pilot_dir):
+            logger.info(f"Specified path {pilot_dir} does not exist. Using cwd {cwd}")
+            pilot_dir = cwd
+
+        subdir = f"{self.id}_{os.getpid()}"
+        pilot_process_dir = os.path.join(pilot_dir, subdir)
+        os.mkdir(pilot_process_dir)
+        input_files = self.job['inFiles'].split(",")
+        for input_file in input_files:
+            in_abs = input_file if os.path.isabs(input_file) else os.path.join(pilot_dir, input_file)
+            if os.path.isfile(in_abs):
+                basename = os.path.basename(in_abs)
+                os.symlink(in_abs, os.path.join(pilot_process_dir, basename))
+
+        os.chdir(pilot_process_dir)
+
         conda_activate = os.path.join(self.config.conda_bin, 'activate')
         cmd = str()
         if os.path.isfile(conda_activate) and self.config.pilot_venv is not None:
             cmd += f"source {conda_activate} {self.config.pilot_venv};"
         prodSourceLabel = self.job['prodSourceLabel']
+
         pilot_bin = os.path.join(self.config.pilot_dir, "pilot.py")
         # use exec to replace the shell process with python. Allows to send signal to the python process if needed
         cmd += f"exec python {pilot_bin} -q {self.panda_queue} -r {self.panda_queue} -s {self.panda_queue} " \
@@ -91,6 +110,7 @@ class Pilot2Actor:
         if not self.eventranges:
             return self.return_message(1)
         self.async_sleep(1)
-        logger.info('get_message looping')
-
+        # logger.info('get_message looping')
+        if self.pilot_process is not None and self.pilot_process.returncode is not None:
+            return self.return_message(2)
         return self.return_message(-1)
