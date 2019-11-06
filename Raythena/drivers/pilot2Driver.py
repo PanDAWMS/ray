@@ -3,6 +3,7 @@ import ray
 from Raythena.actors.pilot2Actor import Pilot2Actor
 from Raythena.drivers.communicators.harvesterMock import HarvesterMock
 from Raythena.utils.exception import BaseRaythenaException
+from Raythena.utils.ray import build_nodes_resource_list
 from .baseDriver import BaseDriver
 logger = logging.getLogger(__name__)
 
@@ -101,10 +102,15 @@ class Pilot2Driver(BaseDriver):
         """
         Create new ray actors, one per node
         """
-        nnodes = len(ray.nodes())
-        for i in range(nnodes):
-            actor_id = f"PilotActor_{i}"
-            actor = Pilot2Actor.remote(actor_id, self.bookKeeper.panda_queue, self.config)
+        nodes = build_nodes_resource_list(self.config)
+        for node_constraint in nodes:
+            actor_id = f"Actor_{node_constraint}"
+            actor_args = {
+                'actor_id': actor_id,
+                'panda_queue': self.bookKeeper.panda_queue,
+                'config': self.config
+            }
+            actor = Pilot2Actor._remote(num_cpus=self.config.resource.get('core_per_node', 64), resources={node_constraint: 1}, kwargs=actor_args)
             self.bookKeeper.register_pilot_instance(actor_id)
             self.actors[actor_id] = actor
 
@@ -121,6 +127,9 @@ class Pilot2Driver(BaseDriver):
                 elif message == 1:
                     evt_range = self.bookKeeper.request_event_ranges_for_pilot(actor_id, 20)
                     self[actor_id].receive_event_ranges.remote(evt_range)
+                elif message == 2:
+                    self[actor_id].terminate_actor.remote()
+                    continue
                 self.actors_message_queue.append(self[actor_id].get_message.remote())
             new_messages, self.actors_message_queue = ray.wait(self.actors_message_queue)
 
