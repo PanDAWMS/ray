@@ -1,8 +1,26 @@
 #!/bin/bash
-HEAD_IP=$1
-REDIS_PASSWORD=$2
 
-shift
-shift
+HEAD_IP=${1:-$RAYTHENA_RAY_HEAD_IP}
+REDIS_PASSWORD=${2:-$RAYTHENA_RAY_REDIS_PASSWORD}
+REDIS_PORT=${3:-$RAYTHENA_RAY_REDIS_PORT}
 
-ray start --address=$HEAD_IP:6379 --redis-password=$REDIS_PASSWORD --block "$@"
+function usage() {
+    echo "Usage: $0 HEAD_IP REDIS_PASSWORD REDIS_PORT [args]..."
+    echo
+    echo '  HEAD_IP, REDIS_PORT and REDIS_PASSWORD can be specified using $RAYTHENA_RAY_HEAD_IP $RAYTHENA_RAY_REDIS_PORT and $RAYTHENA_RAY_REDIS_PASSWORD'
+    echo '  [args] contains extra arguments provided to ray start'
+}
+
+if [[ $# -ge 3 ]]; then
+    shift 3
+else
+    shift $#
+fi
+
+if [[ -z "$HEAD_IP" ]] || [[ -z "$REDIS_PORT" ]]; then
+    echo 'Please specify  ray head ip, redis password and redis port'
+    usage
+    exit 1
+fi
+
+ray start --address=$HEAD_IP:$REDIS_PORT --redis-password=$REDIS_PASSWORD --block "$@"

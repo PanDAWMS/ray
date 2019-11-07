@@ -1,7 +1,25 @@
 #!/bin/bash
 
-REDIS_PASSWORD=$1
+REDIS_PASSWORD=${1:-$RAYTHENA_RAY_REDIS_PASSWORD}
+REDIS_PORT=${2:-$RAYTHENA_RAY_REDIS_PORT}
 
-shift
+function usage() {
+    echo "Usage: $0 REDIS_PASSWORD REDIS_PORT [args]..."
+    echo
+    echo '  REDIS_PORT and REDIS_PASSWORD can be specified using $RAYTHENA_RAY_REDIS_PORT and $RAYTHENA_RAY_REDIS_PASSWORD'
+    echo '  [args] contains extra arguments provided to ray start'
+}
 
-ray start --block --head --redis-port=6379 --redis-password=$REDIS_PASSWORD "$@"
+if [[ $# -ge 2 ]]; then
+    shift 2
+else
+    shift $#
+fi
+
+if [[ -z "$REDIS_PORT" ]] || [[ -z "$REDIS_PASSWORD" ]]; then
+    echo 'Please specify redis port and redis password'
+    usage
+    exit 1
+fi
+
+ray start --block --head --redis-port=$REDIS_PORT --redis-password=$REDIS_PASSWORD "$@"
