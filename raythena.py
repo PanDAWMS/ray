@@ -26,6 +26,7 @@ from Raythena.utils.importUtils import import_from_string
 )
 @click.option(
     '--config',
+    required=True,
     help='Raythena configuration file.'
 )
 @click.option(
@@ -47,17 +48,15 @@ from Raythena.utils.importUtils import import_from_string
 )
 @click.option(
     '--ray-driver',
-    type=click.Choice(['pilot2Driver:Pilot2Driver'], case_sensitive=False),
-    default='pilot2Driver:Pilot2Driver',
     help='Ray driver to start as <moduleName>:<ClassName>. The module should be placed in Raythena.drivers'
 )
 def cli(*args, **kwargs):
 
-    config = Config(*args, **kwargs)
+    config = Config(kwargs['config'], *args, **kwargs)
 
     setup_ray(config)
 
-    driver_class = import_from_string(f"Raythena.drivers.{config.ray_driver}")
+    driver_class = import_from_string(f"Raythena.drivers.{config.ray['driver']}")
     driver = driver_class(config)
 
     signal.signal(signal.SIGINT, functools.partial(cleanup, config, driver))

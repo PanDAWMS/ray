@@ -4,7 +4,9 @@ from Raythena.actors.loggingActor import LoggingActor
 from Raythena.drivers.communicators.harvesterMock import HarvesterMock
 from Raythena.utils.exception import BaseRaythenaException
 from Raythena.utils.ray import build_nodes_resource_list, get_node_ip
+from Raythena.utils.importUtils import import_from_string
 from .baseDriver import BaseDriver
+import psutil
 
 
 class BookKeeper:
@@ -24,7 +26,8 @@ class BookKeeper:
 
     def __init__(self, config):
         self.config = config
-        self.communicator = HarvesterMock(config)
+        self.communicator_class = import_from_string(f"Raythena.drivers.communicators.{self.config.harvester['communicator']}")
+        self.communicator = self.communicator_class(config)
         self.panda_queue = self.communicator.get_panda_queue_name()
         self.pilots = dict()
 
@@ -115,7 +118,7 @@ class Pilot2Driver(BaseDriver):
                 'config': self.config,
                 'logging_actor': self.logging_actor
             }
-            actor = Pilot2Actor._remote(num_cpus=self.config.resource.get('core_per_node', 64), resources={node_constraint: 1}, kwargs=actor_args)
+            actor = Pilot2Actor._remote(num_cpus=self.config.resources.get('corepernode', psutil.cpu_count()), resources={node_constraint: 1}, kwargs=actor_args)
             self.bookKeeper.register_pilot_instance(actor_id)
             self.actors[actor_id] = actor
 

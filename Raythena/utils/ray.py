@@ -5,7 +5,7 @@ def build_nodes_resource_list(config, run_actor_on_head=False):
     nodes = ray.nodes()
     if len(nodes) == 1:  # only a head node
         run_actor_on_head = True
-    head_ip = config.ray_head_ip
+    head_ip = config.ray['headip']
     resource_list = set()
     for node in nodes:
         naddr = node['NodeManagerAddress']
@@ -16,14 +16,14 @@ def build_nodes_resource_list(config, run_actor_on_head=False):
 
 
 def is_external_cluster(config):
-    return config.ray_head_ip is not None and config.ray_redis_port is not None
+    return config.ray['headip'] is not None and config.ray['redisport'] is not None
 
 
 def setup_ray(config):
     if is_external_cluster(config):
-        ray_url = f"{config.ray_head_ip}:{config.ray_redis_port}"
+        ray_url = f"{config.ray['headip']}:{config.ray['redisport']}"
         ray.init(address=ray_url,
-                 redis_password=config.ray_redis_password)
+                 redis_password=config.ray['redispassword'])
     else:
         ray.init()
 

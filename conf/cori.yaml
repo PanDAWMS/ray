@@ -1,12 +1,24 @@
 pilot:
   workdir: $SCRATCH/raythena/pilotworkdir
+  communicator: pilot2_http:Pilot2HttpCommunicator
+  virtualenv: pilot2
+  bindir:
 
-harverster:
+harvester:
   endpoint: $SCRATCH/raythena/harvester
+  communicator: harvesterMock:HarvesterMock
+  harvesterconf:
 
-resource:
-  merge_event_size: 100
-  core_per_node: 64
+ray:
+  headip:
+  redisport:
+  redispassword:
+  virtualenv: raythena
+  driver: pilot2Driver:Pilot2Driver
+
+resources:
+  corepernode: 64
+  condabindir:
 
 logging:
   level: info

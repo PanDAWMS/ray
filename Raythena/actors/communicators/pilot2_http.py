@@ -19,7 +19,7 @@ class AsyncRouter:
         return await self.routes[endpoint](*args, **kwargs)
 
 
-class Actor(BaseCommunicator):
+class Pilot2HttpCommunicator(BaseCommunicator):
 
     def __init__(self, actor, config):
         super().__init__(actor, config)

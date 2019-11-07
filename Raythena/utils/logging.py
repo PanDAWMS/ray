@@ -5,7 +5,7 @@ import sys
 
 def configure_logger(config, file_logging=True):
 
-    if config.debug:
+    if config.logging['level'].lower() == 'debug':
         log_level = logging.DEBUG
     else:
         log_level = config.logging['level'].upper()

@@ -64,7 +64,7 @@ def cli(*args, **kwargs):
 
     setup_ray(config)
 
-    driver_class = import_from_string(f"Raythena.drivers.{config.ray_driver}")
+    driver_class = import_from_string(f"Raythena.drivers.{config.ray['driver']}")
     driver = driver_class(config)
 
     signal.signal(signal.SIGINT, functools.partial(cleanup, config, driver))

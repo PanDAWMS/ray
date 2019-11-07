@@ -16,7 +16,7 @@ class Pilot2Actor:
         self.logging_actor = logging_actor
         self.job = None
         self.eventranges = list()
-        communicator = "pilot2_http:Actor"
+        communicator = self.config.pilot['communicator']
         self.communicator_class = import_from_string(f"Raythena.actors.communicators.{communicator}")
         self.node_ip = get_node_ip()
         self.pilot_process = None
@@ -63,13 +63,14 @@ class Pilot2Actor:
 
         os.chdir(pilot_process_dir)
 
-        conda_activate = os.path.join(self.config.conda_bin, 'activate')
+        conda_activate = os.path.join(self.config.resources['condabindir'], 'activate')
         cmd = str()
-        if os.path.isfile(conda_activate) and self.config.pilot_venv is not None:
-            cmd += f"source {conda_activate} {self.config.pilot_venv};"
+        pilot_venv = self.config.pilot['virtualenv']
+        if os.path.isfile(conda_activate) and pilot_venv is not None:
+            cmd += f"source {conda_activate} {pilot_venv};"
         prodSourceLabel = self.job['prodSourceLabel']
 
-        pilot_bin = os.path.join(self.config.pilot_dir, "pilot.py")
+        pilot_bin = os.path.join(self.config.pilot['bindir'], "pilot.py")
         # use exec to replace the shell process with python. Allows to send signal to the python process if needed
         cmd += f"exec python {pilot_bin} -q {self.panda_queue} -r {self.panda_queue} -s {self.panda_queue} " \
                f"-i PR -j {prodSourceLabel} --pilot-user=ATLAS -t -w generic --url=http://127.0.0.1 " \
@@ -85,7 +86,7 @@ class Pilot2Actor:
         self.logging_actor.debug.remote(self.id, f"Pilot2 return code: {pexit}")
         if pexit is None:
             self.pilot_process.terminate()
-
+        
         stdout, stderr = self.asyncio_run_coroutine(self.pilot_process.communicate)
         #self.logging_actor.info.remote(self.id, "========== Pilot stdout ==========")
         #self.logging_actor.info.remote(self.id, "\n" + str(stdout, encoding='utf-8'))
