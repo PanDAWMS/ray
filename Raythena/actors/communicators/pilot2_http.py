@@ -1,11 +1,8 @@
-import logging
 from aiohttp import web
 from .baseCommunicator import BaseCommunicator
 from urllib.parse import parse_qs
 import asyncio
 import uvloop
-
-logger = logging.getLogger(__name__)
 
 
 class AsyncRouter:
@@ -50,7 +47,7 @@ class Actor(BaseCommunicator):
         return command
 
     async def http_handler(self, request: web.BaseRequest):
-        logging.debug(f"Routing {request.method} {request.path}")
+        self.actor.logging_actor.debug.remote(self.actor.id, f"Routing {request.method} {request.path}")
         return await self.router.route(request.path, request=request)
 
     async def parse_qs_body(self, request):
@@ -62,13 +59,13 @@ class Actor(BaseCommunicator):
 
     async def handle_getJob(self, request):
         body = await self.parse_qs_body(request)
-        logging.debug(f"Body: {body}")
-        logger.debug(f"Serving job {self.actor.job}")
+        self.actor.logging_actor.debug.remote(self.actor.id, f"Body: {body}")
+        self.actor.logging_actor.debug.remote(self.actor.id, f"Serving job {self.actor.job}")
         return web.json_response(self.actor.job)
 
     async def handle_updateJob(self, request):
         body = await self.parse_qs_body(request)
-        logging.debug(f"Body: {body}")
+        self.actor.logging_actor.debug.remote(self.actor.id, f"Body: {body}")
         return web.json_response(body)
 
     async def handle_updateJobsInBulk(self, request):
@@ -92,13 +89,13 @@ class Actor(BaseCommunicator):
         await runner.setup()
         self.site = web.TCPSite(runner, self.host, self.port)
         await self.site.start()
-        logging.debug(f"======= Serving on http://{self.host}:{self.port}/ ======")
+        self.actor.logging_actor.debug.remote(self.actor.id, f"======= Serving on http://{self.host}:{self.port}/ ======")
         return self.site
 
     async def stop_server(self):
         self.should_stop = True
         if self.site:
-            logging.debug(f"======= Stopped http://{self.host}:{self.port}/ ======")
+            self.actor.logging_actor.debug.remote(self.actor.id, f"======= Stopped http://{self.host}:{self.port}/ ======")
             await self.site.stop()
 
     async def serve(self, block: bool = True):

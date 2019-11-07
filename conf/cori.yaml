@@ -10,4 +10,4 @@ resource:
 
 logging:
   level: info
-  logdir: logs
+  logfile: raythena.log

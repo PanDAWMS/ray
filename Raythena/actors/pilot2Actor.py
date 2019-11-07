@@ -1,46 +1,42 @@
 import ray
-import logging
 import os
 import asyncio
 from asyncio.subprocess import PIPE, create_subprocess_shell
 from Raythena.utils.ray import get_node_ip
-from Raythena.utils.logging import configure_logger
 from Raythena.utils.importUtils import import_from_string
-
-logger = logging.getLogger(__name__)
 
 
 @ray.remote
 class Pilot2Actor:
 
-    def __init__(self, actor_id, panda_queue, config):
+    def __init__(self, actor_id, panda_queue, config, logging_actor):
         self.id = actor_id
         self.config = config
         self.panda_queue = panda_queue
+        self.logging_actor = logging_actor
         self.job = None
         self.eventranges = list()
-        configure_logger(config)
         communicator = "pilot2_http:Actor"
         self.communicator_class = import_from_string(f"Raythena.actors.communicators.{communicator}")
         self.node_ip = get_node_ip()
         self.pilot_process = None
         self.communicator = self.communicator_class(self, self.config)
         self.communicator.start()
-        logging.info(f"(Worker {self.node_ip}) : Ray worker started")
+        self.logging_actor.info.remote(self.id, "Ray worker started")
 
     def receive_job(self, job):
         self.job = job[0]
-        logger.info(f"(Worker {self.node_ip}) : Received job {self.job}")
+        self.logging_actor.debug.remote(self.id, f"Received job {self.job}")
         command = self.build_pilot_command()
         command = self.communicator.fix_command(command)
-        logger.info(f"Final payload command: {command}")
+        self.logging_actor.info.remote(self.id, f"Final payload command: {command}")
         self.pilot_process = self.asyncio_run_coroutine(create_subprocess_shell, command, stdout=PIPE, stderr=PIPE, executable='/bin/bash')
-        logger.info(f"Started subprocess {self.pilot_process.pid}")
+        self.logging_actor.info.remote(self.id, f"Started subprocess {self.pilot_process.pid}")
         return self.return_message('received_job')
 
     def receive_event_ranges(self, eventranges):
         self.eventranges.append(eventranges)
-        logger.info(f"(Worker {self.node_ip}) : Received eventRanges {eventranges}")
+        self.logging_actor.debug.remote(self.id, f"Received eventRanges {eventranges}")
         return self.return_message('received_event_range')
 
     def asyncio_run_coroutine(self, coroutine, *args, **kwargs):
@@ -52,7 +48,7 @@ class Pilot2Actor:
         cwd = os.getcwd()
         pilot_dir = os.path.expandvars(self.config.pilot.get('workdir', cwd))
         if not os.path.isdir(pilot_dir):
-            logger.info(f"Specified path {pilot_dir} does not exist. Using cwd {cwd}")
+            self.logging_actor.warn.remote(self.id, f"Specified path {pilot_dir} does not exist. Using cwd {cwd}")
             pilot_dir = cwd
 
         subdir = f"{self.id}_{os.getpid()}"
@@ -84,17 +80,17 @@ class Pilot2Actor:
         return self.id, message
 
     def terminate_actor(self):
-        logger.info(f"stopping actor {self.id}")
+        self.logging_actor.info.remote(self.id, f"stopping actor")
         pexit = self.pilot_process.returncode
-        logger.debug(f"Pilot2 return code: {pexit}")
+        self.logging_actor.debug.remote(self.id, f"Pilot2 return code: {pexit}")
         if pexit is None:
             self.pilot_process.terminate()
 
         stdout, stderr = self.asyncio_run_coroutine(self.pilot_process.communicate)
-        logger.info("========== Pilot stdout ==========")
-        logger.info("\n" + str(stdout, encoding='utf-8'))
-        logger.error("========== Pilot stderr ==========")
-        logger.error("\n" + str(stderr, encoding='utf-8'))
+        #self.logging_actor.info.remote(self.id, "========== Pilot stdout ==========")
+        #self.logging_actor.info.remote(self.id, "\n" + str(stdout, encoding='utf-8'))
+        #self.logging_actor.error.remote(self.id, "========== Pilot stderr ==========")
+        #self.logging_actor.error.remote(self.id, "\n" + str(stderr, encoding='utf-8'))
         self.communicator.stop()
 
     def async_sleep(self, delay):
@@ -110,7 +106,7 @@ class Pilot2Actor:
         if not self.eventranges:
             return self.return_message(1)
         self.async_sleep(1)
-        # logger.info('get_message looping')
+        # self.logging_actor.info.remote(self.id, 'get_message looping')
         if self.pilot_process is not None and self.pilot_process.returncode is not None:
             return self.return_message(2)
         return self.return_message(-1)

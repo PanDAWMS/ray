@@ -1,15 +1,10 @@
 import click
-import logging
-import importlib
 import signal
 import functools
 
 from Raythena.utils.ray import setup_ray, shutdown_ray
 from Raythena.utils.config import Config
-from Raythena.utils.logging import configure_logger
 from Raythena.utils.importUtils import import_from_string
-
-logger = logging.getLogger(__name__)
 
 
 @click.command()
@@ -59,8 +54,6 @@ logger = logging.getLogger(__name__)
 def cli(*args, **kwargs):
 
     config = Config(*args, **kwargs)
-    configure_logger(config)
-    logger.debug(f"Created config {config}")
 
     setup_ray(config)
 
@@ -81,7 +74,6 @@ def cli(*args, **kwargs):
 
 
 def cleanup(config, driver, signum, frame):
-    logger.critical(f"Caught signal {signum} at frame {frame}")
     driver.stop()
 
 

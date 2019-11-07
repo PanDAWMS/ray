@@ -1,11 +1,10 @@
-import logging
 import ray
 from Raythena.actors.pilot2Actor import Pilot2Actor
+from Raythena.actors.loggingActor import LoggingActor
 from Raythena.drivers.communicators.harvesterMock import HarvesterMock
 from Raythena.utils.exception import BaseRaythenaException
-from Raythena.utils.ray import build_nodes_resource_list
+from Raythena.utils.ray import build_nodes_resource_list, get_node_ip
 from .baseDriver import BaseDriver
-logger = logging.getLogger(__name__)
 
 
 class BookKeeper:
@@ -82,11 +81,16 @@ class Pilot2Driver(BaseDriver):
 
     def __init__(self, config):
         super().__init__(config)
+        self.id = f"Driver_node:{get_node_ip()}"
+        self.logging_actor = LoggingActor.remote(self.config)
         self.actors = dict()
         self.actors_message_queue = list()
         self.bookKeeper = BookKeeper(config)
         self.create_actors()
         self.running = True
+
+    def __str__(self):
+        return self.__dict__.__str__()
 
     def __getitem__(self, key):
         return self.actors[key]
@@ -108,7 +112,8 @@ class Pilot2Driver(BaseDriver):
             actor_args = {
                 'actor_id': actor_id,
                 'panda_queue': self.bookKeeper.panda_queue,
-                'config': self.config
+                'config': self.config,
+                'logging_actor': self.logging_actor
             }
             actor = Pilot2Actor._remote(num_cpus=self.config.resource.get('core_per_node', 64), resources={node_constraint: 1}, kwargs=actor_args)
             self.bookKeeper.register_pilot_instance(actor_id)
@@ -120,7 +125,7 @@ class Pilot2Driver(BaseDriver):
 
         while new_messages and self.running:
             for actor_id, message in ray.get(new_messages):
-                logger.debug(f"got {message} from actor {actor_id}")
+                self.logging_actor.debug.remote(self.id, f"got {message} from actor {actor_id}")
                 if message == 0:
                     job = self.bookKeeper.request_job_for_pilot(actor_id)
                     self[actor_id].receive_job.remote(job)
@@ -140,7 +145,7 @@ class Pilot2Driver(BaseDriver):
         ray.get(handles)
 
     def run(self):
-        logging.info(f"Started driver {self}")
+        self.logging_actor.info.remote(self.id, f"Started driver {self}")
         self.start_actors()
 
         self.handle_actors()
@@ -148,5 +153,5 @@ class Pilot2Driver(BaseDriver):
         self.cleanup()
 
     def stop(self):
-        logger.info("Graceful shutdown...")
+        self.logging_actor.info.remote(self.id, "Graceful shutdown...")
         self.running = False
