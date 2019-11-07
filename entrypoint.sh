@@ -1,7 +1,7 @@
 #!/bin/bash
 
 function help() {
-    echo "Usage: $0 PROGNAME <args...>"
+    echo "Usage: $0 PROGNAME [args]..."
     echo
     echo "  Runs PROGNAME with specified arguments after activating ray virtualenv and atlas setup"   
 }
