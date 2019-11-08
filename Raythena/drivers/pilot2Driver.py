@@ -88,7 +88,7 @@ class BookKeeper:
                     return available_ranges
 
             nranges = min(len(available_ranges), nranges)
-            new_ranges[pandaId], self.event_ranges_available[pandaId] = available_ranges[:nranges], available_ranges[(nranges + 1):]
+            new_ranges[pandaId], self.event_ranges_available[pandaId] = available_ranges[:nranges], available_ranges[nranges:]
         return new_ranges
 
 

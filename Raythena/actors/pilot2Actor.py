@@ -26,6 +26,16 @@ class Pilot2Actor:
         self.logging_actor.info.remote(self.id, "Ray worker started")
         self.request_sent = False
 
+        cwd = os.getcwd()
+        self.pilot_dir = os.path.expandvars(self.config.pilot.get('workdir', cwd))
+        if not os.path.isdir(self.pilot_dir):
+            self.logging_actor.warn.remote(self.id, f"Specified path {self.pilot_dir} does not exist. Using cwd {cwd}")
+            self.pilot_dir = cwd
+
+        subdir = f"{self.id}_{os.getpid()}"
+        self.pilot_process_dir = os.path.join(self.pilot_dir, subdir)
+        os.mkdir(self.pilot_process_dir)
+
     def receive_job(self, job):
         self.request_sent = False
         self.job = job[0]
@@ -56,7 +66,7 @@ class Pilot2Actor:
             if not ranges:
                 return list()
             nranges = min(len(ranges), int(pandaId_request['nRanges']))
-            res, self.eventranges[pandaId] = ranges[:nranges], ranges[(nranges + 1):]
+            res, self.eventranges[pandaId] = ranges[:nranges], ranges[(nranges):]
             self.logging_actor.info.remote(self.id, f"Served {nranges} eventranges. Remaining on {len(self.eventranges[pandaId])}")
             return res
 
@@ -66,23 +76,16 @@ class Pilot2Actor:
     def build_pilot_command(self):
         """
         """
-        cwd = os.getcwd()
-        pilot_dir = os.path.expandvars(self.config.pilot.get('workdir', cwd))
-        if not os.path.isdir(pilot_dir):
-            self.logging_actor.warn.remote(self.id, f"Specified path {pilot_dir} does not exist. Using cwd {cwd}")
-            pilot_dir = cwd
 
-        subdir = f"{self.id}_{os.getpid()}"
-        pilot_process_dir = os.path.join(pilot_dir, subdir)
-        os.mkdir(pilot_process_dir)
         input_files = self.job['inFiles'].split(",")
         for input_file in input_files:
-            in_abs = input_file if os.path.isabs(input_file) else os.path.join(pilot_dir, input_file)
+            in_abs = input_file if os.path.isabs(input_file) else os.path.join(self.pilot_dir, input_file)
             if os.path.isfile(in_abs):
                 basename = os.path.basename(in_abs)
-                os.symlink(in_abs, os.path.join(pilot_process_dir, basename))
+                staged_file = os.path.join(self.pilot_process_dir, basename)
+                os.symlink(in_abs, staged_file)
 
-        os.chdir(pilot_process_dir)
+        os.chdir(self.pilot_process_dir)
 
         conda_activate = os.path.join(self.config.resources['condabindir'], 'activate')
         cmd = str()
@@ -122,7 +125,7 @@ class Pilot2Actor:
         if not self.eventranges:
             return True
         for ranges in self.eventranges.values():
-            if len(ranges) < self.config.resources['corepernode']:
+            if len(ranges) < self.config.resources['corepernode'] * 2:
                 return True
         return False
 
@@ -139,7 +142,7 @@ class Pilot2Actor:
         elif self.should_request_ranges():
             req = EventRangeRequest()
             req.add_event_request(self.job['PandaID'],
-                                  self.config.resources['corepernode'] * 2,
+                                  self.config.resources['corepernode'] * 4,
                                   self.job['taskID'],
                                   self.job['jobsetID'])
             self.request_sent = True

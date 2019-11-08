@@ -1,6 +1,16 @@
 import json
 
 
+class ESEncoder(json.JSONEncoder):
+
+    def default(self, o):
+        if isinstance(o, EventRange):
+            return o.to_dict()
+        if isinstance(o, EventRangeRequest):
+            return o.request
+        return super().default(o)
+
+
 class EventRangeRequest:
 
     def __init__(self):
@@ -33,18 +43,11 @@ class EventRange:
     DONE = 2
     STATES = [READY, ASSIGNED, DONE]
 
-    class Encoder(json.JSONEncoder):
-
-        def default(self, o):
-            if isinstance(o, EventRange):
-                return o.to_json_string()
-            return super().default(o)
-
-    def __init__(self, eventRangeID, startEvent, lastEvent, LFN, GUID, scope):
+    def __init__(self, eventRangeID, startEvent, lastEvent, PFN, GUID, scope):
         self.lastEvent = lastEvent
         self.eventRangeID = eventRangeID
         self.startEvent = startEvent
-        self.LFN = LFN
+        self.PFN = PFN
         self.GUID = GUID
         self.scope = scope
         self.status = EventRange.READY
@@ -56,12 +59,16 @@ class EventRange:
         self.status = EventRange.DONE
 
     def __str__(self):
-        return self.to_json_string()
+        return json.dumps(self.to_dict())
 
-    def to_json_string(self):
-        cp = self.__dict__.copy()
-        cp.pop('status')
-        return cp.__str__()
+    def to_dict(self):
+        return {
+            'PFN': self.PFN,
+            'lastEvent': self.lastEvent,
+            'eventRangeID': self.eventRangeID,
+            'startEvent': self.startEvent,
+            'GUID': self.GUID
+        }
 
     @staticmethod
     def build_from_json_string(eventRangeString):
@@ -72,6 +79,6 @@ class EventRange:
         return EventRange(eventRangeDict['eventRangeID'],
                           eventRangeDict['startEvent'],
                           eventRangeDict['lastEvent'],
-                          eventRangeDict['LFN'],
+                          eventRangeDict['PFN'],
                           eventRangeDict['GUID'],
                           eventRangeDict['scope'])

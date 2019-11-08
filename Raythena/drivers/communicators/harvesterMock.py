@@ -1,5 +1,6 @@
 import time
 import hashlib
+import os
 from .baseCommunicator import BaseCommunicator
 from Raythena.utils.eventservice import EventRange, EventRangeRequest
 
@@ -12,9 +13,11 @@ class HarvesterMock(BaseCommunicator):
         self.pandaId = '0'
         self.jobsetId = '0'
         self.taskId = '0'
+        self.config = config
         self.scope = 'mc15_13TeV'
         self.guid = '9C81A8C7-FA15-D940-942B-2E40AF22C4D6'
         self.inFile = "EVNT.01469903._009502.pool.root.1"
+        self.inFileAbs = os.path.expandvars(os.path.join(self.config.pilot['workdir'], self.inFile))
         self.nevents = 5000
         self.n_get_event_ranges_to_serve = 2
         self.served_events = 0
@@ -39,7 +42,7 @@ class HarvesterMock(BaseCommunicator):
                     'eventRangeID': rangeId,
                     'startEvent': i,
                     'scope': self.scope,
-                    'LFN': self.inFile,
+                    'PFN': self.inFileAbs,
                     'GUID': self.guid}))
             self.event_ranges[pandaId] = range_list
         self.served_events += self.nevents_per_request
