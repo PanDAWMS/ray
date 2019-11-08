@@ -1,10 +1,10 @@
 import ray
 from Raythena.actors.pilot2Actor import Pilot2Actor
 from Raythena.actors.loggingActor import LoggingActor
-from Raythena.drivers.communicators.harvesterMock import HarvesterMock
 from Raythena.utils.exception import BaseRaythenaException
-from Raythena.utils.ray import build_nodes_resource_list, get_node_ip
+from Raythena.utils.ray import build_nodes_resource_list, get_node_ip, cluster_size
 from Raythena.utils.importUtils import import_from_string
+from Raythena.utils.eventservice import EventRangeRequest
 from .baseDriver import BaseDriver
 import psutil
 
@@ -39,7 +39,7 @@ class BookKeeper:
 
     def request_new_job(self):
         """
-        Request new job to Harveste
+        Request new job to Harvester
         """
         job = self.communicator.get_job(dict())
         if job:
@@ -49,8 +49,12 @@ class BookKeeper:
         """
         Rquest new event ranges to harvester
         """
-        new_ranges = self.communicator.get_event_ranges(dict())
-        self.event_ranges_available.update(new_ranges)
+        new_ranges = self.communicator.get_event_ranges()
+        for pandaid, ranges in new_ranges.items():
+            if pandaid not in self.event_ranges_available.keys():
+                self.event_ranges_available[pandaid] = list()
+            pandajob_ranges = self.event_ranges_available[pandaid]
+            self.event_ranges_available[pandaid] = pandajob_ranges + ranges
 
     def register_pilot_instance(self, pilot_id):
         """
@@ -68,15 +72,23 @@ class BookKeeper:
             self.pilots[pilot_id].add_job(self.jobs[0])
             return self.jobs
 
-    def request_event_ranges_for_pilot(self, pilot_id, nranges):
+    def request_event_ranges_for_pilot(self, pilot_id, eventRangeRequest: EventRangeRequest):
         """
         Distribute event ranges to a pilot
         """
-        new_ranges = list()
-        for r in range(nranges):
-            rangeId, evtrange = self.event_ranges_available.popitem()
-            new_ranges.append(evtrange)
-            self.pilots[pilot_id].event_ranges[rangeId] = evtrange
+        new_ranges = dict()
+        for pandaId, request in eventRangeRequest.request.items():
+
+            available_ranges = self.event_ranges_available.get(pandaId, list())
+            nranges = int(request['nRanges'])
+            if not available_ranges or len(available_ranges) < nranges:
+                self.request_new_event_ranges()
+                available_ranges = self.event_ranges_available.get(pandaId, list())
+                if not available_ranges:
+                    return available_ranges
+
+            nranges = min(len(available_ranges), nranges)
+            new_ranges[pandaId], self.event_ranges_available[pandaId] = available_ranges[:nranges], available_ranges[(nranges + 1):]
         return new_ranges
 
 
@@ -127,13 +139,14 @@ class Pilot2Driver(BaseDriver):
         new_messages, self.actors_message_queue = ray.wait(self.actors_message_queue)
 
         while new_messages and self.running:
-            for actor_id, message in ray.get(new_messages):
+            for actor_id, message, data in ray.get(new_messages):
                 self.logging_actor.debug.remote(self.id, f"got {message} from actor {actor_id}")
                 if message == 0:
                     job = self.bookKeeper.request_job_for_pilot(actor_id)
                     self[actor_id].receive_job.remote(job)
                 elif message == 1:
-                    evt_range = self.bookKeeper.request_event_ranges_for_pilot(actor_id, 20)
+                    request = EventRangeRequest.build_from_json_string(data)
+                    evt_range = self.bookKeeper.request_event_ranges_for_pilot(actor_id, request)
                     self[actor_id].receive_event_ranges.remote(evt_range)
                 elif message == 2:
                     self[actor_id].terminate_actor.remote()

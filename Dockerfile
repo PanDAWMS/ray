@@ -27,7 +27,8 @@ RUN conda create -y -n${RAYTHENA_PILOT_VENV} python=2.7; \
     mkdir ${BUILD_DIR}
 
 COPY . ${BUILD_DIR}/
-RUN git clone https://github.com/PanDAWMS/pilot2.git ${RAYTHENA_PILOT_DIR}
+RUN git clone https://github.com/PanDAWMS/pilot2.git ${RAYTHENA_PILOT_DIR}; \
+    sed -i 's/^pandaserver:.*/pandaserver: http:\/\/127.0.0.1:8080/g' ${RAYTHENA_PILOT_DIR}/pilot/util/default.cfg
 COPY entrypoint.sh ${ENTRYPOINT_BIN}
 RUN chmod +x ${ENTRYPOINT_BIN}; \
     source ${RAYTHENA_CONDA_BIN}/activate; \

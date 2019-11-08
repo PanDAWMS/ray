@@ -1,8 +1,11 @@
 from aiohttp import web
 from .baseCommunicator import BaseCommunicator
 from urllib.parse import parse_qs
+from Raythena.utils.eventservice import EventRangeRequest, EventRange
 import asyncio
 import uvloop
+import functools
+import json
 
 
 class AsyncRouter:
@@ -27,6 +30,7 @@ class Pilot2HttpCommunicator(BaseCommunicator):
         self.port = 8080
         asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
         self.loop = asyncio.get_event_loop()
+        self.json_encoder = functools.partial(json.dumps, cls=EventRange.Encoder)
 
         self.router = AsyncRouter()
         self.router.register('/server/panda/getJob', self.handle_getJob)
@@ -51,6 +55,9 @@ class Pilot2HttpCommunicator(BaseCommunicator):
         return await self.router.route(request.path, request=request)
 
     async def parse_qs_body(self, request):
+        """
+        Note: each value is packed in a list
+        """
         body = dict()
         if request.can_read_body:
             body = await request.text()
@@ -75,7 +82,20 @@ class Pilot2HttpCommunicator(BaseCommunicator):
         raise NotImplementedError(f"{request.path} handler not implemented")
 
     async def handle_getEventRanges(self, request):
-        raise NotImplementedError(f"{request.path} handler not implemented")
+        body = await self.parse_qs_body(request)
+        req = EventRangeRequest()
+        self.actor.logging_actor.debug.remote(self.actor.id, f"Body: {body}")
+        req.add_event_request(body['pandaID'][0], body['nRanges'][0], body['taskID'][0], body['jobsetID'][0])
+        ranges = self.actor.get_ranges(req)
+        status_code = 0
+        if not ranges:
+            status_code = -1
+            ranges = list()
+        res = {
+            "StatusCode": status_code,
+            "eventRanges": ranges
+        }
+        return web.json_response(res, dumps=self.json_encoder)
 
     async def handle_updateEventRanges(self, request):
         raise NotImplementedError(f"{request.path} handler not implemented")

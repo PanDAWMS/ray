@@ -15,6 +15,12 @@ def build_nodes_resource_list(config, run_actor_on_head=False):
     return resource_list
 
 
+def cluster_size():
+    if not ray.is_initialized():
+        return 0
+    return len(ray.nodes())
+
+
 def is_external_cluster(config):
     return config.ray['headip'] is not None and config.ray['redisport'] is not None
 

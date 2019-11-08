@@ -17,7 +17,7 @@ ray:
   driver: pilot2Driver:Pilot2Driver
 
 resources:
-  corepernode: 64
+  corepernode: 32
   condabindir:
 
 logging:

@@ -8,7 +8,7 @@ class BaseCommunicator(ABC):
         self.config = config
 
     @abstractmethod
-    def get_event_ranges(self, evnt_request):
+    def get_event_ranges(self):
         raise NotImplementedError("Base method not implemented")
 
     @abstractmethod

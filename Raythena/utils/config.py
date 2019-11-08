@@ -66,7 +66,7 @@ class Config:
         if ray_redis_port:
             self.ray['redispassword'] = ray_redis_password
         if ray_redis_port:
-            self.ray['redisport'] = ray_redis_password
+            self.ray['redisport'] = ray_redis_port
         if ray_venv:
             self.ray['virtualenv'] = ray_venv
 

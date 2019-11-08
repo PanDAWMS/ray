@@ -3,6 +3,7 @@ import os
 import asyncio
 from asyncio.subprocess import PIPE, create_subprocess_shell
 from Raythena.utils.ray import get_node_ip
+from Raythena.utils.eventservice import EventRangeRequest
 from Raythena.utils.importUtils import import_from_string
 
 
@@ -15,7 +16,7 @@ class Pilot2Actor:
         self.panda_queue = panda_queue
         self.logging_actor = logging_actor
         self.job = None
-        self.eventranges = list()
+        self.eventranges = dict()
         communicator = self.config.pilot['communicator']
         self.communicator_class = import_from_string(f"Raythena.actors.communicators.{communicator}")
         self.node_ip = get_node_ip()
@@ -23,8 +24,10 @@ class Pilot2Actor:
         self.communicator = self.communicator_class(self, self.config)
         self.communicator.start()
         self.logging_actor.info.remote(self.id, "Ray worker started")
+        self.request_sent = False
 
     def receive_job(self, job):
+        self.request_sent = False
         self.job = job[0]
         self.logging_actor.debug.remote(self.id, f"Received job {self.job}")
         command = self.build_pilot_command()
@@ -34,10 +37,28 @@ class Pilot2Actor:
         self.logging_actor.info.remote(self.id, f"Started subprocess {self.pilot_process.pid}")
         return self.return_message('received_job')
 
-    def receive_event_ranges(self, eventranges):
-        self.eventranges.append(eventranges)
-        self.logging_actor.debug.remote(self.id, f"Received eventRanges {eventranges}")
+    def receive_event_ranges(self, eventranges_update):
+        self.request_sent = False
+        for pandaid, job_ranges in eventranges_update.items():
+            if pandaid not in self.eventranges.keys():
+                self.eventranges[pandaid] = list()
+            self.eventranges[pandaid] += job_ranges
+        self.logging_actor.debug.remote(self.id, f"Received eventRanges {eventranges_update}")
         return self.return_message('received_event_range')
+
+    def get_ranges(self, req: EventRangeRequest):
+        self.logging_actor.info.remote(self.id, f"Received  event range request from pilot: {req.to_json_string()}")
+        if len(req.request) > 1:
+            self.logging_actor.warn.remote(self.id, f"Pilot request ranges for more than one panda job. Serving only the first job")
+
+        for pandaId, pandaId_request in req.request.items():
+            ranges = self.eventranges.get(pandaId, None)
+            if not ranges:
+                return list()
+            nranges = min(len(ranges), int(pandaId_request['nRanges']))
+            res, self.eventranges[pandaId] = ranges[:nranges], ranges[(nranges + 1):]
+            self.logging_actor.info.remote(self.id, f"Served {nranges} eventranges. Remaining on {len(self.eventranges[pandaId])}")
+            return res
 
     def asyncio_run_coroutine(self, coroutine, *args, **kwargs):
         return asyncio.get_event_loop().run_until_complete(coroutine(*args, **kwargs))
@@ -67,7 +88,7 @@ class Pilot2Actor:
         cmd = str()
         pilot_venv = self.config.pilot['virtualenv']
         if os.path.isfile(conda_activate) and pilot_venv is not None:
-            cmd += f"source {conda_activate} {pilot_venv};"
+            cmd += f"source {conda_activate} {pilot_venv}; source /cvmfs/atlas.cern.ch/repo/sw/local/setup-yampl.sh;"
         prodSourceLabel = self.job['prodSourceLabel']
 
         pilot_bin = os.path.join(self.config.pilot['bindir'], "pilot.py")
@@ -77,8 +98,8 @@ class Pilot2Actor:
                f"-p 8080 -d --allow-same-user=False --resource-type MCORE;"
         return cmd
 
-    def return_message(self, message):
-        return self.id, message
+    def return_message(self, message, data=None):
+        return self.id, message, data
 
     def terminate_actor(self):
         self.logging_actor.info.remote(self.id, f"stopping actor")
@@ -86,7 +107,7 @@ class Pilot2Actor:
         self.logging_actor.debug.remote(self.id, f"Pilot2 return code: {pexit}")
         if pexit is None:
             self.pilot_process.terminate()
-        
+
         stdout, stderr = self.asyncio_run_coroutine(self.pilot_process.communicate)
         #self.logging_actor.info.remote(self.id, "========== Pilot stdout ==========")
         #self.logging_actor.info.remote(self.id, "\n" + str(stdout, encoding='utf-8'))
@@ -97,16 +118,34 @@ class Pilot2Actor:
     def async_sleep(self, delay):
         self.asyncio_run_coroutine(asyncio.sleep, delay)
 
+    def should_request_ranges(self):
+        if not self.eventranges:
+            return True
+        for ranges in self.eventranges.values():
+            if len(ranges) < self.config.resources['corepernode']:
+                return True
+        return False
+
     def get_message(self):
         """
         Return a message to the driver depending on actor state
         """
         #while True:
-        if not self.job:
+        if self.request_sent:
+            self.async_sleep(1)
+        elif not self.job:
+            self.request_sent = True
             return self.return_message(0)
-        if not self.eventranges:
-            return self.return_message(1)
-        self.async_sleep(1)
+        elif self.should_request_ranges():
+            req = EventRangeRequest()
+            req.add_event_request(self.job['PandaID'],
+                                  self.config.resources['corepernode'] * 2,
+                                  self.job['taskID'],
+                                  self.job['jobsetID'])
+            self.request_sent = True
+            return self.return_message(1, req.to_json_string())
+        else:
+            self.async_sleep(1)
         # self.logging_actor.info.remote(self.id, 'get_message looping')
         if self.pilot_process is not None and self.pilot_process.returncode is not None:
             return self.return_message(2)
