@@ -37,11 +37,13 @@ class Config:
 
         self.configpath = configpath
         # parse.config file
-        if self.configpath is not None and os.path.isfile(self.configpath):
-            with open(self.configpath) as f:
-                file_conf = yaml.safe_load(f)
-                for k, v in file_conf.items():
-                    setattr(self, k, v)
+        if not self.configpath or not os.path.isfile(self.configpath):
+            raise Exception(f"Could not find config file {self.configpath}")
+        
+        with open(self.configpath) as f:
+            file_conf = yaml.safe_load(f)
+            for k, v in file_conf.items():
+                setattr(self, k, v)
         self._validate()
         self._parse_cli_args(**kwargs)
 

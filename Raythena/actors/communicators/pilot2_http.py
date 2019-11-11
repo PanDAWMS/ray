@@ -89,7 +89,6 @@ class Pilot2HttpCommunicator(BaseCommunicator):
         ranges = self.actor.get_ranges(req)
         status_code = 0
         if not ranges:
-            status_code = -1
             ranges = list()
         res = {
             "StatusCode": status_code,
@@ -98,7 +97,9 @@ class Pilot2HttpCommunicator(BaseCommunicator):
         return web.json_response(res, dumps=self.json_encoder)
 
     async def handle_updateEventRanges(self, request):
-        raise NotImplementedError(f"{request.path} handler not implemented")
+        body = await self.parse_qs_body(request)
+        self.actor.logging_actor.info.remote(self.actor.id, f"EventRange update: {body}")
+        return web.json_response(body)
 
     async def handle_getkeyPair(self, request):
         raise NotImplementedError(f"{request.path} handler not implemented")

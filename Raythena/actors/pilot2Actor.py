@@ -25,21 +25,28 @@ class Pilot2Actor:
         self.communicator.start()
         self.logging_actor.info.remote(self.id, "Ray worker started")
         self.request_sent = False
+        self.no_more_ranges = False
 
         cwd = os.getcwd()
         self.pilot_dir = os.path.expandvars(self.config.pilot.get('workdir', cwd))
-        if not os.path.isdir(self.pilot_dir):
-            self.logging_actor.warn.remote(self.id, f"Specified path {self.pilot_dir} does not exist. Using cwd {cwd}")
-            self.pilot_dir = cwd
-
-        subdir = f"{self.id}_{os.getpid()}"
-        self.pilot_process_dir = os.path.join(self.pilot_dir, subdir)
-        os.mkdir(self.pilot_process_dir)
+        if os.path.isdir(self.pilot_dir):
+            os.chdir(self.pilot_dir)
 
     def receive_job(self, job):
         self.request_sent = False
-        self.job = job[0]
+        self.job = job
+
+        cwd = os.getcwd()
+        self.pilot_job_dir = os.path.join(self.pilot_dir, self.job['PandaID'])
+        if not os.path.isdir(self.pilot_job_dir):
+            self.logging_actor.warn.remote(self.id, f"Specified path {self.pilot_job_dir} does not exist. Using cwd {cwd}")
+
+        subdir = f"{self.id}_{os.getpid()}"
+        self.pilot_process_dir = os.path.join(self.pilot_job_dir, subdir)
+        os.mkdir(self.pilot_process_dir)
+
         self.logging_actor.debug.remote(self.id, f"Received job {self.job}")
+
         command = self.build_pilot_command()
         command = self.communicator.fix_command(command)
         self.logging_actor.info.remote(self.id, f"Final payload command: {command}")
@@ -49,6 +56,9 @@ class Pilot2Actor:
 
     def receive_event_ranges(self, eventranges_update):
         self.request_sent = False
+        if not eventranges_update:
+                self.no_more_ranges = True
+                return
         for pandaid, job_ranges in eventranges_update.items():
             if pandaid not in self.eventranges.keys():
                 self.eventranges[pandaid] = list()
@@ -61,13 +71,13 @@ class Pilot2Actor:
         if len(req.request) > 1:
             self.logging_actor.warn.remote(self.id, f"Pilot request ranges for more than one panda job. Serving only the first job")
 
-        for pandaId, pandaId_request in req.request.items():
-            ranges = self.eventranges.get(pandaId, None)
+        for pandaID, pandaID_request in req.request.items():
+            ranges = self.eventranges.get(pandaID, None)
             if not ranges:
                 return list()
-            nranges = min(len(ranges), int(pandaId_request['nRanges']))
-            res, self.eventranges[pandaId] = ranges[:nranges], ranges[(nranges):]
-            self.logging_actor.info.remote(self.id, f"Served {nranges} eventranges. Remaining on {len(self.eventranges[pandaId])}")
+            nranges = min(len(ranges), int(pandaID_request['nRanges']))
+            res, self.eventranges[pandaID] = ranges[:nranges], ranges[(nranges):]
+            self.logging_actor.info.remote(self.id, f"Served {nranges} eventranges. Remaining on {len(self.eventranges[pandaID])}")
             return res
 
     def asyncio_run_coroutine(self, coroutine, *args, **kwargs):
@@ -76,7 +86,6 @@ class Pilot2Actor:
     def build_pilot_command(self):
         """
         """
-
         input_files = self.job['inFiles'].split(",")
         for input_file in input_files:
             in_abs = input_file if os.path.isabs(input_file) else os.path.join(self.pilot_dir, input_file)
@@ -139,7 +148,10 @@ class Pilot2Actor:
         elif not self.job:
             self.request_sent = True
             return self.return_message(0)
-        elif self.should_request_ranges():
+        elif self.pilot_process is not None and self.pilot_process.returncode is not None:
+            self.logging_actor.info.remote(self.id, f"Pilot ended with return code {self.pilot_process.returncode}")
+            return self.return_message(2)
+        elif not self.no_more_ranges and self.should_request_ranges():
             req = EventRangeRequest()
             req.add_event_request(self.job['PandaID'],
                                   self.config.resources['corepernode'] * 4,
@@ -150,6 +162,5 @@ class Pilot2Actor:
         else:
             self.async_sleep(1)
         # self.logging_actor.info.remote(self.id, 'get_message looping')
-        if self.pilot_process is not None and self.pilot_process.returncode is not None:
-            return self.return_message(2)
+        
         return self.return_message(-1)

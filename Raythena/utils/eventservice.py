@@ -19,8 +19,8 @@ class EventRangeRequest:
     def __str__(self):
         return self.to_json_string()
 
-    def add_event_request(self, pandaId, nRanges, taskId, jobsetID):
-        self.request[pandaId] = {'pandaId': pandaId, 'nRanges': nRanges, 'taskId': taskId, 'jobsetID': jobsetID}
+    def add_event_request(self, pandaID, nRanges, taskId, jobsetID):
+        self.request[pandaID] = {'pandaID': pandaID, 'nRanges': nRanges, 'taskId': taskId, 'jobsetID': jobsetID}
 
     def to_json_string(self):
         return json.dumps(self.request)

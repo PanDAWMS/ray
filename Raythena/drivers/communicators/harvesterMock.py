@@ -9,8 +9,11 @@ class HarvesterMock(BaseCommunicator):
 
     def __init__(self, config):
         super().__init__(config)
+        hash = hashlib.md5()
+
+        hash.update(str(time.time()).encode('utf-8'))
         self.event_ranges = None
-        self.pandaId = '0'
+        self.pandaID = hash.hexdigest()
         self.jobsetId = '0'
         self.taskId = '0'
         self.config = config
@@ -18,7 +21,7 @@ class HarvesterMock(BaseCommunicator):
         self.guid = '9C81A8C7-FA15-D940-942B-2E40AF22C4D6'
         self.inFile = "EVNT.01469903._009502.pool.root.1"
         self.inFileAbs = os.path.expandvars(os.path.join(self.config.pilot['workdir'], self.inFile))
-        self.nevents = 5000
+        self.nevents = 1000
         self.n_get_event_ranges_to_serve = 2
         self.served_events = 0
         self.ncores = self.config.resources['corepernode']
@@ -27,13 +30,13 @@ class HarvesterMock(BaseCommunicator):
     def get_event_ranges(self):
 
         if self.served_events >= self.nevents:
-            return None
+            return dict()
 
         evnt_request = EventRangeRequest()
-        evnt_request.add_event_request(self.pandaId, self.nevents_per_request, self.taskId, self.jobsetId)
+        evnt_request.add_event_request(self.pandaID, self.nevents_per_request, self.taskId, self.jobsetId)
 
         self.event_ranges = dict()
-        for pandaId, request in evnt_request.request.items():
+        for pandaID, request in evnt_request.request.items():
             range_list = list()
             for i in range(self.served_events + 1, self.served_events + request['nRanges'] + 1):
                 rangeId = f"Range-{i:05}"
@@ -44,7 +47,7 @@ class HarvesterMock(BaseCommunicator):
                     'scope': self.scope,
                     'PFN': self.inFileAbs,
                     'GUID': self.guid}))
-            self.event_ranges[pandaId] = range_list
+            self.event_ranges[pandaID] = range_list
         self.served_events += self.nevents_per_request
         return self.event_ranges
 
@@ -107,7 +110,7 @@ class HarvesterMock(BaseCommunicator):
                 u'outFiles': u'HITS_%s.root,%s.job.log.tgz' % (job_name, job_name),
                 u'currentPriority': 1000,
                 u'scopeIn': self.scope,
-                u'PandaID': self.pandaId,
+                u'PandaID': self.pandaID,
                 u'sourceSite': u'NULL',
                 u'dispatchDblock': u'NULL',
                 u'prodSourceLabel': u'ptest',
