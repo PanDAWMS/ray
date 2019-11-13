@@ -1,6 +1,20 @@
 import json
 
 
+# Messages sent by ray actor to the driver
+class Messages:
+    REQUEST_NEW_JOB=0
+    REQUEST_EVENT_RANGES=1
+    UPDATE_JOB=2
+    UPDATE_EVENT_RANGES=3
+    REQUEST_STATUS=4
+    PROCESS_DONE=5
+    IDLE=6
+    #
+    REPLY_OK=0
+    REPLY_NO_MORE_EVENT_RANGES=1
+    REPLY_NO_MORE_JOBS=2
+
 class ESEncoder(json.JSONEncoder):
 
     def default(self, o):
