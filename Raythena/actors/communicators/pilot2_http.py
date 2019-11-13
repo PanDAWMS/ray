@@ -3,7 +3,6 @@ from .baseCommunicator import BaseCommunicator
 from urllib.parse import parse_qs
 from Raythena.utils.eventservice import EventRangeRequest, ESEncoder
 import asyncio
-import uvloop
 import functools
 import json
 
@@ -28,9 +27,9 @@ class Pilot2HttpCommunicator(BaseCommunicator):
         super().__init__(actor, config)
         self.host = '0.0.0.0'
         self.port = 8080
-        asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
         self.loop = asyncio.get_event_loop()
         self.json_encoder = functools.partial(json.dumps, cls=ESEncoder)
+        self.actor.register_command_hook(self.fix_command)
 
         self.router = AsyncRouter()
         self.router.register('/server/panda/getJob', self.handle_getJob)
