@@ -3,10 +3,12 @@ import os
 import time
 import threading
 from queue import Queue
-from subprocess import Popen, PIPE
+from subprocess import Popen, DEVNULL
 from Raythena.utils.ray import get_node_ip
 from Raythena.utils.eventservice import EventRangeRequest, Messages
 from Raythena.utils.importUtils import import_from_string
+
+
 @ray.remote
 class Pilot2Actor:
     """
@@ -84,7 +86,11 @@ class Pilot2Actor:
 
         command = self.build_pilot_command()
         self.logging_actor.info.remote(self.id, f"Final payload command: {command}")
-        self.pilot_process = Popen(command, stdout=PIPE, stderr=PIPE, shell=True)
+        # using PIPE will cause the subprocess to hang because
+        # we're not reading data using communicate() and the pipe buffer becomes full as pilot2
+        # generates a lot of data to the stdout pipe
+        # see https://docs.python.org/3.7/library/subprocess.html#subprocess.Popen.wait
+        self.pilot_process = Popen(command, stdin=DEVNULL, stdout=DEVNULL, stderr=DEVNULL, shell=True, close_fds=True)
         self.logging_actor.info.remote(self.id, f"Started subprocess {self.pilot_process.pid}")
         self.transition_state(Pilot2Actor.READY_FOR_EVENTS)
     
@@ -218,7 +224,7 @@ class Pilot2Actor:
             # ready to get a new job
             self.transition_state(Pilot2Actor.JOB_REQUESTED)
             return self.return_message(Messages.REQUEST_NEW_JOB)
-        elif self.pilot_process is not None and self.pilot_process.returncode is not None:
+        elif self.pilot_process is not None and self.pilot_process.poll() is not None:
             # pilot process ended... Start stageout
             # if an exception occurs when changing state, this means that pilot ended early
             # send final job / event update
