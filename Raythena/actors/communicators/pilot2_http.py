@@ -5,6 +5,8 @@ from Raythena.utils.eventservice import EventRangeRequest, ESEncoder
 import asyncio
 import functools
 import json
+import threading
+import uvloop
 
 
 class AsyncRouter:
@@ -25,11 +27,12 @@ class Pilot2HttpCommunicator(BaseCommunicator):
 
     def __init__(self, actor, config):
         super().__init__(actor, config)
-        self.host = '0.0.0.0'
+        self.host = '127.0.0.1'
         self.port = 8080
-        self.loop = asyncio.get_event_loop()
         self.json_encoder = functools.partial(json.dumps, cls=ESEncoder)
         self.actor.register_command_hook(self.fix_command)
+        self.server_thread = None
+        self.should_stop = False
 
         self.router = AsyncRouter()
         self.router.register('/server/panda/getJob', self.handle_getJob)
@@ -41,10 +44,13 @@ class Pilot2HttpCommunicator(BaseCommunicator):
         self.router.register('/server/panda/getKeyPair', self.handle_getkeyPair)
 
     def start(self):
-        self.run(False)
+        self.should_stop = False
+        self.server_thread = threading.Thread(target=self.run, name="http-server")
+        self.server_thread.start()
 
     def stop(self):
-        self.loop.run_until_complete(self.stop_server())
+        self.should_stop = True
+        self.server_thread.join()
 
     def fix_command(self, command):
         return command
@@ -112,19 +118,17 @@ class Pilot2HttpCommunicator(BaseCommunicator):
         self.actor.logging_actor.debug.remote(self.actor.id, f"======= Serving on http://{self.host}:{self.port}/ ======")
         return self.site
 
-    async def stop_server(self):
-        self.should_stop = True
+    async def serve(self):
+        await self.startup_server()
+
+        while not self.should_stop:
+            await asyncio.sleep(60)
+
         if self.site:
             self.actor.logging_actor.debug.remote(self.actor.id, f"======= Stopped http://{self.host}:{self.port}/ ======")
             await self.site.stop()
 
-    async def serve(self, block: bool = True):
-        await self.startup_server()
-        self.should_stop = False
-        if not block:
-            return
-        while not self.should_stop:
-            await asyncio.sleep(1)
-
-    def run(self, block: bool = True):
-        self.loop.run_until_complete(self.serve(block))
+    def run(self):
+        asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+        self.loop = asyncio.new_event_loop()
+        self.loop.run_until_complete(self.serve())

@@ -1,13 +1,17 @@
 import ray
 import os
-import asyncio
-import uvloop
-from asyncio.subprocess import PIPE, create_subprocess_shell
+import time
+import threading
+from queue import Queue
+from subprocess import Popen, PIPE
 from Raythena.utils.ray import get_node_ip
 from Raythena.utils.eventservice import EventRangeRequest, Messages
 from Raythena.utils.importUtils import import_from_string
 @ray.remote
 class Pilot2Actor:
+    """
+    Actor running on HPC compute node. Each actor will start a pilot2 process 
+    """
 
     READY_FOR_JOB=0 # initial state, before the first job request
     JOB_REQUESTED=1 # job has been requested to the driver, waiting for result
@@ -42,8 +46,6 @@ class Pilot2Actor:
         self.job = None
         self.eventranges = dict()
         self.command_hook = list()
-        asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
-        asyncio.get_event_loop()
         self.node_ip = get_node_ip()
         self.pilot_process = None
         self.state = Pilot2Actor.READY_FOR_JOB
@@ -51,6 +53,8 @@ class Pilot2Actor:
         self.pilot_dir = os.path.expandvars(self.config.pilot.get('workdir', cwd))
         if os.path.isdir(self.pilot_dir):
             os.chdir(self.pilot_dir)
+
+        self.updateEventRangesQueue = Queue()
 
         communicator = self.config.pilot['communicator']
         self.communicator_class = import_from_string(f"Raythena.actors.communicators.{communicator}")
@@ -80,7 +84,7 @@ class Pilot2Actor:
 
         command = self.build_pilot_command()
         self.logging_actor.info.remote(self.id, f"Final payload command: {command}")
-        self.pilot_process = self.asyncio_run_coroutine(create_subprocess_shell, command, stdout=PIPE, stderr=PIPE, executable='/bin/bash')
+        self.pilot_process = Popen(command, stdout=PIPE, stderr=PIPE, shell=True)
         self.logging_actor.info.remote(self.id, f"Started subprocess {self.pilot_process.pid}")
         self.transition_state(Pilot2Actor.READY_FOR_EVENTS)
     
@@ -132,7 +136,7 @@ class Pilot2Actor:
             ranges = self.eventranges.get(pandaID, None)
             # if we're not in a state where were supposed finish local cache, wait until a getrange request is sent to the driver
             while self.state != Pilot2Actor.FINISHING_LOCAL_RANGES and not ranges:
-                self.async_sleep(1)
+                time.sleep(1)
 
             if not ranges: # --> implies that state == FINISHING_LOCAL_RANGES and empty local cache
                 return list()
@@ -142,9 +146,6 @@ class Pilot2Actor:
             self.logging_actor.info.remote(self.id, f"Served {nranges} eventranges. Remaining on {len(self.eventranges[pandaID])}")
             self.should_request_ranges()
             return res
-
-    def asyncio_run_coroutine(self, coroutine, *args, **kwargs):
-        return asyncio.get_event_loop().run_until_complete(coroutine(*args, **kwargs))
 
     def register_command_hook(self, func):
         self.command_hook.append(func)
@@ -160,7 +161,7 @@ class Pilot2Actor:
         prodSourceLabel = self.job['prodSourceLabel']
 
         # temporary hack to fix a bug in Athena 22.0 release
-        cmd += "export LD_LIBRARY_PATH=$SCRATCH/raythena/lib:$LD_LIBRARY_PATH; "
+        cmd += "export LD_LIBRARY_PATH=$SCRATCH/raythena/lib:$LD_LIBRARY_PATH; echo $LD_LIBRARY_PATH > ldpath; "
 
         pilot_bin = os.path.join(self.config.pilot['bindir'], "pilot.py")
         # use exec to replace the shell process with python. Allows to send signal to the python process if needed
@@ -184,18 +185,14 @@ class Pilot2Actor:
 
     def terminate_actor(self):
         self.logging_actor.info.remote(self.id, f"stopping actor")
-        pexit = self.pilot_process.returncode
+        pexit = self.pilot_process.poll()
         self.logging_actor.debug.remote(self.id, f"Pilot2 return code: {pexit}")
         if pexit is None:
             self.pilot_process.terminate()
-
-        stdout, stderr = self.asyncio_run_coroutine(self.pilot_process.communicate)
+            pexit = self.pilot_process.wait()
 
         self.communicator.stop()
         self.transition_state(Pilot2Actor.DONE)
-
-    def async_sleep(self, delay):
-        self.asyncio_run_coroutine(asyncio.sleep, delay)
 
     def should_request_ranges(self):
         # do not transition if not in a state allowing for event ranges request
@@ -238,6 +235,6 @@ class Pilot2Actor:
             self.transition_state(Pilot2Actor.EVENT_RANGES_REQUESTED)
             return self.return_message(Messages.REQUEST_EVENT_RANGES, req.to_json_string())
         else: #TODO process jobupdate / eventupdate received from pilot
-            self.async_sleep(1)
+            time.sleep(1)
         
         return self.return_message(Messages.IDLE)
