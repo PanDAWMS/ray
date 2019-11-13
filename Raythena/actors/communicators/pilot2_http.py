@@ -2,6 +2,7 @@ from aiohttp import web
 from .baseCommunicator import BaseCommunicator
 from urllib.parse import parse_qs
 from Raythena.utils.eventservice import EventRangeRequest, ESEncoder
+from asyncio import Queue
 import asyncio
 import functools
 import json
@@ -32,7 +33,10 @@ class Pilot2HttpCommunicator(BaseCommunicator):
         self.json_encoder = functools.partial(json.dumps, cls=ESEncoder)
         self.actor.register_command_hook(self.fix_command)
         self.server_thread = None
-        self.should_stop = False
+        
+        # prepare eventloop for the server thread
+        asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+        self.loop = asyncio.get_event_loop()
 
         self.router = AsyncRouter()
         self.router.register('/server/panda/getJob', self.handle_getJob)
@@ -44,13 +48,16 @@ class Pilot2HttpCommunicator(BaseCommunicator):
         self.router.register('/server/panda/getKeyPair', self.handle_getkeyPair)
 
     def start(self):
-        self.should_stop = False
-        self.server_thread = threading.Thread(target=self.run, name="http-server")
-        self.server_thread.start()
+        if not self.server_thread or not self.server_thread.is_alive():
+            self.stop_queue = Queue()
+            self.server_thread = threading.Thread(target=self.run, name="http-server")
+            self.server_thread.start()
 
     def stop(self):
-        self.should_stop = True
-        self.server_thread.join()
+        if self.server_thread and self.server_thread.is_alive():
+            asyncio.run_coroutine_threadsafe(self.stop_queue.put(True), self.loop)
+            self.server_thread.join()
+            self.actor.logging_actor.info.remote(self.actor.id, f"Communicator stopped")
 
     def fix_command(self, command):
         return command
@@ -121,14 +128,14 @@ class Pilot2HttpCommunicator(BaseCommunicator):
     async def serve(self):
         await self.startup_server()
 
-        while not self.should_stop:
-            await asyncio.sleep(60)
+        should_stop = False
+        while not should_stop:
+            should_stop = await self.stop_queue.get()
 
         if self.site:
             self.actor.logging_actor.debug.remote(self.actor.id, f"======= Stopped http://{self.host}:{self.port}/ ======")
             await self.site.stop()
 
     def run(self):
-        asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
-        self.loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.loop)
         self.loop.run_until_complete(self.serve())
