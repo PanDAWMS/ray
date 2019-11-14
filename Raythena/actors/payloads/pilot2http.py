@@ -32,8 +32,8 @@ class AsyncRouter:
 
 class Pilot2HttpPayload(BasePayload):
 
-    def __init__(self, actor, config):
-        super().__init__(actor, config)
+    def __init__(self, id, logging_actor, config):
+        super().__init__(id, logging_actor, config)
         self.host = '127.0.0.1'
         self.port = 8080
         self.json_encoder = functools.partial(json.dumps, cls=ESEncoder)
@@ -60,12 +60,12 @@ class Pilot2HttpPayload(BasePayload):
     
     def _start_payload(self):
         command = self._build_pilot_command()
-        self.actor.logging_actor.info.remote(self.id, f"Final payload command: {command}")
+        self.logging_actor.info.remote(self.id, f"Final payload command: {command}")
         # using PIPE will cause the subprocess to hang because
         # we're not reading data using communicate() and the pipe buffer becomes full as pilot2
         # generates a lot of data to the stdout pipe
         # see https://docs.python.org/3.7/library/subprocess.html#subprocess.Popen.wait
-        self.actor.pilot_process = Popen(command, stdin=DEVNULL, stdout=DEVNULL, stderr=DEVNULL, shell=True, close_fds=True)
+        self.pilot_process = Popen(command, stdin=DEVNULL, stdout=DEVNULL, stderr=DEVNULL, shell=True, close_fds=True)
         self.logging_actor.info.remote(self.id, f"Pilot payload started with PID {self.pilot_process.pid}")
 
     def _build_pilot_command(self):
@@ -79,7 +79,7 @@ class Pilot2HttpPayload(BasePayload):
         prodSourceLabel = shlex.quote(self.current_job['prodSourceLabel'])
 
         pilot_bin = os.path.expandvars(os.path.join(self.config.payload['bindir'], "pilot.py"))
-        queue_escaped = shlex.quote(self.panda_queue)
+        queue_escaped = shlex.quote(self.current_job['destinationSE'])
         # use exec to replace the shell process with python. Allows to send signal to the python process if needed
         cmd += f"exec python {shlex.quote(pilot_bin)} -q {queue_escaped} -r {queue_escaped} -s {queue_escaped} " \
                f"-i PR -j {prodSourceLabel} --pilot-user=ATLAS -t -w generic --url=http://{self.host} " \
@@ -100,7 +100,7 @@ class Pilot2HttpPayload(BasePayload):
             self.job_update = Queue()
             self.current_job = job
             self.ranges_queue = Queue()
-            self.no_more_ranges = Queue()
+            self.no_more_ranges = False
             self.server_thread = threading.Thread(target=self.run, name="http-server")
             self.server_thread.start()
 
@@ -111,11 +111,11 @@ class Pilot2HttpPayload(BasePayload):
             if pexit is None:
                 self.pilot_process.terminate()
                 pexit = self.pilot_process.wait()
-            self.actor.logging_actor.debug.remote(self.id, f"Payload return code: {pexit}")
+            self.logging_actor.debug.remote(self.id, f"Payload return code: {pexit}")
 
             asyncio.run_coroutine_threadsafe(self.stop_queue.put(True), self.loop)
             self.server_thread.join()
-            self.actor.logging_actor.info.remote(self.actor.id, f"Communicator stopped")
+            self.logging_actor.info.remote(self.id, f"Communicator stopped")
 
     def submit_new_ranges(self, ranges):
         asyncio.run_coroutine_threadsafe(self.ranges_queue.put(ranges), self.loop)
@@ -140,7 +140,7 @@ class Pilot2HttpPayload(BasePayload):
         return self.ranges_queue.qsize() < self.config.resources['corepernode'] * 2
 
     async def http_handler(self, request: web.BaseRequest):
-        self.actor.logging_actor.debug.remote(self.actor.id, f"Routing {request.method} {request.path}")
+        self.logging_actor.debug.remote(self.id, f"Routing {request.method} {request.path}")
         return await self.router.route(request.path, request=request)
 
     async def parse_qs_body(self, request):
@@ -156,7 +156,7 @@ class Pilot2HttpPayload(BasePayload):
     async def handle_getJob(self, request):
         body = await self.parse_qs_body(request)
         job = self.current_job if self.current_job else dict()
-        self.actor.logging_actor.debug.remote(self.actor.id, f"Serving job {job}")
+        self.logging_actor.debug.remote(self.id, f"Serving job {job}")
         return web.json_response(job)
 
     async def handle_updateJob(self, request):
@@ -166,7 +166,7 @@ class Pilot2HttpPayload(BasePayload):
 
     async def handle_getEventRanges(self, request):
         body = await self.parse_qs_body(request)
-        self.actor.logging_actor.debug.remote(self.actor.id, f"Body: {body}")
+        self.logging_actor.debug.remote(self.id, f"Body: {body}")
         status = 0
         pandaID = body['pandaID'][0]
         ranges = list()
@@ -217,7 +217,7 @@ class Pilot2HttpPayload(BasePayload):
         await runner.setup()
         self.site = web.TCPSite(runner, self.host, self.port)
         await self.site.start()
-        self.actor.logging_actor.debug.remote(self.actor.id, f"======= Serving on http://{self.host}:{self.port}/ ======")
+        self.logging_actor.debug.remote(self.id, f"======= Serving on http://{self.host}:{self.port}/ ======")
         return self.site
 
     async def serve(self):
@@ -228,7 +228,7 @@ class Pilot2HttpPayload(BasePayload):
             should_stop = await self.stop_queue.get()
 
         if self.site:
-            self.actor.logging_actor.debug.remote(self.actor.id, f"======= Stopped http://{self.host}:{self.port}/ ======")
+            self.logging_actor.debug.remote(self.id, f"======= Stopped http://{self.host}:{self.port}/ ======")
             await self.site.stop()
 
     def run(self):

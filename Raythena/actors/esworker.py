@@ -11,7 +11,7 @@ from Raythena.utils.ray import get_node_ip
 @ray.remote
 class ESWorker:
     """
-    Actor running on HPC compute node. Each actor will start a pilot2 process 
+    Actor running on HPC compute node. Each actor will start a payload plugin 
     """
 
     READY_FOR_JOB=0 # initial state, before the first job request
@@ -54,7 +54,7 @@ class ESWorker:
 
         payload = self.config.payload['plugin']
         self.payload_class = import_from_string(f"Raythena.actors.payloads.{payload}")
-        self.payload = self.payload_class(self, self.config)
+        self.payload = self.payload_class(self.id, self.logging_actor, self.config)
         self.logging_actor.info.remote(self.id, "Ray worker started")
 
     def stagein(self):
@@ -108,12 +108,12 @@ class ESWorker:
         if reply == Messages.REPLY_NO_MORE_EVENT_RANGES or not eventranges_update:
             #no new ranges... finish processing local cache then terminate actor
             self.transition_state(ESWorker.FINISHING_LOCAL_RANGES)
-            self.payload.submit_new_ranges(self.job['PandaID'], None)
+            self.payload.submit_new_ranges(None)
             return
         self.transition_state(ESWorker.PROCESSING)
         for pandaid, job_ranges in eventranges_update.items():
             for crange in job_ranges:
-                self.payload.submit_new_ranges(pandaid, crange)
+                self.payload.submit_new_ranges(crange)
         self.logging_actor.debug.remote(self.id, f"Received {len(job_ranges)} eventRanges")
         return self.return_message('received_event_range')
 
@@ -154,7 +154,7 @@ class ESWorker:
                 # payload process ended... Start stageout
                 # if an exception occurs when changing state, this means that the payload ended early
                 # send final job / event update
-                self.logging_actor.info.remote(self.id, f"Payload ended with return code {self.pilot_process.returncode}")
+                self.logging_actor.info.remote(self.id, f"Payload ended with return code {self.payload.returncode()}")
                 self.transition_state(ESWorker.STAGEOUT)
                 self.stageout()
                 return self.return_message(Messages.PROCESS_DONE)

@@ -4,8 +4,9 @@ from abc import ABC, abstractmethod
 
 class BasePayload(ABC):
 
-    def __init__(self, actor, config):
-        self.actor = actor
+    def __init__(self, id, logging_actor, config):
+        self.id = id
+        self.logging_actor = logging_actor
         self.config = config
 
     @abstractmethod
