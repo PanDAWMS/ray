@@ -22,13 +22,13 @@ RUN curl -o ${CONDA_INSTALLER} ${CONDA_DOWNLOAD_URL}; \
     rm ${CONDA_INSTALLER}
 
 
-RUN conda create -y -n${RAYTHENA_PILOT_VENV} python=2.7; \
+RUN conda create -y -n${RAYTHENA_PAYLOAD_VENV} python=2.7; \
     conda create -y -n${RAYTHENA_RAY_VENV} python=3.7; \
     mkdir ${BUILD_DIR}
 
 COPY . ${BUILD_DIR}/
-RUN git clone https://github.com/PanDAWMS/pilot2.git ${RAYTHENA_PILOT_DIR}; \
-    sed -i 's/^pandaserver:.*$/pandaserver: http:\/\/127.0.0.1:8080/g' ${RAYTHENA_PILOT_DIR}/pilot/util/default.cfg
+RUN git clone https://github.com/PanDAWMS/pilot2.git ${RAYTHENA_PAYLOAD_DIR}; \
+    sed -i 's/^pandaserver:.*$/pandaserver: http:\/\/127.0.0.1:8080/g' ${RAYTHENA_PAYLOAD_DIR}/pilot/util/default.cfg
 COPY entrypoint.sh ${ENTRYPOINT_BIN}
 RUN chmod +x ${ENTRYPOINT_BIN}; \
     source ${RAYTHENA_CONDA_BIN}/activate; \
