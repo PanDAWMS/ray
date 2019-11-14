@@ -1,5 +1,4 @@
 pilot:
-  workdir: $SCRATCH/raythena/pilotworkdir
   communicator: pilot2_http:Pilot2HttpCommunicator
   virtualenv: pilot2
   bindir:
@@ -14,7 +13,8 @@ ray:
   redisport:
   redispassword:
   virtualenv: raythena
-  driver: pilot2Driver:Pilot2Driver
+  driver: esdriver:ESDriver
+  workdir: $SCRATCH/raythena/workdir
 
 resources:
   corepernode: 32

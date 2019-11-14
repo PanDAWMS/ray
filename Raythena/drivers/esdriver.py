@@ -1,6 +1,6 @@
 import ray
 import os
-from Raythena.actors.pilot2Actor import Pilot2Actor
+from Raythena.actors.esworker import ESWorker
 from Raythena.actors.loggingActor import LoggingActor
 from Raythena.utils.exception import BaseRaythenaException
 from Raythena.utils.ray import build_nodes_resource_list, get_node_ip, cluster_size
@@ -44,7 +44,7 @@ class BookKeeper:
         """
         self.job = self.communicator.get_job(dict())
         if self.job:
-            job_dir = os.path.expandvars(os.path.join(self.config.pilot.get('workdir', os.getcwd()), self.job['PandaID']))
+            job_dir = os.path.expandvars(os.path.join(self.config.ray.get('workdir', os.getcwd()), self.job['PandaID']))
             if not os.path.exists(job_dir):
                 os.makedirs(job_dir)
 
@@ -101,7 +101,7 @@ class BookKeeper:
         return new_ranges
 
 
-class Pilot2Driver(BaseDriver):
+class ESDriver(BaseDriver):
 
     def __init__(self, config):
         super().__init__(config)
@@ -141,7 +141,7 @@ class Pilot2Driver(BaseDriver):
                 'config': self.config,
                 'logging_actor': self.logging_actor
             }
-            actor = Pilot2Actor._remote(num_cpus=self.config.resources.get('corepernode', psutil.cpu_count()), resources={node_constraint: 1}, kwargs=actor_args)
+            actor = ESWorker._remote(num_cpus=self.config.resources.get('corepernode', psutil.cpu_count()), resources={node_constraint: 1}, kwargs=actor_args)
             self.bookKeeper.register_pilot_instance(actor_id)
             self.actors[actor_id] = actor
 

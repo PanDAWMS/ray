@@ -14,7 +14,7 @@ def configure_logger(config, file_logging=True):
     ch = logging.StreamHandler(sys.stdout)
     handlers.append(ch)
     if file_logging:
-        logdir = os.path.expandvars(config.pilot.get('workdir', os.getcwd()))
+        logdir = os.path.expandvars(config.ray.get('workdir', os.getcwd()))
         log_file = os.path.join(logdir, config.logging['logfile'])
         fh = logging.FileHandler(log_file, mode='w')
         handlers.append(fh)

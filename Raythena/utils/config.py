@@ -7,7 +7,6 @@ class Config:
 
     conf_template = {
         'pilot': {
-            'workdir': str,
             'communicator': str,
             'virtualenv': str,
             "bindir": str
@@ -18,6 +17,7 @@ class Config:
             'harvesterconf': str
         },
         'ray': {
+            'workdir': str,
             'headip': str,
             'redisport': int,
             'redispassword': str,
