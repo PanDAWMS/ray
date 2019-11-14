@@ -166,9 +166,15 @@ class Pilot2Driver(BaseDriver):
                     else:
                         self.logging_actor.info.remote(self.id, f"No more ranges to send to {actor_id}")
                     self[actor_id].receive_event_ranges.remote(Messages.REPLY_OK if evt_range else Messages.REPLY_NO_MORE_EVENT_RANGES, evt_range)
-                elif message == Messages.PROCESS_DONE:
+                elif message == Messages.UPDATE_JOB:
+                    self.logging_actor.info.remote(self.id, f"{actor_id} sent a job update: {data}")
+                elif message == Messages.UPDATE_EVENT_RANGES:
+                    self.logging_actor.info.remote(self.id, f"{actor_id} sent a eventranges update: {data}")
+                elif message == Messages.PROCESS_DONE: #TODO actor should drain jobupdate, rangeupdate queue and send a final update.
                     self.terminated.append(actor_id)
+                    # do not get new messages from this actor
                     continue
+
                 self.actors_message_queue.append(self[actor_id].get_message.remote())
             new_messages, self.actors_message_queue = ray.wait(self.actors_message_queue)
 

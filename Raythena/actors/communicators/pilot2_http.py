@@ -2,7 +2,7 @@ from aiohttp import web
 from .baseCommunicator import BaseCommunicator
 from urllib.parse import parse_qs
 from Raythena.utils.eventservice import EventRangeRequest, ESEncoder
-from asyncio import Queue
+from asyncio import Queue, QueueEmpty
 import asyncio
 import functools
 import json
@@ -38,6 +38,13 @@ class Pilot2HttpCommunicator(BaseCommunicator):
         asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
         self.loop = asyncio.get_event_loop()
 
+        self.no_more_jobs = False
+        self.no_more_ranges = dict()
+        self.stop_queue = Queue()
+        self.job_queue = Queue()
+        self.ranges_update = Queue()
+        self.job_update = Queue()
+        self.ranges_queue = dict()
         self.router = AsyncRouter()
         self.router.register('/server/panda/getJob', self.handle_getJob)
         self.router.register('/server/panda/updateJob', self.handle_updateJob)
@@ -50,6 +57,12 @@ class Pilot2HttpCommunicator(BaseCommunicator):
     def start(self):
         if not self.server_thread or not self.server_thread.is_alive():
             self.stop_queue = Queue()
+            self.job_queue = Queue()
+            self.ranges_update = Queue()
+            self.job_update = Queue()
+            self.ranges_queue = dict()
+            self.no_more_ranges = dict()
+            self.no_more_jobs = False
             self.server_thread = threading.Thread(target=self.run, name="http-server")
             self.server_thread.start()
 
@@ -58,6 +71,34 @@ class Pilot2HttpCommunicator(BaseCommunicator):
             asyncio.run_coroutine_threadsafe(self.stop_queue.put(True), self.loop)
             self.server_thread.join()
             self.actor.logging_actor.info.remote(self.actor.id, f"Communicator stopped")
+
+    def submit_new_job(self, job):
+        asyncio.run_coroutine_threadsafe(self.job_queue.put(job), self.loop)
+
+    def submit_new_ranges(self, pandaID, ranges):
+        if pandaID not in self.ranges_queue:
+            self.ranges_queue[pandaID] = Queue()
+            self.no_more_ranges[pandaID] = False
+        asyncio.run_coroutine_threadsafe(self.ranges_queue[pandaID].put(ranges), self.loop)
+
+    def fetch_job_update(self):
+        try:
+            return self.job_update.get_nowait()
+        except QueueEmpty as e:
+            return None
+
+    def fetch_ranges_update(self):
+        try:
+            return self.ranges_update.get_nowait()
+        except QueueEmpty as e:
+            return None
+    
+    def should_request_more_ranges(self, pandaID):
+        if pandaID not in self.ranges_queue:
+            return True
+        if pandaID in self.no_more_ranges and self.no_more_ranges[pandaID]:
+            return False
+        return self.ranges_queue[pandaID].qsize() < self.config.resources['corepernode'] * 2
 
     def fix_command(self, command):
         return command
@@ -78,42 +119,66 @@ class Pilot2HttpCommunicator(BaseCommunicator):
 
     async def handle_getJob(self, request):
         body = await self.parse_qs_body(request)
-        self.actor.logging_actor.debug.remote(self.actor.id, f"Body: {body}")
-        self.actor.logging_actor.debug.remote(self.actor.id, f"Serving job {self.actor.job}")
-        return web.json_response(self.actor.job)
+        job = dict()
+        if not self.no_more_jobs:
+            job = await self.job_queue.get()
+            if job is None:
+                self.no_more_jobs = True
+                job = dict()
+        self.actor.logging_actor.debug.remote(self.actor.id, f"Serving job {job}")
+        return web.json_response(job)
 
     async def handle_updateJob(self, request):
         body = await self.parse_qs_body(request)
-        self.actor.logging_actor.debug.remote(self.actor.id, f"Body: {body}")
+        await self.job_update.put(body)
         return web.json_response(body)
-
-    async def handle_updateJobsInBulk(self, request):
-        raise NotImplementedError(f"{request.path} handler not implemented")
-
-    async def handle_getStatus(self, request):
-        raise NotImplementedError(f"{request.path} handler not implemented")
 
     async def handle_getEventRanges(self, request):
         body = await self.parse_qs_body(request)
-        req = EventRangeRequest()
         self.actor.logging_actor.debug.remote(self.actor.id, f"Body: {body}")
-        req.add_event_request(body['pandaID'][0], body['nRanges'][0], body['taskID'][0], body['jobsetID'][0])
-        ranges = self.actor.get_ranges(req)
-        status_code = 0
-        if not ranges:
-            ranges = list()
+        status = 0
+        pandaID = body['pandaID'][0]
+        ranges = list()
+        # No queue for the given panda id yet. Return error as we do not now if this pandaID will ever receive any range
+        # 
+        if pandaID not in self.ranges_queue:
+            status = -1
+        else:
+            nranges = body['nRanges'][0]
+            if not self.no_more_ranges[pandaID]:
+                for i in range(nranges):
+                    crange = await self.ranges_queue[pandaID].get()
+                    if crange is None:
+                        self.no_more_ranges[pandaID] = True
+                        break
+                    ranges.append(crange)
         res = {
-            "StatusCode": status_code,
+            "StatusCode": status,
             "eventRanges": ranges
         }
         return web.json_response(res, dumps=self.json_encoder)
 
     async def handle_updateEventRanges(self, request):
         body = await self.parse_qs_body(request)
-        self.actor.logging_actor.info.remote(self.actor.id, f"EventRange update: {body}")
+        await self.ranges_update.put(body)
         return web.json_response(body)
 
+    async def handle_updateJobsInBulk(self, request):
+        """
+        Not used by pilot2
+        """
+        raise NotImplementedError(f"{request.path} handler not implemented")
+
+    async def handle_getStatus(self, request):
+        """
+        Not used by pilot2
+        """
+        raise NotImplementedError(f"{request.path} handler not implemented")
+
     async def handle_getkeyPair(self, request):
+        """
+        Note used by pilot2
+        """
         raise NotImplementedError(f"{request.path} handler not implemented")
 
     async def startup_server(self) -> web.TCPSite:

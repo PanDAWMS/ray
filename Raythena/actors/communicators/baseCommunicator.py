@@ -17,5 +17,21 @@ class BaseCommunicator(ABC):
         raise NotImplementedError("Base method not implemented")
 
     @abstractmethod
-    def fix_command(self, command):
+    def submit_new_job(self, job):
+        raise NotImplementedError("Base method not implemented")
+
+    @abstractmethod
+    def submit_new_ranges(self, pandaID, ranges):
+        raise NotImplementedError("Base method not implemented")
+
+    @abstractmethod
+    def fetch_job_update(self):
+        raise NotImplementedError("Base method not implemented")
+
+    @abstractmethod
+    def fetch_ranges_update(self):
+        raise NotImplementedError("Base method not implemented")
+
+    @abstractmethod
+    def should_request_more_ranges(self, pandaID):
         raise NotImplementedError("Base method not implemented")

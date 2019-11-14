@@ -46,7 +46,8 @@ class Pilot2Actor:
         self.panda_queue = panda_queue
         self.logging_actor = logging_actor
         self.job = None
-        self.eventranges = dict()
+        self.max_job = 1 # hardcoded max job has raythena is not designed to run multiple jobs. Move in config if necessary
+        self.njobs = 0
         self.command_hook = list()
         self.node_ip = get_node_ip()
         self.pilot_process = None
@@ -96,13 +97,14 @@ class Pilot2Actor:
     
     def stageout(self):
         self.logging_actor.info.remote(self.id, "Performing stageout")
-        #TODO
+        #TODO move payload out file to harvester dir, drain jobupdate and rangeupdate from communicator
         self.transition_state(Pilot2Actor.FINISHING)
         self.terminate_actor()
     
     def transition_state(self, dest):
         if dest not in self.TRANSITIONS[self.state]:
             self.logging_actor.error.remote(self.id, f"Illegal transition from {self.state} to {dest}")
+            #TODO Handle illegal state transition accordingly
             raise Exception(f"Illegal state transition for actor {self.id}")
         self.state = dest
 
@@ -110,6 +112,10 @@ class Pilot2Actor:
         self.job = job
         if reply == Messages.REPLY_OK and self.job:
             self.transition_state(Pilot2Actor.STAGEIN)
+            self.communicator.submit_new_job(job)
+            self.njobs += 1
+            if self.njobs >= self.max_job:
+                self.communicator.submit_new_job(None)
             self.stagein()
         else:
             self.transition_state(Pilot2Actor.DONE)
@@ -121,37 +127,14 @@ class Pilot2Actor:
         if reply == Messages.REPLY_NO_MORE_EVENT_RANGES or not eventranges_update:
             #no new ranges... finish processing local cache then terminate actor
             self.transition_state(Pilot2Actor.FINISHING_LOCAL_RANGES)
+            self.communicator.submit_new_ranges(self.job['PandaID'], None)
             return
         self.transition_state(Pilot2Actor.PROCESSING)
         for pandaid, job_ranges in eventranges_update.items():
-            if pandaid not in self.eventranges.keys():
-                self.eventranges[pandaid] = list()
-            self.eventranges[pandaid] += job_ranges
+            for crange in job_ranges:
+                self.communicator.submit_new_ranges(pandaid, crange)
         self.logging_actor.debug.remote(self.id, f"Received {len(job_ranges)} eventRanges")
         return self.return_message('received_event_range')
-
-    def get_ranges(self, req: EventRangeRequest):
-        """
-        Called by the communicator plugin in order to fetch event ranges from local cache
-        """
-        self.logging_actor.info.remote(self.id, f"Received  event range request from pilot: {req.to_json_string()}")
-        if len(req.request) > 1:
-            self.logging_actor.warn.remote(self.id, f"Pilot request ranges for more than one panda job. Serving only the first job")
-
-        for pandaID, pandaID_request in req.request.items():
-            ranges = self.eventranges.get(pandaID, None)
-            # if we're not in a state where were supposed finish local cache, wait until a getrange request is sent to the driver
-            while self.state != Pilot2Actor.FINISHING_LOCAL_RANGES and not ranges:
-                time.sleep(1)
-
-            if not ranges: # --> implies that state == FINISHING_LOCAL_RANGES and empty local cache
-                return list()
-            
-            nranges = min(len(ranges), int(pandaID_request['nRanges']))
-            res, self.eventranges[pandaID] = ranges[:nranges], ranges[(nranges):]
-            self.logging_actor.info.remote(self.id, f"Served {nranges} eventranges. Remaining on {len(self.eventranges[pandaID])}")
-            self.should_request_ranges()
-            return res
 
     def register_command_hook(self, func):
         self.command_hook.append(func)
@@ -165,9 +148,6 @@ class Pilot2Actor:
         if os.path.isfile(conda_activate) and pilot_venv is not None:
             cmd += f"source {conda_activate} {pilot_venv}; source /cvmfs/atlas.cern.ch/repo/sw/local/setup-yampl.sh;"
         prodSourceLabel = self.job['prodSourceLabel']
-
-        # temporary hack to fix a bug in Athena 22.0 release
-        cmd += "export LD_LIBRARY_PATH=$SCRATCH/raythena/lib:$LD_LIBRARY_PATH; echo $LD_LIBRARY_PATH > ldpath; "
 
         pilot_bin = os.path.join(self.config.pilot['bindir'], "pilot.py")
         # use exec to replace the shell process with python. Allows to send signal to the python process if needed
@@ -205,42 +185,47 @@ class Pilot2Actor:
         if Pilot2Actor.READY_FOR_EVENTS not in self.TRANSITIONS[self.state]:
             return False
 
-        if not self.eventranges:
+        res = self.communicator.should_request_more_ranges(self.job['PandaID'])
+        if res:
             self.transition_state(Pilot2Actor.READY_FOR_EVENTS)
-            return True
-
-        for ranges in self.eventranges.values():
-            if len(ranges) < self.config.resources['corepernode'] * 2:
-                self.transition_state(Pilot2Actor.READY_FOR_EVENTS)
-                return True
-        return False
+        return res
 
     def get_message(self):
         """
         Return a message to the driver depending on the current actor state
         """
-        #while True:
-        if self.state == Pilot2Actor.READY_FOR_JOB:
-            # ready to get a new job
-            self.transition_state(Pilot2Actor.JOB_REQUESTED)
-            return self.return_message(Messages.REQUEST_NEW_JOB)
-        elif self.pilot_process is not None and self.pilot_process.poll() is not None:
-            # pilot process ended... Start stageout
-            # if an exception occurs when changing state, this means that pilot ended early
-            # send final job / event update
-            self.logging_actor.info.remote(self.id, f"Pilot ended with return code {self.pilot_process.returncode}")
-            self.transition_state(Pilot2Actor.STAGEOUT)
-            self.stageout()
-            return self.return_message(Messages.PROCESS_DONE)
-        elif self.state == Pilot2Actor.READY_FOR_EVENTS:
-            req = EventRangeRequest()
-            req.add_event_request(self.job['PandaID'],
-                                  self.config.resources['corepernode'] * 4,
-                                  self.job['taskID'],
-                                  self.job['jobsetID'])
-            self.transition_state(Pilot2Actor.EVENT_RANGES_REQUESTED)
-            return self.return_message(Messages.REQUEST_EVENT_RANGES, req.to_json_string())
-        else: #TODO process jobupdate / eventupdate received from pilot
-            time.sleep(1)
+        while self.state != Pilot2Actor.DONE:
+            if self.state == Pilot2Actor.READY_FOR_JOB:
+                # ready to get a new job
+                self.transition_state(Pilot2Actor.JOB_REQUESTED)
+                return self.return_message(Messages.REQUEST_NEW_JOB)
+            elif self.pilot_process is not None and self.pilot_process.poll() is not None:
+                # pilot process ended... Start stageout
+                # if an exception occurs when changing state, this means that pilot ended early
+                # send final job / event update
+                self.logging_actor.info.remote(self.id, f"Pilot ended with return code {self.pilot_process.returncode}")
+                self.transition_state(Pilot2Actor.STAGEOUT)
+                self.stageout()
+                return self.return_message(Messages.PROCESS_DONE)
+            elif self.state == Pilot2Actor.READY_FOR_EVENTS or self.should_request_ranges():
+                req = EventRangeRequest()
+                req.add_event_request(self.job['PandaID'],
+                                    self.config.resources['corepernode'] * 4,
+                                    self.job['taskID'],
+                                    self.job['jobsetID'])
+                self.transition_state(Pilot2Actor.EVENT_RANGES_REQUESTED)
+                return self.return_message(Messages.REQUEST_EVENT_RANGES, req.to_json_string())
+            else:
+                job_update = self.communicator.fetch_job_update()
+                if job_update:
+                    self.logging_actor.info.remote(self.id, f"Fetched jobupdate from communicator: {job_update}")
+                    return self.return_message(Messages.UPDATE_JOB, job_update)
+                
+                ranges_update = self.communicator.fetch_ranges_update()
+                if ranges_update:
+                    self.logging_actor.info.remote(self.id, f"Fetched rangesupdate from communicator: {ranges_update}")
+                    return self.return_message(Messages.UPDATE_EVENT_RANGES, ranges_update)
+
+                time.sleep(1) # Nothing to do, sleeping...
         
         return self.return_message(Messages.IDLE)
