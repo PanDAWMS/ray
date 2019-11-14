@@ -9,7 +9,7 @@ setup(
     scripts=[
         'bin/ray_start_head',
         'bin/ray_start_worker',
-        'bin/raythena'
+        'raythena.py'
     ],
     data_files=[
         ('conf', ['conf/cori.yaml'])
