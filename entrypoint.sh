@@ -10,8 +10,8 @@ function activate_ray_env() {
     source ${RAYTHENA_CONDA_BIN}/activate $RAYTHENA_RAY_VENV
 }
 
-function activate_pilot_env() {
-    source ${RAYTHENA_CONDA_BIN}/activate $RAYTHENA_PILOT_VENV
+function activate_payload_env() {
+    source ${RAYTHENA_CONDA_BIN}/activate $RAYTHENA_PAYLOAD_VENV
 }
 
 function activate_atlas_utils() {
@@ -20,7 +20,7 @@ function activate_atlas_utils() {
 }
 
 export -f activate_ray_env
-export -f activate_pilot_env
+export -f activate_payload_env
 export -f activate_atlas_utils
 
 if [ $# -eq 0 ]; then
