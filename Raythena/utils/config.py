@@ -6,8 +6,8 @@ import os
 class Config:
 
     conf_template = {
-        'pilot': {
-            'communicator': str,
+        'payload': {
+            'plugin': str,
             'virtualenv': str,
             "bindir": str
         },
@@ -50,17 +50,17 @@ class Config:
     def __str__(self):
         return str(self.__dict__)
 
-    def _parse_cli_args(self, conda_bin, config, debug, pilot_dir, pilot_venv, ray_driver, ray_head_ip,
-                        ray_redis_password, ray_redis_port, ray_venv):
+    def _parse_cli_args(self, conda_bin, config, debug, payload_dir, payload_venv, ray_driver, ray_head_ip,
+                        ray_redis_password, ray_redis_port, ray_venv, ray_workdir):
 
         if conda_bin:
             self.resources['condabindir'] = conda_bin
         if debug:
             self.logging['level'] = 'debug'
-        if pilot_dir:
-            self.pilot['bindir'] = pilot_dir
-        if pilot_venv:
-            self.pilot['virtualenv'] = pilot_venv
+        if payload_dir:
+            self.payload['bindir'] = payload_dir
+        if payload_venv:
+            self.payload['virtualenv'] = payload_venv
         if ray_driver:
             self.ray['driver'] = ray_driver
         if ray_head_ip:
@@ -71,6 +71,8 @@ class Config:
             self.ray['redisport'] = ray_redis_port
         if ray_venv:
             self.ray['virtualenv'] = ray_venv
+        if ray_workdir:
+            self.ray['workdir'] = ray_workdir
 
     def _validate_section(self, template_section_name, section_params, template_params):
         for name, value in template_params.items():

@@ -1,5 +1,5 @@
-pilot:
-  communicator: pilot2_http:Pilot2HttpCommunicator
+payload:
+  plugin: pilot2http:Pilot2HttpPayload
   virtualenv: pilot2
   bindir:
 

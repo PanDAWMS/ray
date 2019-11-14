@@ -1,21 +1,25 @@
-import ray
 import os
+
+import psutil
+import ray
+
 from Raythena.actors.esworker import ESWorker
 from Raythena.actors.loggingActor import LoggingActor
-from Raythena.utils.exception import BaseRaythenaException
-from Raythena.utils.ray import build_nodes_resource_list, get_node_ip, cluster_size
-from Raythena.utils.importUtils import import_from_string
 from Raythena.utils.eventservice import EventRangeRequest, Messages
+from Raythena.utils.exception import BaseRaythenaException
+from Raythena.utils.importUtils import import_from_string
+from Raythena.utils.ray import (build_nodes_resource_list, cluster_size,
+                                get_node_ip)
+
 from .baseDriver import BaseDriver
-import psutil
 
 
 class BookKeeper:
 
     class BookEntry:
 
-        def __init__(self, pilot_id):
-            self.pilot_id = pilot_id
+        def __init__(self, actor_id):
+            self.actor_id = actor_id
             self.job = list()
             self.event_ranges = dict()
 
@@ -30,7 +34,7 @@ class BookKeeper:
         self.communicator_class = import_from_string(f"Raythena.drivers.communicators.{self.config.harvester['communicator']}")
         self.communicator = self.communicator_class(config)
         self.panda_queue = self.communicator.get_panda_queue_name()
-        self.pilots = dict()
+        self.actors = dict()
 
         self.job = None
         self.request_new_job()
@@ -61,29 +65,29 @@ class BookKeeper:
             pandajob_ranges = self.event_ranges_available[pandaid]
             self.event_ranges_available[pandaid] = pandajob_ranges + ranges
 
-    def register_pilot_instance(self, pilot_id):
+    def register_actor_instance(self, actor_id):
         """
-        Register a new pilot instance (actor) in the book keeping
+        Register a new actor instance (actor) in the book keeping
         """
-        if self.pilots.get(pilot_id, None) is not None:
+        if self.actors.get(actor_id, None) is not None:
             raise BaseRaythenaException()
-        self.pilots[pilot_id] = BookKeeper.BookEntry(pilot_id)
+        self.actors[actor_id] = BookKeeper.BookEntry(actor_id)
 
-    def request_job_for_pilot(self, pilot_id):
+    def request_job_for_actor(self, actor_id):
         """
-        Allocate a new job to a pilot id
+        Allocate a new job to a actor id
         """
-        if self.job and self.job not in self.pilots[pilot_id].job:
-            self.pilots[pilot_id].add_job(self.job)
+        if self.job and self.job not in self.actors[actor_id].job:
+            self.actors[actor_id].add_job(self.job)
             return self.job
         return None
     
     def get_nranges(self):
         return len(self.event_ranges_available.get(self.job['PandaID'], []))
 
-    def request_event_ranges_for_pilot(self, pilot_id, eventRangeRequest: EventRangeRequest):
+    def request_event_ranges_for_actor(self, actor_id, eventRangeRequest: EventRangeRequest):
         """
-        Distribute event ranges to a pilot
+        Distribute event ranges to an actor
         """
         new_ranges = dict()
         for pandaID, request in eventRangeRequest.request.items():
@@ -142,7 +146,7 @@ class ESDriver(BaseDriver):
                 'logging_actor': self.logging_actor
             }
             actor = ESWorker._remote(num_cpus=self.config.resources.get('corepernode', psutil.cpu_count()), resources={node_constraint: 1}, kwargs=actor_args)
-            self.bookKeeper.register_pilot_instance(actor_id)
+            self.bookKeeper.register_actor_instance(actor_id)
             self.actors[actor_id] = actor
 
     def handle_actors(self):
@@ -154,11 +158,11 @@ class ESDriver(BaseDriver):
                 if message == Messages.IDLE:
                     pass
                 if message == Messages.REQUEST_NEW_JOB:
-                    job = self.bookKeeper.request_job_for_pilot(actor_id)
+                    job = self.bookKeeper.request_job_for_actor(actor_id)
                     self[actor_id].receive_job.remote(Messages.REPLY_OK if job else Messages.REPLY_NO_MORE_JOBS, job)
                 elif message == Messages.REQUEST_EVENT_RANGES:
                     request = EventRangeRequest.build_from_json_string(data)
-                    evt_range = self.bookKeeper.request_event_ranges_for_pilot(actor_id, request)
+                    evt_range = self.bookKeeper.request_event_ranges_for_actor(actor_id, request)
                     if evt_range:
                         values = list(evt_range.values())[0]
                         total_sent += len(values)

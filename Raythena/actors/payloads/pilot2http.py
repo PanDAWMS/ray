@@ -1,13 +1,19 @@
-from aiohttp import web
-from .baseCommunicator import BaseCommunicator
-from urllib.parse import parse_qs
-from Raythena.utils.eventservice import EventRangeRequest, ESEncoder
-from asyncio import Queue, QueueEmpty
 import asyncio
 import functools
 import json
+import os
+import shlex
 import threading
+from asyncio import Queue, QueueEmpty
+from subprocess import DEVNULL, Popen
+from urllib.parse import parse_qs
+
 import uvloop
+from aiohttp import web
+
+from Raythena.utils.eventservice import ESEncoder, EventRangeRequest
+
+from .basePayload import BasePayload
 
 
 class AsyncRouter:
@@ -24,27 +30,25 @@ class AsyncRouter:
         return await self.routes[endpoint](*args, **kwargs)
 
 
-class Pilot2HttpCommunicator(BaseCommunicator):
+class Pilot2HttpPayload(BasePayload):
 
     def __init__(self, actor, config):
         super().__init__(actor, config)
         self.host = '127.0.0.1'
         self.port = 8080
         self.json_encoder = functools.partial(json.dumps, cls=ESEncoder)
-        self.actor.register_command_hook(self.fix_command)
         self.server_thread = None
+        self.pilot_process = None
         
         # prepare eventloop for the server thread
         asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
         self.loop = asyncio.get_event_loop()
-
-        self.no_more_jobs = False
-        self.no_more_ranges = dict()
+        self.current_job = None
+        self.no_more_ranges = False
         self.stop_queue = Queue()
-        self.job_queue = Queue()
         self.ranges_update = Queue()
         self.job_update = Queue()
-        self.ranges_queue = dict()
+        self.ranges_queue = Queue()
         self.router = AsyncRouter()
         self.router.register('/server/panda/getJob', self.handle_getJob)
         self.router.register('/server/panda/updateJob', self.handle_updateJob)
@@ -53,33 +57,68 @@ class Pilot2HttpCommunicator(BaseCommunicator):
         self.router.register('/server/panda/getEventRanges', self.handle_getEventRanges)
         self.router.register('/server/panda/updateEventRanges', self.handle_updateEventRanges)
         self.router.register('/server/panda/getKeyPair', self.handle_getkeyPair)
+    
+    def _start_payload(self):
+        command = self._build_pilot_command()
+        self.actor.logging_actor.info.remote(self.id, f"Final payload command: {command}")
+        # using PIPE will cause the subprocess to hang because
+        # we're not reading data using communicate() and the pipe buffer becomes full as pilot2
+        # generates a lot of data to the stdout pipe
+        # see https://docs.python.org/3.7/library/subprocess.html#subprocess.Popen.wait
+        self.actor.pilot_process = Popen(command, stdin=DEVNULL, stdout=DEVNULL, stderr=DEVNULL, shell=True, close_fds=True)
+        self.logging_actor.info.remote(self.id, f"Pilot payload started with PID {self.pilot_process.pid}")
 
-    def start(self):
+    def _build_pilot_command(self):
+        """
+        """
+        cmd = str()
+        conda_activate = os.path.expandvars(os.path.join(self.config.resources['condabindir'], 'activate'))
+        pilot_venv = self.config.payload['virtualenv']
+        if os.path.isfile(conda_activate) and pilot_venv is not None:
+            cmd += f"source {conda_activate} {pilot_venv}; source /cvmfs/atlas.cern.ch/repo/sw/local/setup-yampl.sh;"
+        prodSourceLabel = shlex.quote(self.current_job['prodSourceLabel'])
+
+        pilot_bin = os.path.expandvars(os.path.join(self.config.payload['bindir'], "pilot.py"))
+        queue_escaped = shlex.quote(self.panda_queue)
+        # use exec to replace the shell process with python. Allows to send signal to the python process if needed
+        cmd += f"exec python {shlex.quote(pilot_bin)} -q {queue_escaped} -r {queue_escaped} -s {queue_escaped} " \
+               f"-i PR -j {prodSourceLabel} --pilot-user=ATLAS -t -w generic --url=http://{self.host} " \
+               f"-p {self.port} -d --allow-same-user=False --resource-type MCORE;"
+
+        return cmd
+    
+    def is_complete(self):
+        return self.pilot_process is not None and self.pilot_process.poll() is not None
+
+    def returncode(self):
+        return self.pilot_process.poll()
+
+    def start(self, job):
         if not self.server_thread or not self.server_thread.is_alive():
             self.stop_queue = Queue()
-            self.job_queue = Queue()
             self.ranges_update = Queue()
             self.job_update = Queue()
-            self.ranges_queue = dict()
-            self.no_more_ranges = dict()
-            self.no_more_jobs = False
+            self.current_job = job
+            self.ranges_queue = Queue()
+            self.no_more_ranges = Queue()
             self.server_thread = threading.Thread(target=self.run, name="http-server")
             self.server_thread.start()
 
     def stop(self):
         if self.server_thread and self.server_thread.is_alive():
+
+            pexit = self.pilot_process.poll()
+            if pexit is None:
+                self.pilot_process.terminate()
+                pexit = self.pilot_process.wait()
+            self.actor.logging_actor.debug.remote(self.id, f"Payload return code: {pexit}")
+
             asyncio.run_coroutine_threadsafe(self.stop_queue.put(True), self.loop)
             self.server_thread.join()
             self.actor.logging_actor.info.remote(self.actor.id, f"Communicator stopped")
 
-    def submit_new_job(self, job):
-        asyncio.run_coroutine_threadsafe(self.job_queue.put(job), self.loop)
-
-    def submit_new_ranges(self, pandaID, ranges):
-        if pandaID not in self.ranges_queue:
-            self.ranges_queue[pandaID] = Queue()
-            self.no_more_ranges[pandaID] = False
-        asyncio.run_coroutine_threadsafe(self.ranges_queue[pandaID].put(ranges), self.loop)
+    def submit_new_ranges(self, ranges):
+        asyncio.run_coroutine_threadsafe(self.ranges_queue.put(ranges), self.loop)
 
     def fetch_job_update(self):
         try:
@@ -93,15 +132,12 @@ class Pilot2HttpCommunicator(BaseCommunicator):
         except QueueEmpty as e:
             return None
     
-    def should_request_more_ranges(self, pandaID):
-        if pandaID not in self.ranges_queue:
+    def should_request_more_ranges(self):
+        if not self.ranges_queue:
             return True
-        if pandaID in self.no_more_ranges and self.no_more_ranges[pandaID]:
+        if self.no_more_ranges:
             return False
-        return self.ranges_queue[pandaID].qsize() < self.config.resources['corepernode'] * 2
-
-    def fix_command(self, command):
-        return command
+        return self.ranges_queue.qsize() < self.config.resources['corepernode'] * 2
 
     async def http_handler(self, request: web.BaseRequest):
         self.actor.logging_actor.debug.remote(self.actor.id, f"Routing {request.method} {request.path}")
@@ -119,12 +155,7 @@ class Pilot2HttpCommunicator(BaseCommunicator):
 
     async def handle_getJob(self, request):
         body = await self.parse_qs_body(request)
-        job = dict()
-        if not self.no_more_jobs:
-            job = await self.job_queue.get()
-            if job is None:
-                self.no_more_jobs = True
-                job = dict()
+        job = self.current_job if self.current_job else dict()
         self.actor.logging_actor.debug.remote(self.actor.id, f"Serving job {job}")
         return web.json_response(job)
 
@@ -139,17 +170,16 @@ class Pilot2HttpCommunicator(BaseCommunicator):
         status = 0
         pandaID = body['pandaID'][0]
         ranges = list()
-        # No queue for the given panda id yet. Return error as we do not now if this pandaID will ever receive any range
-        # 
-        if pandaID not in self.ranges_queue:
+        # PandaID does not match the current job, return an error
+        if pandaID != self.current_job['PandaID']:
             status = -1
         else:
             nranges = int(body['nRanges'][0])
-            if not self.no_more_ranges[pandaID]:
+            if not self.no_more_ranges:
                 for i in range(nranges):
-                    crange = await self.ranges_queue[pandaID].get()
+                    crange = await self.ranges_queue.get()
                     if crange is None:
-                        self.no_more_ranges[pandaID] = True
+                        self.no_more_ranges = True
                         break
                     ranges.append(crange)
         res = {
@@ -192,7 +222,7 @@ class Pilot2HttpCommunicator(BaseCommunicator):
 
     async def serve(self):
         await self.startup_server()
-
+        self._start_payload()
         should_stop = False
         while not should_stop:
             should_stop = await self.stop_queue.get()

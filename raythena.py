@@ -18,12 +18,12 @@ from Raythena.utils.importUtils import import_from_string
     help='Name of Ray virtualenv.'
 )
 @click.option(
-    '--pilot-venv',
-    help='Name of pilot virtualenv.'
+    '--payload-venv',
+    help='Name of payload virtualenv.'
 )
 @click.option(
-    '--pilot-dir',
-    help='Directory where pilot source code is located. Raythena expects to find pilot.py in this directory.'
+    '--payload-dir',
+    help='Directory where payload source code is located.'
 )
 @click.option(
     '--config',
@@ -50,6 +50,10 @@ from Raythena.utils.importUtils import import_from_string
 @click.option(
     '--ray-driver',
     help='Ray driver to start as <moduleName>:<ClassName>. The module should be placed in Raythena.drivers'
+)
+@click.option(
+    '--ray-workdir',
+    help='Workdirectory for ray actors'
 )
 def cli(*args, **kwargs):
 

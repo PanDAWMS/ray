@@ -2,14 +2,14 @@
 from abc import ABC, abstractmethod
 
 
-class BaseCommunicator(ABC):
+class BasePayload(ABC):
 
     def __init__(self, actor, config):
         self.actor = actor
         self.config = config
 
     @abstractmethod
-    def start(self):
+    def start(self, job):
         raise NotImplementedError("Base method not implemented")
 
     @abstractmethod
@@ -17,11 +17,15 @@ class BaseCommunicator(ABC):
         raise NotImplementedError("Base method not implemented")
 
     @abstractmethod
-    def submit_new_job(self, job):
+    def is_complete(self):
         raise NotImplementedError("Base method not implemented")
 
     @abstractmethod
-    def submit_new_ranges(self, pandaID, ranges):
+    def returncode(self):
+        raise NotImplementedError("Base method not implemented")
+
+    @abstractmethod
+    def submit_new_ranges(self, ranges):
         raise NotImplementedError("Base method not implemented")
 
     @abstractmethod
@@ -33,5 +37,5 @@ class BaseCommunicator(ABC):
         raise NotImplementedError("Base method not implemented")
 
     @abstractmethod
-    def should_request_more_ranges(self, pandaID):
+    def should_request_more_ranges(self):
         raise NotImplementedError("Base method not implemented")

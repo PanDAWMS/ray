@@ -1,13 +1,11 @@
-import ray
 import os
 import time
-import threading
-import shlex
-from queue import Queue
-from subprocess import Popen, DEVNULL
-from Raythena.utils.ray import get_node_ip
+
+import ray
+
 from Raythena.utils.eventservice import EventRangeRequest, Messages
 from Raythena.utils.importUtils import import_from_string
+from Raythena.utils.ray import get_node_ip
 
 
 @ray.remote
@@ -47,58 +45,44 @@ class ESWorker:
         self.panda_queue = panda_queue
         self.logging_actor = logging_actor
         self.job = None
-        self.max_job = 1 # hardcoded max job has raythena is not designed to run multiple jobs. Move in config if necessary
-        self.njobs = 0
-        self.command_hook = list()
         self.node_ip = get_node_ip()
-        self.pilot_process = None
         self.state = ESWorker.READY_FOR_JOB
         cwd = os.getcwd()
-        self.pilot_dir = os.path.expandvars(self.config.ray.get('workdir', cwd))
-        if os.path.isdir(self.pilot_dir):
-            os.chdir(self.pilot_dir)
+        self.workdir = os.path.expandvars(self.config.ray.get('workdir', cwd))
+        if os.path.isdir(self.workdir):
+            os.chdir(self.workdir)
 
-        self.updateEventRangesQueue = Queue()
-
-        communicator = self.config.pilot['communicator']
-        self.communicator_class = import_from_string(f"Raythena.actors.communicators.{communicator}")
-        self.communicator = self.communicator_class(self, self.config)
-        self.communicator.start()
+        payload = self.config.payload['plugin']
+        self.payload_class = import_from_string(f"Raythena.actors.payloads.{payload}")
+        self.payload = self.payload_class(self, self.config)
         self.logging_actor.info.remote(self.id, "Ray worker started")
 
     def stagein(self):
         cwd = os.getcwd()
-        self.pilot_job_dir = os.path.join(self.pilot_dir, self.job['PandaID'])
-        if not os.path.isdir(self.pilot_job_dir):
-            self.logging_actor.warn.remote(self.id, f"Specified path {self.pilot_job_dir} does not exist. Using cwd {cwd}")
+        self.payload_job_dir = os.path.join(self.workdir, self.job['PandaID'])
+        if not os.path.isdir(self.payload_job_dir):
+            self.logging_actor.warn.remote(self.id, f"Specified path {self.payload_job_dir} does not exist. Using cwd {cwd}")
 
         subdir = f"{self.id}_{os.getpid()}"
-        self.pilot_process_dir = os.path.join(self.pilot_job_dir, subdir)
-        os.mkdir(self.pilot_process_dir)
+        self.payload_actor_process_dir = os.path.join(self.payload_job_dir, subdir)
+        os.mkdir(self.payload_actor_process_dir)
 
         input_files = self.job['inFiles'].split(",")
         for input_file in input_files:
-            in_abs = input_file if os.path.isabs(input_file) else os.path.join(self.pilot_dir, input_file)
+            in_abs = input_file if os.path.isabs(input_file) else os.path.join(self.workdir, input_file)
             if os.path.isfile(in_abs):
                 basename = os.path.basename(in_abs)
-                staged_file = os.path.join(self.pilot_process_dir, basename)
+                staged_file = os.path.join(self.payload_actor_process_dir, basename)
                 os.symlink(in_abs, staged_file)
 
-        os.chdir(self.pilot_process_dir)
+        os.chdir(self.payload_actor_process_dir)
 
-        command = self.build_pilot_command()
-        self.logging_actor.info.remote(self.id, f"Final payload command: {command}")
-        # using PIPE will cause the subprocess to hang because
-        # we're not reading data using communicate() and the pipe buffer becomes full as pilot2
-        # generates a lot of data to the stdout pipe
-        # see https://docs.python.org/3.7/library/subprocess.html#subprocess.Popen.wait
-        self.pilot_process = Popen(command, stdin=DEVNULL, stdout=DEVNULL, stderr=DEVNULL, shell=True, close_fds=True)
-        self.logging_actor.info.remote(self.id, f"Started subprocess {self.pilot_process.pid}")
+        self.payload.start(self.job)
         self.transition_state(ESWorker.READY_FOR_EVENTS)
     
     def stageout(self):
         self.logging_actor.info.remote(self.id, "Performing stageout")
-        #TODO move payload out file to harvester dir, drain jobupdate and rangeupdate from communicator
+        #TODO move payload out file to harvester dir, drain jobupdate and rangeupdate from payload
         self.transition_state(ESWorker.FINISHING)
         self.terminate_actor()
     
@@ -113,10 +97,6 @@ class ESWorker:
         self.job = job
         if reply == Messages.REPLY_OK and self.job:
             self.transition_state(ESWorker.STAGEIN)
-            self.communicator.submit_new_job(job)
-            self.njobs += 1
-            if self.njobs >= self.max_job:
-                self.communicator.submit_new_job(None)
             self.stagein()
         else:
             self.transition_state(ESWorker.DONE)
@@ -128,39 +108,14 @@ class ESWorker:
         if reply == Messages.REPLY_NO_MORE_EVENT_RANGES or not eventranges_update:
             #no new ranges... finish processing local cache then terminate actor
             self.transition_state(ESWorker.FINISHING_LOCAL_RANGES)
-            self.communicator.submit_new_ranges(self.job['PandaID'], None)
+            self.payload.submit_new_ranges(self.job['PandaID'], None)
             return
         self.transition_state(ESWorker.PROCESSING)
         for pandaid, job_ranges in eventranges_update.items():
             for crange in job_ranges:
-                self.communicator.submit_new_ranges(pandaid, crange)
+                self.payload.submit_new_ranges(pandaid, crange)
         self.logging_actor.debug.remote(self.id, f"Received {len(job_ranges)} eventRanges")
         return self.return_message('received_event_range')
-
-    def register_command_hook(self, func):
-        self.command_hook.append(func)
-
-    def build_pilot_command(self):
-        """
-        """
-        cmd = str()
-        conda_activate = os.path.expandvars(os.path.join(self.config.resources['condabindir'], 'activate'))
-        pilot_venv = self.config.pilot['virtualenv']
-        if os.path.isfile(conda_activate) and pilot_venv is not None:
-            cmd += f"source {conda_activate} {pilot_venv}; source /cvmfs/atlas.cern.ch/repo/sw/local/setup-yampl.sh;"
-        prodSourceLabel = shlex.quote(self.job['prodSourceLabel'])
-
-        pilot_bin = os.path.expandvars(os.path.join(self.config.pilot['bindir'], "pilot.py"))
-        queue_escaped = shlex.quote(self.panda_queue)
-        # use exec to replace the shell process with python. Allows to send signal to the python process if needed
-        cmd += f"exec python {shlex.quote(pilot_bin)} -q {queue_escaped} -r {queue_escaped} -s {queue_escaped} " \
-               f"-i PR -j {prodSourceLabel} --pilot-user=ATLAS -t -w generic --url=http://127.0.0.1 " \
-               f"-p 8080 -d --allow-same-user=False --resource-type MCORE;"
-
-        for f in self.command_hook:
-            cmd = f(cmd)
-
-        return cmd
 
     def return_message(self, message, data=None):
         return self.id, message, data
@@ -173,13 +128,7 @@ class ESWorker:
 
     def terminate_actor(self):
         self.logging_actor.info.remote(self.id, f"stopping actor")
-        pexit = self.pilot_process.poll()
-        self.logging_actor.debug.remote(self.id, f"Pilot2 return code: {pexit}")
-        if pexit is None:
-            self.pilot_process.terminate()
-            pexit = self.pilot_process.wait()
-
-        self.communicator.stop()
+        self.payload.stop()
         self.transition_state(ESWorker.DONE)
 
     def should_request_ranges(self):
@@ -187,7 +136,7 @@ class ESWorker:
         if ESWorker.READY_FOR_EVENTS not in self.TRANSITIONS[self.state]:
             return False
 
-        res = self.communicator.should_request_more_ranges(self.job['PandaID'])
+        res = self.payload.should_request_more_ranges()
         if res:
             self.transition_state(ESWorker.READY_FOR_EVENTS)
         return res
@@ -201,11 +150,11 @@ class ESWorker:
                 # ready to get a new job
                 self.transition_state(ESWorker.JOB_REQUESTED)
                 return self.return_message(Messages.REQUEST_NEW_JOB)
-            elif self.pilot_process is not None and self.pilot_process.poll() is not None:
-                # pilot process ended... Start stageout
-                # if an exception occurs when changing state, this means that pilot ended early
+            elif self.payload.is_complete():
+                # payload process ended... Start stageout
+                # if an exception occurs when changing state, this means that the payload ended early
                 # send final job / event update
-                self.logging_actor.info.remote(self.id, f"Pilot ended with return code {self.pilot_process.returncode}")
+                self.logging_actor.info.remote(self.id, f"Payload ended with return code {self.pilot_process.returncode}")
                 self.transition_state(ESWorker.STAGEOUT)
                 self.stageout()
                 return self.return_message(Messages.PROCESS_DONE)
@@ -218,14 +167,14 @@ class ESWorker:
                 self.transition_state(ESWorker.EVENT_RANGES_REQUESTED)
                 return self.return_message(Messages.REQUEST_EVENT_RANGES, req.to_json_string())
             else:
-                job_update = self.communicator.fetch_job_update()
+                job_update = self.payload.fetch_job_update()
                 if job_update:
-                    self.logging_actor.info.remote(self.id, f"Fetched jobupdate from communicator: {job_update}")
+                    self.logging_actor.info.remote(self.id, f"Fetched jobupdate from payload: {job_update}")
                     return self.return_message(Messages.UPDATE_JOB, job_update)
                 
-                ranges_update = self.communicator.fetch_ranges_update()
+                ranges_update = self.payload.fetch_ranges_update()
                 if ranges_update:
-                    self.logging_actor.info.remote(self.id, f"Fetched rangesupdate from communicator: {ranges_update}")
+                    self.logging_actor.info.remote(self.id, f"Fetched rangesupdate from payload: {ranges_update}")
                     return self.return_message(Messages.UPDATE_EVENT_RANGES, ranges_update)
 
                 time.sleep(1) # Nothing to do, sleeping...
