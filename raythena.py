@@ -22,7 +22,7 @@ from Raythena.utils.importUtils import import_from_string
     help='Name of payload virtualenv.'
 )
 @click.option(
-    '--payload-dir',
+    '--payload-bindir',
     help='Directory where payload source code is located.'
 )
 @click.option(

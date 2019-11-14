@@ -13,7 +13,7 @@ ENV LANG=en_US.utf8 \
     RAYTHENA_RAY_VENV=raythena \
     RAYTHENA_PAYLOAD_VENV=pilot \
     ENTRYPOINT_BIN=${ENTRYPOINT_BIN} \
-    RAYTHENA_PAYLOAD_DIR=/opt/pilot2
+    RAYTHENA_PAYLOAD_BINDIR=/opt/pilot2
 ENV RAYTHENA_CONF_DIR=${CONDA_HOME}/envs/${RAYTHENA_RAY_VENV}/conf
 
 RUN curl -o ${CONDA_INSTALLER} ${CONDA_DOWNLOAD_URL}; \
@@ -27,8 +27,8 @@ RUN conda create -y -n${RAYTHENA_PAYLOAD_VENV} python=2.7; \
     mkdir ${BUILD_DIR}
 
 COPY . ${BUILD_DIR}/
-RUN git clone https://github.com/PanDAWMS/pilot2.git ${RAYTHENA_PAYLOAD_DIR}; \
-    sed -i 's/^pandaserver:.*$/pandaserver: http:\/\/127.0.0.1:8080/g' ${RAYTHENA_PAYLOAD_DIR}/pilot/util/default.cfg
+RUN git clone https://github.com/PanDAWMS/pilot2.git ${RAYTHENA_PAYLOAD_BINDIR}; \
+    sed -i 's/^pandaserver:.*$/pandaserver: http:\/\/127.0.0.1:8080/g' ${RAYTHENA_PAYLOAD_BINDIR}/pilot/util/default.cfg
 COPY entrypoint.sh ${ENTRYPOINT_BIN}
 RUN chmod +x ${ENTRYPOINT_BIN}; \
     source ${RAYTHENA_CONDA_BIN}/activate; \

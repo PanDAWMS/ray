@@ -50,15 +50,15 @@ class Config:
     def __str__(self):
         return str(self.__dict__)
 
-    def _parse_cli_args(self, conda_bin, config, debug, payload_dir, payload_venv, ray_driver, ray_head_ip,
+    def _parse_cli_args(self, conda_bin, config, debug, payload_bindir, payload_venv, ray_driver, ray_head_ip,
                         ray_redis_password, ray_redis_port, ray_venv, ray_workdir):
 
         if conda_bin:
             self.resources['condabindir'] = conda_bin
         if debug:
             self.logging['level'] = 'debug'
-        if payload_dir:
-            self.payload['bindir'] = payload_dir
+        if payload_bindir:
+            self.payload['bindir'] = payload_bindir
         if payload_venv:
             self.payload['virtualenv'] = payload_venv
         if ray_driver:
