@@ -144,7 +144,7 @@ class Pilot2HttpCommunicator(BaseCommunicator):
         if pandaID not in self.ranges_queue:
             status = -1
         else:
-            nranges = body['nRanges'][0]
+            nranges = int(body['nRanges'][0])
             if not self.no_more_ranges[pandaID]:
                 for i in range(nranges):
                     crange = await self.ranges_queue[pandaID].get()
