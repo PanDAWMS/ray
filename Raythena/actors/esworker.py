@@ -53,7 +53,7 @@ class ESWorker:
             os.chdir(self.workdir)
 
         payload = self.config.payload['plugin']
-        self.payload_class = import_from_string(f"Raythena.actors.payloads.{payload}")
+        self.payload_class = import_from_string(f"Raythena.actors.payloads.eventservice.{payload}")
         self.payload = self.payload_class(self.id, self.logging_actor, self.config)
         self.logging_actor.info.remote(self.id, "Ray worker started")
 

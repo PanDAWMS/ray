@@ -13,7 +13,7 @@ from aiohttp import web
 
 from Raythena.utils.eventservice import ESEncoder, EventRangeRequest
 
-from .basePayload import BasePayload
+from .esPayload import ESPayload
 
 
 class AsyncRouter:
@@ -30,7 +30,7 @@ class AsyncRouter:
         return await self.routes[endpoint](*args, **kwargs)
 
 
-class Pilot2HttpPayload(BasePayload):
+class Pilot2HttpPayload(ESPayload):
 
     def __init__(self, id, logging_actor, config):
         super().__init__(id, logging_actor, config)

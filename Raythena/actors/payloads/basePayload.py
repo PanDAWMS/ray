@@ -26,17 +26,6 @@ class BasePayload(ABC):
         raise NotImplementedError("Base method not implemented")
 
     @abstractmethod
-    def submit_new_ranges(self, ranges):
-        raise NotImplementedError("Base method not implemented")
-
-    @abstractmethod
     def fetch_job_update(self):
         raise NotImplementedError("Base method not implemented")
 
-    @abstractmethod
-    def fetch_ranges_update(self):
-        raise NotImplementedError("Base method not implemented")
-
-    @abstractmethod
-    def should_request_more_ranges(self):
-        raise NotImplementedError("Base method not implemented")
