@@ -28,7 +28,7 @@ class ESEncoder(json.JSONEncoder):
         if isinstance(o, PandaJobUpdate):
             raise NotImplementedError()
         if isinstance(o, EventRangeUpdate):
-            raise NotImplementedError()
+            return o.range_update
 
         if isinstance(o, PandaJobRequest):
             raise o.to_dict()
@@ -39,7 +39,6 @@ class ESEncoder(json.JSONEncoder):
             return o.job
         if isinstance(o, EventRange):
             return o.to_dict()
-
 
         return super().default(o)
 
@@ -84,8 +83,7 @@ class PandaJobQueue:
         if jobID is None or ranges_avail == 0:
             return None
         return self.jobs[jobID]
-        
-    
+
     def jobid_next_job_to_process(self):
         """
         Return the jobid that workers requesting new jobs should work on which is defined by the job javing the most events available.
@@ -113,6 +111,10 @@ class PandaJobQueue:
         if pandaID in self.jobs:
             return self[pandaID].event_ranges_queue
     
+    def process_event_ranges_update(self, rangesUpdate):
+        for pandaID in rangesUpdate:
+            self.get_eventranges(pandaID).update_ranges(rangesUpdate[pandaID])
+
     def process_event_ranges_reply(self, reply):
         """
         Process an event ranges reply from harvester by adding ranges to each corresponding job already present in the queue
@@ -160,38 +162,38 @@ class EventRangeQueue:
         self._no_more_ranges = False
         for state in EventRange.STATES:
             self.rangesID_by_state[state] = list()
-    
+
     @property
     def no_more_ranges(self):
         return self._no_more_ranges
-    
+
     @property.setter
     def no_more_ranges(self, v):
         self._no_more_ranges = v
-    
+
     def __iter__(self, k):
         return iter(self.eventranges_by_id)
-    
+
     def __len__(self):
         return len(self.eventranges_by_id)
-    
+
     def __getitem__(self, k):
         return self.eventranges_by_id[k]
-    
+
     def __setitem__(self, k, v):
         if not isinstance(v, EventRange):
             raise Exception(f"{v} should be of type {EventRange}")
         self.eventranges_by_id[k] = v
-    
+
     def __contains__(self, k):
         return k in self.eventranges_by_id
-    
+
     @staticmethod
     def build_from_list(ranges_list):
         ranges_queue = EventRangeQueue()
         for r in ranges_list:
             ranges_queue.add(EventRange.build_from_dict(r))
-    
+
     def update_range_state(self, rangeID, new_state):
         if rangeID not in self.eventranges_by_id:
             raise Exception(f"Trying to update non-existing eventrange {rangeID}")
@@ -200,6 +202,18 @@ class EventRangeQueue:
         self.rangesID_by_state[r.status].remove(rangeID)
         r.status = new_state
         self.rangesID_by_state[r.status].append(rangeID)
+    
+    def update_ranges(self, rangesUpdate):
+        for r in rangesUpdate:
+            rangeID = r['eventRangeID']
+            rangeStatus = r['eventStatus']
+            if rangeStatus == "running" and rangeID not in self.rangesID_by_state[EventRange.ASSIGNED]:
+                raise Exception(f"Unexpected state: {rangeID} updated as running is not assigned")
+            if rangeStatus == "finished":
+                self.update_range_state(rangeID, EventRange.DONE)
+            else:
+                self.update_range_state(rangeID, EventRange.FAILED)
+
 
     def nranges_remaining(self):
         return len(self.eventranges_by_id) - (self.nranges_done() + self.nranges_failed())
@@ -270,24 +284,116 @@ class PandaJobUpdate:
 class EventRangeUpdate:
     """
     Event ranges update sent by pilot 2 using JSON schema:
+    [
+        {
+            "zipFile": 
+            {
+                "numEvents": 2, 
+                "lfn": "EventService_premerge_Range-00007.tar", 
+                "adler32": "36503831", 
+                "objstoreID": 1641, 
+                "fsize": 860160, 
+                "pathConvention": 1000
+            },
+            "eventRanges": [
+                {
+                    "eventRangeID": "Range-00007", 
+                    "eventStatus": "finished"
+                }, 
+                {
+                    "eventRangeID": "Range-00009", 
+                    "eventStatus": "finished"
+                }
+            ]
+        }
+    ]
 
+    The JSON schema that should be send is as shown below.
 
+    eventstatus in [running, finished, failed, fatal]
+    type in [output, es_output, zip_output, log]
+
+    If it is an event upate, only eventRangeID and eventStatus fields are required.
+    If output files are produced path, type should be specified
+
+    {
+        "pandaID": [
+            {
+                "eventRangeID": Range-00007,
+                "eventStatus: finished,
+                "path": EventService_premerge_Range-00007.tar,
+                "type": zip_output,
+                "chksum" 36503831,
+                "fsize": 860160,
+                "guid": None
+            },
+            {
+                "eventRangeID": Range-00009,
+                "eventStatus: finished,
+                "path": EventService_premerge_Range-00007.tar,
+                "type": zip_output,
+                "chksum" 36503831,
+                "fsize": 860160,
+                "guid": None
+            }
+        ],
+        ...
+    }
 
     """
 
     def __init__(self, range_update):
-        self.ranges = range_update['eventRanges']
+        for v in range_update.values():
+            if not isinstance(v, list):
+                raise Exception(f"Expecting type list for element {v}")
+        self.range_update = range_update
     
     def __len__(self):
-        return len(self.ranges)
+        return len(self.range_update)
     
     def __iter__(self, k):
-        return iter(self.ranges)
+        return iter(self.range_update)
+    
+    def __getitem__(self, k):
+        return self.range_update[k]
+
+    def __setitem__(self, k, v):
+        if not isinstance(v, list):
+            raise Exception(f"Expecting type list for element {v}")
+        self.range_update[k] = v
 
     @staticmethod
-    def build_from_dict(range_update):
-        update = json.loads(range_update['eventRanges'][0])[0]
-        return EventRangeUpdate(update)
+    def build_from_dict(pandaID, range_update):
+
+        update_dict = dict()
+        update_dict[pandaID] = list()
+        
+
+        for f in range_update:
+            fileInfo = f.get('zipFile', None)
+            rangesInfo = f.get('eventRange', None)
+            fileData = dict()
+            if fileInfo['lfn'].find('.root') > -1:
+                ftype = "es_output"
+
+            if fileInfo:
+                fileData['path'] = fileInfo['lfn']
+                fileData['type'] = ftype
+                fileData['chksum'] = fileInfo['adler32']
+                fileData['fsize'] = fileInfo['fsize']
+                fileData['guid'] = None
+
+            if rangesInfo:
+                for rangeInfo in rangesInfo:
+                    elt = dict()
+                    elt['eventRangeID'] = rangeInfo['eventRangeID']
+                    elt['eventStatus'] = rangeInfo['eventStatus']
+                    elt.update(fileData)
+                    update_dict[pandaID].append(elt)
+            else:
+                update_dict[pandaID].append(fileData)
+
+        return EventRangeUpdate(update_dict)
 
 
 class PandaJobRequest:

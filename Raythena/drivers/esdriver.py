@@ -8,7 +8,7 @@ from queue import Queue
 
 from Raythena.actors.esworker import ESWorker
 from Raythena.actors.loggingActor import LoggingActor
-from Raythena.utils.eventservice import EventRangeRequest, PandaJobRequest, EventRangeUpdate, PandaJobUpdate, Messages, PandaJobQueue
+from Raythena.utils.eventservice import EventRangeRequest, PandaJobRequest, EventRangeUpdate, PandaJobUpdate, Messages, PandaJobQueue, EventRange
 from Raythena.utils.exception import BaseRaythenaException
 from Raythena.utils.importUtils import import_from_string
 from Raythena.utils.ray import (build_nodes_resource_list, cluster_size,
@@ -22,6 +22,7 @@ class BookKeeper:
     def __init__(self, logging_actor, config):
         self.jobs = PandaJobQueue()
         self.actors = dict()
+        self.rangesID_by_actor = dict()
     
     def add_jobs(self, jobs):
         self.jobs.add_jobs(jobs)
@@ -37,43 +38,30 @@ class BookKeeper:
     def fetch_event_ranges(self, actorID, nranges):
         if actorID not in self.actors or not self.actors[actorID]:
             return list()
-
+        if actorID not in self.rangesID_by_actor:
+            self.rangesID_by_actor[actorID] = list()
         ranges = self.jobs.get_eventranges(self.actors[actorID]).get_next_ranges(nranges)
+        for r in ranges:
+            self.rangesID_by_actor[actorID].append(r.eventRangeID)
         return ranges
     
     def process_event_ranges_update(self, actor_id, eventRangesUpdate):
-        ranges_update = json.loads(eventRangesUpdate['eventRanges'][0])[0]
-        actor_ranges = self.actors[actor_id].get_current_job_ranges()
-        pandaID = self.actors[actor_id].get_current_pandaID()
-        for r in ranges_update['eventRanges']:
-            range_id = r['eventRangeID']
-            if range_id not in actor_ranges:
-                self.logging_actor.warn.remote("BookKeeper", f"{actor_id} sent update for {range_id} not attributed to it")
-                continue
-            status = r['eventStatus']
-            if status == 'finished':
-                self.logging_actor.info.remote("BookKeeper", f"{range_id} successfully processed by {actor_id}")
-                processedrange = actor_ranges.pop(range_id)
-                processedrange.set_done()
-                self.finished_ranges.append(processedrange)
-            else:
-                self.logging_actor.info.remote("BookKeeper", f"{actor_id} encountered an error while processing {range_id}")
-                failed_range = actor_ranges.pop(range_id)
-                failed_range.retry += 1
-                if failed_range.retry >= 3:
-                    self.logging_actor.warn.remote("BookKeeper" f"{range_id} failed {failed_range.retry} times, dropping it")
-                    failed_range.set_failed()
-                    self.failed_ranges.append(failed_range)
-                else:
-                    self.event_ranges_available[pandaID].append(failed_range)
+        ranges_update_dict = json.loads(eventRangesUpdate['eventRanges'][0])
+        pandaID = self.actors[actor_id]
+        ranges_update = EventRangeUpdate.build_from_dict(pandaID, ranges_update_dict)
+        self.jobs.process_event_ranges_update(ranges_update)
+        for r in ranges_update[pandaID]:
+            if r['eventRangeID'] in self.rangesID_by_actor[actor_id] and r['eventStatus'] != "running":
+                self.rangesID_by_actor[actor_id].remove(r['eventRangeID'])
+        #TODO trigger stageout
 
     def process_actor_end(self, actor_id):
-        actor_ranges = self.actors[actor_id].get_current_job_ranges()
-        pandaID = self.actors[actor_id].get_current_pandaID()
-        self.logging_actor.warn.remote("BookKeeper", f"{actor_id} finished. {len(actor_ranges)} remaining to process")
-        for rangeID, enventRange in actor_ranges.items():
+        pandaID = self.actors[actor_id]
+        actor_ranges = self.rangesID_by_actor[actor_id]
+        self.logging_actor.warn.remote("BookKeeper", f"{actor_id} finished with {len(actor_ranges)} remaining to process")
+        for rangeID in actor_ranges:
             self.logging_actor.warn.remote("BookKeeper", f"{actor_id} finished without processing range {rangeID}")
-            self.event_ranges_available[pandaID].append(enventRange)
+            self.jobs.get_eventranges(pandaID).update_range_state(rangeID, EventRange.READY)
 
 
 
