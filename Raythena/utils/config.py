@@ -39,7 +39,7 @@ class Config:
         # parse.config file
         if not self.configpath or not os.path.isfile(self.configpath):
             raise Exception(f"Could not find config file {self.configpath}")
-        
+
         with open(self.configpath) as f:
             file_conf = yaml.safe_load(f)
             for k, v in file_conf.items():

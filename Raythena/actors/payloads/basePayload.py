@@ -28,4 +28,3 @@ class BasePayload(ABC):
     @abstractmethod
     def fetch_job_update(self):
         raise NotImplementedError("Base method not implemented")
-

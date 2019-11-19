@@ -39,7 +39,7 @@ class Pilot2HttpPayload(ESPayload):
         self.json_encoder = functools.partial(json.dumps, cls=ESEncoder)
         self.server_thread = None
         self.pilot_process = None
-        
+
         # prepare eventloop for the server thread
         asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
         self.loop = asyncio.get_event_loop()
@@ -57,7 +57,7 @@ class Pilot2HttpPayload(ESPayload):
         self.router.register('/server/panda/getEventRanges', self.handle_getEventRanges)
         self.router.register('/server/panda/updateEventRanges', self.handle_updateEventRanges)
         self.router.register('/server/panda/getKeyPair', self.handle_getkeyPair)
-    
+
     def _start_payload(self):
         command = self._build_pilot_command()
         self.logging_actor.info.remote(self.id, f"Final payload command: {command}")
@@ -86,7 +86,7 @@ class Pilot2HttpPayload(ESPayload):
                f"-p {self.port} -d --allow-same-user=False --resource-type MCORE;"
 
         return cmd
-    
+
     def is_complete(self):
         return self.pilot_process is not None and self.pilot_process.poll() is not None
 
@@ -131,7 +131,7 @@ class Pilot2HttpPayload(ESPayload):
             return self.ranges_update.get_nowait()
         except QueueEmpty as e:
             return None
-    
+
     def should_request_more_ranges(self):
         if not self.ranges_queue:
             return True

@@ -11,19 +11,19 @@ from Raythena.utils.ray import get_node_ip
 @ray.remote
 class ESWorker:
     """
-    Actor running on HPC compute node. Each actor will start a payload plugin 
+    Actor running on HPC compute node. Each actor will start a payload plugin
     """
 
-    READY_FOR_JOB=0 # initial state, before the first job request
-    JOB_REQUESTED=1 # job has been requested to the driver, waiting for result
-    READY_FOR_EVENTS=2 # ready to request new events for the current job
-    EVENT_RANGES_REQUESTED=3 # event ranges have been requested to the driver, waiting for result
-    FINISHING_LOCAL_RANGES=4 # same as PROCESSING, except that no more event ranges are available, will move to STAGEOUT once local cache is empty
-    PROCESSING=5 # currently processing event ranges
-    FINISHING=6 # Performing cleanup of resources, preparing final server update
-    DONE=7 # Actor has finished processing job
-    STAGEIN=8 # Staging-in data.
-    STAGEOUT=9 # Staging-out data
+    READY_FOR_JOB = 0  # initial state, before the first job request
+    JOB_REQUESTED = 1  # job has been requested to the driver, waiting for result
+    READY_FOR_EVENTS = 2  # ready to request new events for the current job
+    EVENT_RANGES_REQUESTED = 3  # event ranges have been requested to the driver, waiting for result
+    FINISHING_LOCAL_RANGES = 4  # same as PROCESSING, except that no more event ranges are available, will move to STAGEOUT once local cache is empty
+    PROCESSING = 5  # currently processing event ranges
+    FINISHING = 6  # Performing cleanup of resources, preparing final server update
+    DONE = 7  # Actor has finished processing job
+    STAGEIN = 8  # Staging-in data.
+    STAGEOUT = 9  # Staging-out data
 
     # authorize state transition from x to y if y in TRANSITION[X]
     TRANSITIONS = {
@@ -37,7 +37,7 @@ class ESWorker:
         DONE: [READY_FOR_JOB],
         STAGEIN: [READY_FOR_EVENTS],
         STAGEOUT: [FINISHING]
-        }
+    }
 
     def __init__(self, actor_id, panda_queue, config, logging_actor):
         self.id = actor_id
@@ -79,13 +79,13 @@ class ESWorker:
 
         self.payload.start(self.job)
         self.transition_state(ESWorker.READY_FOR_EVENTS)
-    
+
     def stageout(self):
         self.logging_actor.info.remote(self.id, "Performing stageout")
         #TODO move payload out file to harvester dir, drain jobupdate and rangeupdate from payload
         self.transition_state(ESWorker.FINISHING)
         self.terminate_actor()
-    
+
     def transition_state(self, dest):
         if dest not in self.TRANSITIONS[self.state]:
             self.logging_actor.error.remote(self.id, f"Illegal transition from {self.state} to {dest}")
@@ -118,7 +118,7 @@ class ESWorker:
 
     def return_message(self, message, data=None):
         return self.id, message, data
-    
+
     def interrupt(self):
         """
         Interruption from driver
@@ -160,9 +160,9 @@ class ESWorker:
             elif self.state == ESWorker.READY_FOR_EVENTS or self.should_request_ranges():
                 req = EventRangeRequest()
                 req.add_event_request(self.job['PandaID'],
-                                    self.config.resources['corepernode'] * 4,
-                                    self.job['taskID'],
-                                    self.job['jobsetID'])
+                                      self.config.resources['corepernode'] * 4,
+                                      self.job['taskID'],
+                                      self.job['jobsetID'])
                 self.transition_state(ESWorker.EVENT_RANGES_REQUESTED)
                 return self.return_message(Messages.REQUEST_EVENT_RANGES, req.to_json_string())
             else:
@@ -170,12 +170,12 @@ class ESWorker:
                 if job_update:
                     self.logging_actor.info.remote(self.id, f"Fetched jobupdate from payload: {job_update}")
                     return self.return_message(Messages.UPDATE_JOB, job_update)
-                
+
                 ranges_update = self.payload.fetch_ranges_update()
                 if ranges_update:
                     self.logging_actor.info.remote(self.id, f"Fetched rangesupdate from payload: {ranges_update}")
                     return self.return_message(Messages.UPDATE_EVENT_RANGES, ranges_update)
 
-                time.sleep(1) # Nothing to do, sleeping...
-        
+                time.sleep(1)  # Nothing to do, sleeping...
+
         return self.return_message(Messages.IDLE)

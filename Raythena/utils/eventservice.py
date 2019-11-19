@@ -3,17 +3,17 @@ import json
 
 # Messages sent by ray actor to the driver
 class Messages:
-    REQUEST_NEW_JOB=0
-    REQUEST_EVENT_RANGES=1
-    UPDATE_JOB=2
-    UPDATE_EVENT_RANGES=3
-    REQUEST_STATUS=4
-    PROCESS_DONE=5
-    IDLE=6
+    REQUEST_NEW_JOB = 0
+    REQUEST_EVENT_RANGES = 1
+    UPDATE_JOB = 2
+    UPDATE_EVENT_RANGES = 3
+    REQUEST_STATUS = 4
+    PROCESS_DONE = 5
+    IDLE = 6
     #
-    REPLY_OK=0
-    REPLY_NO_MORE_EVENT_RANGES=1
-    REPLY_NO_MORE_JOBS=2
+    REPLY_OK = 0
+    REPLY_NO_MORE_EVENT_RANGES = 1
+    REPLY_NO_MORE_JOBS = 2
 
 
 class ESEncoder(json.JSONEncoder):
@@ -55,28 +55,28 @@ class PandaJobQueue:
 
     def __init__(self, jobs=None):
         self.jobs = dict()
-        
+
         if jobs:
             self.add_jobs(jobs)
-    
+
     def __getitem__(self, k):
         return self.jobs[k]
-    
+
     def __setitem__(self, k, v):
         if isinstance(v, PandaJob):
             self.jobs[k] = v
         else:
             raise Exception(f"{v} is not of type {PandaJob}")
-    
+
     def __iter__(self, k):
         return iter(self.jobs)
-    
+
     def __len__(self):
         return len(self.jobs)
-    
+
     def __contains__(self, k):
         return self.has_job(k)
-    
+
     def next_job_to_process(self):
         jobID, ranges_avail = self.jobid_next_job_to_process()
 
@@ -102,15 +102,15 @@ class PandaJobQueue:
 
     def has_job(self, pandaID):
         return pandaID in self.jobs
-    
+
     def add_jobs(self, jobs):
         for jobID, jobDef in jobs.items():
             self.jobs[jobID] = PandaJob(jobDef)
-    
+
     def get_eventranges(self, pandaID):
         if pandaID in self.jobs:
             return self[pandaID].event_ranges_queue
-    
+
     def process_event_ranges_update(self, rangesUpdate):
         for pandaID in rangesUpdate:
             self.get_eventranges(pandaID).update_ranges(rangesUpdate[pandaID])
@@ -126,7 +126,6 @@ class PandaJobQueue:
                 self.get_eventranges(pandaID).no_more_ranges = True
             else:
                 self.get_eventranges(pandaID).concat(ranges)
-
 
     @staticmethod
     def build_from_dict(jobsdict):
@@ -202,7 +201,7 @@ class EventRangeQueue:
         self.rangesID_by_state[r.status].remove(rangeID)
         r.status = new_state
         self.rangesID_by_state[r.status].append(rangeID)
-    
+
     def update_ranges(self, rangesUpdate):
         for r in rangesUpdate:
             rangeID = r['eventRangeID']
@@ -214,10 +213,9 @@ class EventRangeQueue:
             else:
                 self.update_range_state(rangeID, EventRange.FAILED)
 
-
     def nranges_remaining(self):
         return len(self.eventranges_by_id) - (self.nranges_done() + self.nranges_failed())
-    
+
     def nranges_available(self):
         return len(self.rangesID_by_state[EventRange.READY])
 
@@ -229,7 +227,7 @@ class EventRangeQueue:
 
     def nranges_done(self):
         return len(self.rangesID_by_state[EventRange.DONE])
-    
+
     def append(self, eventrange):
         self.eventranges_by_id[eventrange.eventRangeID] = eventrange
         self.rangesID_by_state[eventrange.status].append(eventrange.eventRangeID)
@@ -237,11 +235,11 @@ class EventRangeQueue:
     def concat(self, ranges):
         for r in ranges:
             self.add(r)
-    
+
     def process_ranges_update(self, ranges_update):
         for r in ranges_update:
-            self.update_range_state(r['eventRangeID'], 
-            EventRange.DONE if r['eventStatus'] == 'finished' else EventRange.FAILED)
+            self.update_range_state(r['eventRangeID'],
+                                    EventRange.DONE if r['eventStatus'] == 'finished' else EventRange.FAILED)
 
     def get_next_ranges(self, nranges):
         res = list()
@@ -252,7 +250,7 @@ class EventRangeQueue:
             r.status = EventRange.ASSIGNED
             self.rangeID_by_state[EventRange.ASSIGNED].append(rangeID)
             res.append(r)
-        
+
         return res
 
 
@@ -286,22 +284,22 @@ class EventRangeUpdate:
     Event ranges update sent by pilot 2 using JSON schema:
     [
         {
-            "zipFile": 
+            "zipFile":
             {
-                "numEvents": 2, 
-                "lfn": "EventService_premerge_Range-00007.tar", 
-                "adler32": "36503831", 
-                "objstoreID": 1641, 
-                "fsize": 860160, 
+                "numEvents": 2,
+                "lfn": "EventService_premerge_Range-00007.tar",
+                "adler32": "36503831",
+                "objstoreID": 1641,
+                "fsize": 860160,
                 "pathConvention": 1000
             },
             "eventRanges": [
                 {
-                    "eventRangeID": "Range-00007", 
+                    "eventRangeID": "Range-00007",
                     "eventStatus": "finished"
-                }, 
+                },
                 {
-                    "eventRangeID": "Range-00009", 
+                    "eventRangeID": "Range-00009",
                     "eventStatus": "finished"
                 }
             ]
@@ -347,13 +345,13 @@ class EventRangeUpdate:
             if not isinstance(v, list):
                 raise Exception(f"Expecting type list for element {v}")
         self.range_update = range_update
-    
+
     def __len__(self):
         return len(self.range_update)
-    
+
     def __iter__(self, k):
         return iter(self.range_update)
-    
+
     def __getitem__(self, k):
         return self.range_update[k]
 
@@ -367,7 +365,6 @@ class EventRangeUpdate:
 
         update_dict = dict()
         update_dict[pandaID] = list()
-        
 
         for f in range_update:
             fileInfo = f.get('zipFile', None)
@@ -409,13 +406,14 @@ class PandaJobRequest:
         "resourceType: _,
         "mem": _,
         "cpu": _,
-        "allowOtherCountry": _ 
+        "allowOtherCountry": _
     }
 
     Note that harvester will ignore the content of the job request file and simply check if it exists
     """
     def __init__(self, node=None, diskSpace=None, workingGroup=None, prodSourceLabel=None,
-    computingElement=None, siteName=None, resourceType=None, mem=None, cpu=None, allowOtherCountry=None):
+                 computingElement=None, siteName=None, resourceType=None, mem=None,
+                 cpu=None, allowOtherCountry=None):
         self.node = node
         self.diskSpace = diskSpace
         self.workingGroup = workingGroup
@@ -429,6 +427,7 @@ class PandaJobRequest:
 
     def to_dict(self):
         return {}
+
 
 class EventRangeRequest:
     """
@@ -496,7 +495,14 @@ class PandaJob:
         'transferType': 'NULL',
         'destinationDblock': job_name,
         'dispatchDBlockToken': 'NULL',
-        'jobPars': ' --multiprocess --eventService=True --skipEvents=0 --firstEvent=1 --preExec "from AthenaCommon.DetFlags import DetFlags;DetFlags.ID_setOn();DetFlags.Calo_setOff();DetFlags.Muon_setOff();DetFlags.Lucid_setOff();DetFlags.Truth_setOff()" --athenaopts=--preloadlib=${ATLASMKLLIBDIR_PRELOAD}/libimf.so --preInclude sim:SimulationJobOptions/preInclude.FrozenShowersFCalOnly.py,SimulationJobOptions/preInclude.BeamPipeKill.py --geometryVersion ATLAS-R2-2016-01-00-00_VALIDATION --physicsList QGSP_BERT --randomSeed 1234 --conditionsTag OFLCOND-MC12-SIM-00 --maxEvents=-1 --inputEvgenFile EVNT.01469903._009502.pool.root.1 --outputHitsFile HITS_%s.pool.root' % job_name,
+        'jobPars': ' --multiprocess --eventService=True --skipEvents=0 --firstEvent=1
+        --preExec "from AthenaCommon.DetFlags import DetFlags;DetFlags.ID_setOn();DetFlags.Calo_setOff();
+        DetFlags.Muon_setOff();DetFlags.Lucid_setOff();DetFlags.Truth_setOff()"
+        --athenaopts=--preloadlib=${ATLASMKLLIBDIR_PRELOAD}/libimf.so
+        --preInclude sim:SimulationJobOptions/preInclude.FrozenShowersFCalOnly.py,SimulationJobOptions/preInclude.BeamPipeKill.py
+        --geometryVersion ATLAS-R2-2016-01-00-00_VALIDATION --physicsList QGSP_BERT --randomSeed 1234
+        --conditionsTag OFLCOND-MC12-SIM-00 --maxEvents=-1 --inputEvgenFile EVNT.01469903._009502.pool.root.1
+        --outputHitsFile HITS_%s.pool.root' % job_name,
         'attemptNr': 0,
         'swRelease': 'Atlas-22.0',
         'nucleus': 'NULL',
@@ -519,34 +525,34 @@ class PandaJob:
     def __init__(self, jobDef):
         self.job = jobDef
         self.event_ranges_queue = EventRangeQueue()
-    
+
     def nranges_available(self):
         return self.event_ranges_queue.nranges_available()
 
     def get_next_ranges(self, nranges):
         return self.event_ranges_queue.get_next_ranges(nranges)
-    
+
     def get_pandaQueue(self):
         return self['destinationSE']
-    
+
     def get_id(self):
         return self['PandaID']
-    
+
     def __str__(self):
         return json.dumps(self.job)
 
     def __getitem__(self, k):
         return self.job[k]
-    
+
     def __setitem__(self, k, v):
         self.job[k] = v
-    
+
     def __len__(self):
         return len(self.job)
-    
+
     def __iter__(self, k):
         return iter(self.job)
-    
+
     def __contains__(self, k):
         return k in self.job
 
@@ -589,7 +595,7 @@ class EventRange:
 
     def set_failed(self):
         self.status = EventRange.FAILED
-    
+
     def nevents(self):
         return self.lastEvent - self.startEvent + 1
 
