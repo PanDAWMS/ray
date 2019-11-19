@@ -11,7 +11,7 @@ from urllib.parse import parse_qs
 import uvloop
 from aiohttp import web
 
-from Raythena.utils.eventservice import ESEncoder, EventRangeRequest
+from Raythena.utils.eventservice import ESEncoder
 
 from .esPayload import ESPayload
 

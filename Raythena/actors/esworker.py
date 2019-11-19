@@ -111,10 +111,9 @@ class ESWorker:
             self.payload.submit_new_ranges(None)
             return
         self.transition_state(ESWorker.PROCESSING)
-        for pandaid, job_ranges in eventranges_update.items():
-            for crange in job_ranges:
-                self.payload.submit_new_ranges(crange)
-        self.logging_actor.debug.remote(self.id, f"Received {len(job_ranges)} eventRanges")
+        for crange in eventranges_update:
+            self.payload.submit_new_ranges(crange)
+        self.logging_actor.debug.remote(self.id, f"Received {len(eventranges_update)} eventRanges")
         return self.return_message('received_event_range')
 
     def return_message(self, message, data=None):

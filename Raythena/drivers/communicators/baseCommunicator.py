@@ -4,25 +4,16 @@ from abc import ABC, abstractmethod
 
 class BaseCommunicator(ABC):
 
-    def __init__(self, config):
+    def __init__(self, requestsQueue, jobQueue, eventRangesQueue, config):
+        self.requestsQueue = requestsQueue
+        self.jobQueue = jobQueue
+        self.eventRangesQueue = eventRangesQueue
         self.config = config
-
+    
     @abstractmethod
-    def get_event_ranges(self):
+    def start(self):
         raise NotImplementedError("Base method not implemented")
-
+    
     @abstractmethod
-    def get_job(self, job_request):
-        raise NotImplementedError("Base method not implemented")
-
-    @abstractmethod
-    def update_job(self, job_status):
-        raise NotImplementedError("Base method not implemented")
-
-    @abstractmethod
-    def update_events(self, evnt_status):
-        raise NotImplementedError("Base method not implemented")
-
-    @abstractmethod
-    def get_panda_queue_name(self):
+    def stop(self):
         raise NotImplementedError("Base method not implemented")
