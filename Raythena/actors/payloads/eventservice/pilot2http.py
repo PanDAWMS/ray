@@ -12,8 +12,7 @@ import uvloop
 from aiohttp import web
 
 from Raythena.utils.eventservice import ESEncoder
-
-from .esPayload import ESPayload
+from Raythena.actors.payloads.eventservice.esPayload import ESPayload
 
 
 class AsyncRouter:

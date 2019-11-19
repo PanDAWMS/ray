@@ -5,7 +5,7 @@ import threading
 
 from Raythena.utils.eventservice import EventRangeRequest, PandaJobRequest, PandaJobUpdate, EventRangeUpdate
 
-from .baseCommunicator import BaseCommunicator
+from Raythena.drivers.communicators.baseCommunicator import BaseCommunicator
 
 
 class HarvesterMock(BaseCommunicator):
@@ -26,10 +26,8 @@ class HarvesterMock(BaseCommunicator):
         self.inFile = "EVNT.01469903._009502.pool.root.1"
         self.inFileAbs = os.path.expandvars(os.path.join(self.config.ray['workdir'], self.inFile))
         self.nevents = 66
-        self.n_get_event_ranges_to_serve = 2
         self.served_events = 0
         self.ncores = self.config.resources['corepernode']
-        self.nevents_per_request = int(self.nevents / self.n_get_event_ranges_to_serve)
 
     def run(self):
         while True:
@@ -61,7 +59,8 @@ class HarvesterMock(BaseCommunicator):
         self.event_ranges = dict()
         for pandaID, request in request.request.items():
             range_list = list()
-            for i in range(self.served_events + 1, self.served_events + request['nRanges'] + 1):
+            nranges = min(self.nevents - self.served_events, request['nRanges'])
+            for i in range(self.served_events + 1, self.served_events + nranges + 1):
                 rangeId = f"Range-{i:05}"
                 range_list.append({
                     'lastEvent': i,
@@ -71,7 +70,7 @@ class HarvesterMock(BaseCommunicator):
                     'LFN': self.inFileAbs,
                     'GUID': self.guid})
             self.event_ranges[pandaID] = range_list
-        self.served_events += self.nevents_per_request
+        self.served_events += nranges
         self.eventRangesQueue.put(self.event_ranges)
 
     def update_job(self, job_status):

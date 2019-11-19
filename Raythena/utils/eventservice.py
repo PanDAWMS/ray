@@ -68,7 +68,7 @@ class PandaJobQueue:
         else:
             raise Exception(f"{v} is not of type {PandaJob}")
 
-    def __iter__(self, k):
+    def __iter__(self):
         return iter(self.jobs)
 
     def __len__(self):
@@ -125,7 +125,10 @@ class PandaJobQueue:
             if not ranges:
                 self.get_eventranges(pandaID).no_more_ranges = True
             else:
-                self.get_eventranges(pandaID).concat(ranges)
+                ranges_obj = list()
+                for range_dict in ranges:
+                    ranges_obj.append(EventRange.build_from_dict(range_dict))
+                self.get_eventranges(pandaID).concat(ranges_obj)
 
     @staticmethod
     def build_from_dict(jobsdict):
@@ -166,11 +169,11 @@ class EventRangeQueue:
     def no_more_ranges(self):
         return self._no_more_ranges
 
-    @property.setter
+    @no_more_ranges.setter
     def no_more_ranges(self, v):
         self._no_more_ranges = v
 
-    def __iter__(self, k):
+    def __iter__(self):
         return iter(self.eventranges_by_id)
 
     def __len__(self):
@@ -234,7 +237,7 @@ class EventRangeQueue:
 
     def concat(self, ranges):
         for r in ranges:
-            self.add(r)
+            self.append(r)
 
     def process_ranges_update(self, ranges_update):
         for r in ranges_update:
@@ -248,7 +251,7 @@ class EventRangeQueue:
             rangeID = self.rangesID_by_state[EventRange.READY].pop()
             r = self.eventranges_by_id[rangeID]
             r.status = EventRange.ASSIGNED
-            self.rangeID_by_state[EventRange.ASSIGNED].append(rangeID)
+            self.rangesID_by_state[EventRange.ASSIGNED].append(rangeID)
             res.append(r)
 
         return res
@@ -349,7 +352,7 @@ class EventRangeUpdate:
     def __len__(self):
         return len(self.range_update)
 
-    def __iter__(self, k):
+    def __iter__(self):
         return iter(self.range_update)
 
     def __getitem__(self, k):
@@ -368,10 +371,12 @@ class EventRangeUpdate:
 
         for f in range_update:
             fileInfo = f.get('zipFile', None)
-            rangesInfo = f.get('eventRange', None)
+            rangesInfo = f.get('eventRanges', None)
             fileData = dict()
             if fileInfo['lfn'].find('.root') > -1:
                 ftype = "es_output"
+            else:
+                ftype = "zip_output"
 
             if fileInfo:
                 fileData['path'] = fileInfo['lfn']
@@ -444,6 +449,12 @@ class EventRangeRequest:
     """
     def __init__(self):
         self.request = dict()
+
+    def __len__(self):
+        return len(self.request)
+
+    def __iter__(self):
+        return iter(self.request)
 
     def __str__(self):
         return json.dumps(self.request)
@@ -550,7 +561,7 @@ class PandaJob:
     def __len__(self):
         return len(self.job)
 
-    def __iter__(self, k):
+    def __iter__(self):
         return iter(self.job)
 
     def __contains__(self, k):
@@ -616,6 +627,6 @@ class EventRange:
         return EventRange(eventRangeDict['eventRangeID'],
                           eventRangeDict['startEvent'],
                           eventRangeDict['lastEvent'],
-                          eventRangeDict['PFN'],
+                          eventRangeDict.get('PFN', eventRangeDict.get('LFN', None)),
                           eventRangeDict['GUID'],
                           eventRangeDict['scope'])
