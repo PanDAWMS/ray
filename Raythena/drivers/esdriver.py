@@ -1,6 +1,7 @@
 import psutil
 import ray
 import json
+import os
 
 from queue import Queue
 
@@ -33,12 +34,12 @@ class BookKeeper:
         self.actors[actorID] = jobID
         return self.jobs[jobID] if jobID else None
 
-    def fetch_event_ranges(self, actorID, nranges):
+    def fetch_event_ranges(self, actorID, n):
         if actorID not in self.actors or not self.actors[actorID]:
             return list()
         if actorID not in self.rangesID_by_actor:
             self.rangesID_by_actor[actorID] = list()
-        ranges = self.jobs.get_eventranges(self.actors[actorID]).get_next_ranges(nranges)
+        ranges = self.jobs.get_eventranges(self.actors[actorID]).get_next_ranges(n)
         for r in ranges:
             self.rangesID_by_actor[actorID].append(r.eventRangeID)
         return ranges
@@ -106,7 +107,6 @@ class ESDriver(BaseDriver):
             actor_id = f"Actor_{nodeip}"
             actor_args = {
                 'actor_id': actor_id,
-                'panda_queue': self.bookKeeper.jobs[actor_id],
                 'config': self.config,
                 'logging_actor': self.logging_actor
             }
@@ -123,10 +123,11 @@ class ESDriver(BaseDriver):
                     pass
                 if message == Messages.REQUEST_NEW_JOB:
                     job = self.bookKeeper.assign_job_to_actor(actor_id)
+                    self.logging_actor.info.remote(self.id, f"Sending {job} to {actor_id}")
                     self[actor_id].receive_job.remote(Messages.REPLY_OK if job else Messages.REPLY_NO_MORE_JOBS, job)
                 elif message == Messages.REQUEST_EVENT_RANGES:
-                    request = EventRangeRequest.build_from_dict(json.loads(data))
-                    evt_range = self.bookKeeper.fetch_event_ranges(actor_id, request)
+                    pandaID = self.bookKeeper.actors[actor_id]
+                    evt_range = self.bookKeeper.fetch_event_ranges(actor_id, data[pandaID]['nRanges'])
                     if evt_range:
                         total_sent += len(evt_range)
                         self.logging_actor.info.remote(self.id,
@@ -168,15 +169,19 @@ class ESDriver(BaseDriver):
 
         self.bookKeeper.add_jobs(jobs)
 
-        self.create_actors()
-
         evnt_request = EventRangeRequest()
         for pandaID in self.bookKeeper.jobs:
             cjob = self.bookKeeper.jobs[pandaID]
+            os.makedirs(os.path.expandvars(os.path.join(self.config.ray['workdir'], cjob['PandaID'])))
             evnt_request.add_event_request(pandaID, 100, cjob['taskID'], cjob['jobsetID'])
         self.requestsQueue.put(evnt_request)
 
+        self.create_actors()
+
         self.start_actors()
+
+        ranges = self.eventRangesQueue.get()
+        self.bookKeeper.add_event_ranges(ranges)
 
         self.handle_actors()
 

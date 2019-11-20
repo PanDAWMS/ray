@@ -39,10 +39,9 @@ class ESWorker:
         STAGEOUT: [FINISHING]
     }
 
-    def __init__(self, actor_id, panda_queue, config, logging_actor):
+    def __init__(self, actor_id, config, logging_actor):
         self.id = actor_id
         self.config = config
-        self.panda_queue = panda_queue
         self.logging_actor = logging_actor
         self.job = None
         self.node_ip = get_node_ip()
@@ -164,7 +163,9 @@ class ESWorker:
                                       self.job['taskID'],
                                       self.job['jobsetID'])
                 self.transition_state(ESWorker.EVENT_RANGES_REQUESTED)
-                return self.return_message(Messages.REQUEST_EVENT_RANGES, req.to_json_string())
+                return self.return_message(Messages.REQUEST_EVENT_RANGES, req)
+            elif self.state == ESWorker.DONE:
+                return self.return_message(Messages.PROCESS_DONE)
             else:
                 job_update = self.payload.fetch_job_update()
                 if job_update:
