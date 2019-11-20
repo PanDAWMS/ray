@@ -28,7 +28,8 @@ RUN conda create -y -n${RAYTHENA_PAYLOAD_VENV} python=2.7; \
 
 COPY . ${BUILD_DIR}/
 RUN git clone https://github.com/PanDAWMS/pilot2.git ${RAYTHENA_PAYLOAD_BINDIR}; \
-    sed -i 's/^pandaserver:.*$/pandaserver: http:\/\/127.0.0.1:8080/g' ${RAYTHENA_PAYLOAD_BINDIR}/pilot/util/default.cfg
+    sed -i 's/^pandaserver:.*$/pandaserver: http:\/\/127.0.0.1:8080/g' ${RAYTHENA_PAYLOAD_BINDIR}/pilot/util/default.cfg; \
+    sed -i 's/^maximum_getjob_requests:.*$/maximum_getjob_requests: 1/g' ${RAYTHENA_PAYLOAD_BINDIR}/pilot/util/default.cfg;
 COPY entrypoint.sh ${ENTRYPOINT_BIN}
 RUN chmod +x ${ENTRYPOINT_BIN}; \
     source ${RAYTHENA_CONDA_BIN}/activate; \
@@ -37,8 +38,8 @@ RUN chmod +x ${ENTRYPOINT_BIN}; \
     source /opt/lcg/gcc/*/x86_64-*/setup.sh; \
     # Install nighly build of Ray as current version has a bug and does not run on HPC
     # https://github.com/ray-project/ray/pull/5857 needs to be released, as of 11.08.2019 it is only merged in the master branch
-    pip install https://s3-us-west-2.amazonaws.com/ray-wheels/latest/ray-0.8.0.dev6-cp37-cp37m-manylinux1_x86_64.whl; \
     cd ${BUILD_DIR}; \
+    pip install ray-0.7.6-cp37-cp37m-linux_x86_64.whl; \
     python setup.py bdist_wheel; \
     pip install dist/*.whl; \
     rm -rf ${BUILD_DIR}
