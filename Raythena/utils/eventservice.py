@@ -246,7 +246,7 @@ class EventRangeQueue:
 
     def get_next_ranges(self, nranges):
         res = list()
-
+        nranges = min(nranges, len(self.rangesID_by_state[EventRange.READY]))
         for i in range(nranges):
             rangeID = self.rangesID_by_state[EventRange.READY].pop()
             r = self.eventranges_by_id[rangeID]
@@ -455,6 +455,9 @@ class EventRangeRequest:
 
     def __iter__(self):
         return iter(self.request)
+    
+    def __getitem__(self, k):
+        return self.request[k]
 
     def __str__(self):
         return json.dumps(self.request)
