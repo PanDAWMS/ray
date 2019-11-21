@@ -14,7 +14,8 @@ class Config:
         'harvester': {
             'endpoint': str,
             'communicator': str,
-            'harvesterconf': str
+            'harvesterconf': str,
+            'min_nevents': int
         },
         'ray': {
             'workdir': str,

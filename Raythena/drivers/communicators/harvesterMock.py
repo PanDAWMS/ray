@@ -25,7 +25,7 @@ class HarvesterMock(BaseCommunicator):
         self.guid = '9C81A8C7-FA15-D940-942B-2E40AF22C4D6'
         self.inFile = "EVNT.01469903._009502.pool.root.1"
         self.inFileAbs = os.path.expandvars(os.path.join(self.config.ray['workdir'], self.inFile))
-        self.nevents = 66
+        self.nevents = 100
         self.served_events = 0
         self.ncores = self.config.resources['corepernode']
 
@@ -52,14 +52,19 @@ class HarvesterMock(BaseCommunicator):
 
     def request_event_ranges(self, request):
 
+        self.event_ranges = dict()
+
+        for pandaID in request:
+            self.event_ranges[pandaID] = list()
+
         if self.served_events >= self.nevents:
-            self.eventRangesQueue.put(dict())
+            self.eventRangesQueue.put(self.event_ranges)
             return
 
-        self.event_ranges = dict()
-        for pandaID, request in request.request.items():
+        for pandaID in request:
             range_list = list()
-            nranges = min(self.nevents - self.served_events, request['nRanges'])
+            request_dict = request[pandaID]
+            nranges = min(self.nevents - self.served_events, request_dict['nRanges'])
             for i in range(self.served_events + 1, self.served_events + nranges + 1):
                 rangeId = f"Range-{i:05}"
                 range_list.append({

@@ -159,7 +159,7 @@ class ESWorker:
             elif self.state == ESWorker.READY_FOR_EVENTS or self.should_request_ranges():
                 req = EventRangeRequest()
                 req.add_event_request(self.job['PandaID'],
-                                      self.config.resources['corepernode'] * 4,
+                                      self.config.resources['corepernode'] * 2,
                                       self.job['taskID'],
                                       self.job['jobsetID'])
                 self.transition_state(ESWorker.EVENT_RANGES_REQUESTED)
