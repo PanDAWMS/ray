@@ -6,12 +6,16 @@ def build_nodes_resource_list(config, run_actor_on_head=False):
     if len(nodes) == 1:  # only a head node
         run_actor_on_head = True
     head_ip = config.ray['headip']
-    resource_list = set()
+    resource_list = list()
+    custom_resource = "payload_slot"
+    workerpernode = config.resources.get('workerpernode',1)
     for node in nodes:
         naddr = node['NodeManagerAddress']
         if not run_actor_on_head and naddr == head_ip:
             continue
-        resource_list.add(f"node:{naddr}")
+        node_custom_resource = f"{custom_resource}@{naddr}"
+        ray.experimental.set_resource(node_custom_resource, workerpernode, node['NodeID'])
+        resource_list.extend([node_custom_resource]*workerpernode)
     return resource_list
 
 

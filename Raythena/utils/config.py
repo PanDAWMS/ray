@@ -26,7 +26,9 @@ class Config:
             'driver': str
         },
         'resources': {
-            'corepernode': int
+            'corepernode': int,
+            'workerpernode': int,
+            'condabindir': str
         },
         'logging': {
             'level': str,

@@ -117,7 +117,7 @@ class ESDriver(BaseDriver):
         """
         
         for node_constraint in self.nodes:
-            _, _, nodeip = node_constraint.partition(':')
+            _, _, nodeip = node_constraint.partition('@')
             actor_id = f"Actor_{nodeip}"
             actor_args = {
                 'actor_id': actor_id,

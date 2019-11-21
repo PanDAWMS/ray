@@ -19,6 +19,7 @@ ray:
 
 resources:
   corepernode: 32
+  workerpernode: 1
   condabindir:
 
 logging:

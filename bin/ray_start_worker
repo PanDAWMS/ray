@@ -22,5 +22,5 @@ if [[ -z "$HEAD_IP" ]] || [[ -z "$REDIS_PORT" ]]; then
     usage
     exit 1
 fi
-NODE_RESOURCE=node:$(hostname -i)
-ray start --address=$HEAD_IP:$REDIS_PORT --resources="{ \"$NODE_RESOURCE\": 1}" --redis-password=$REDIS_PASSWORD --block "$@"
+
+ray start --address=$HEAD_IP:$REDIS_PORT --redis-password=$REDIS_PASSWORD --block "$@"
