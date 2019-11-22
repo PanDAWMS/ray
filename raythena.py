@@ -55,6 +55,10 @@ from Raythena.utils.importUtils import import_from_string
     '--ray-workdir',
     help='Workdirectory for ray actors'
 )
+@click.option(
+    '--harvester-endpoint',
+    help='Directory to use to communicate with harvester'
+)
 def cli(*args, **kwargs):
 
     config = Config(kwargs['config'], *args, **kwargs)
