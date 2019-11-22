@@ -429,9 +429,12 @@ class PandaJobRequest:
         self.mem = mem
         self.cpu = cpu
         self.allowOtherCountry = allowOtherCountry
+    
+    def __str__(self):
+        return str(self.__dict__)
 
     def to_dict(self):
-        return {}
+        return self.__dict__
 
 
 class EventRangeRequest:
