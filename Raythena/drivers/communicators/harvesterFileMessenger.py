@@ -26,45 +26,45 @@ class HarvesterFileCommunicator(BaseCommunicator):
     def request_job(self, request):
 
         # Checks if a job file already exists
-        if os.path.isfile(self.jobSpecFile):
-            with open(self.jobSpecFile) as f:
+        if os.path.isfile(self.jobspecfile):
+            with open(self.jobspecfile) as f:
                 job = json.load(f)
                 self.jobQueue.put(job)
         else:
             # create request file if necessary
-            if not os.path.isfile(self.jobRequestFile):
-                request_tmp = f"{self.jobRequestFile}.tmp"
-                with open(self.request_tmp, 'w') as f:
+            if not os.path.isfile(self.jobrequestfile):
+                request_tmp = f"{self.jobrequestfile}.tmp"
+                with open(request_tmp, 'w') as f:
                     json.dump(request.to_dict(), f)
-                os.rename(request_tmp, self.jobRequestFile)
+                os.rename(request_tmp, self.jobrequestfile)
 
             # wait on job file creation
-            while not os.path.isfile(self.jobSpecFile):
+            while not os.path.isfile(self.jobspecfile):
                 time.sleep(1)
             
             # load job and remove request file
-            with open(self.jobSpecFile) as f:
+            with open(self.jobspecfile) as f:
                 job = json.load(f)
 
-            if os.path.isfile(self.jobRequestFile):
-                os.remove(self.jobRequestFile)
+            if os.path.isfile(self.jobrequestfile):
+                os.remove(self.jobrequestfile)
             self.jobQueue.put(job)
 
     def request_event_ranges(self, request):
-        if not os.path.exists(self.eventRequestFile):
-            eventRequestFileTmp = f"{self.eventRequestFile}.tmp"
+        if not os.path.exists(self.eventrequestfile):
+            eventRequestFileTmp = f"{self.eventrequestfile}.tmp"
             with open(eventRequestFileTmp, 'w') as f:
                 json.dump(request.request, f)
-            os.rename(eventRequestFileTmp, self.eventRequestFile)
+            os.rename(eventRequestFileTmp, self.eventrequestfile)
 
-            while not os.path.isfile(self.eventRangesFile):
+            while not os.path.isfile(self.eventrangesfile):
                 time.sleep(1)
             
-            with open(self.eventRangesFile) as f:
+            with open(self.eventrangesfile) as f:
                 ranges = json.load(f)
             
-            if os.path.isfile(self.eventRequestFile):
-                os.remove(self.eventRequestFile)
+            if os.path.isfile(self.eventrequestfile):
+                os.remove(self.eventrequestfile)
             self.eventRangesQueue.put(ranges)
 
     def update_job(self, request):
