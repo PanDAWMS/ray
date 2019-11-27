@@ -309,6 +309,16 @@ class EventRangeUpdate:
         }
     ]
 
+    If no file is produced by the range update (e.g. failed events), the following schema is sent:
+
+    [
+        {
+            "errorCode": 1220,
+            "eventRangeID": "Range-00003",
+            "eventStatus": "failed"
+        }
+    ]
+
     The JSON schema that should be send is as shown below.
 
     eventstatus in [running, finished, failed, fatal]
@@ -369,16 +379,16 @@ class EventRangeUpdate:
         update_dict = dict()
         update_dict[pandaID] = list()
 
-        for f in range_update:
-            fileInfo = f.get('zipFile', None)
-            rangesInfo = f.get('eventRanges', None)
+        for range_elt in range_update:
+            fileInfo = range_elt.get('zipFile', None)
+            rangesInfo = range_elt.get('eventRanges', None)
             fileData = dict()
-            if fileInfo['lfn'].find('.root') > -1:
-                ftype = "es_output"
-            else:
-                ftype = "zip_output"
 
             if fileInfo:
+                if fileInfo['lfn'].find('.root') > -1:
+                    ftype = "es_output"
+                else:
+                    ftype = "zip_output"
                 fileData['path'] = fileInfo['lfn']
                 fileData['type'] = ftype
                 fileData['chksum'] = fileInfo['adler32']
@@ -393,7 +403,11 @@ class EventRangeUpdate:
                     elt.update(fileData)
                     update_dict[pandaID].append(elt)
             else:
-                update_dict[pandaID].append(fileData)
+                elt = dict()
+                elt['eventRangeID'] = range_elt['eventRangeID']
+                elt['eventStatus'] = range_elt['eventStatus']
+                elt.update(fileData)
+                update_dict[pandaID].append(elt)
 
         return EventRangeUpdate(update_dict)
 

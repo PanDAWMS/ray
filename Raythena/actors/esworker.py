@@ -57,10 +57,9 @@ class ESWorker:
         self.logging_actor.info.remote(self.id, "Ray worker started")
 
     def stagein(self):
-        cwd = os.getcwd()
         self.payload_job_dir = os.path.join(self.workdir, self.job['PandaID'])
         if not os.path.isdir(self.payload_job_dir):
-            self.logging_actor.warn.remote(self.id, f"Specified path {self.payload_job_dir} does not exist. Using cwd {cwd}")
+            self.logging_actor.warn.remote(self.id, f"Specified path {self.payload_job_dir} does not exist. Using cwd {self.workdir}")
 
         subdir = f"{self.id}_{os.getpid()}"
         self.payload_actor_process_dir = os.path.join(self.payload_job_dir, subdir)
@@ -102,6 +101,12 @@ class ESWorker:
             self.logging_actor.error.remote(self.id, f"Could not fetch job. Set state to done.")
 
         return self.return_message('received_job')
+
+    def mark_new_job(self):
+        """
+        Mark the worker as ready for new jobs
+        """
+        self.transition_state(ESWorker.READY_FOR_JOB)
 
     def receive_event_ranges(self, reply, eventranges_update):
         if reply == Messages.REPLY_NO_MORE_EVENT_RANGES or not eventranges_update:

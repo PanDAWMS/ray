@@ -30,6 +30,10 @@ class BookKeeper:
     def add_event_ranges(self, eventRanges):
         self.jobs.process_event_ranges_reply(eventRanges)
 
+    def has_jobs_ready(self):
+        jobID, _ = self.jobs.jobid_next_job_to_process()
+        return jobID is not None
+
     def assign_job_to_actor(self, actorID):
         jobID, nranges = self.jobs.jobid_next_job_to_process()
         self.actors[actorID] = jobID
@@ -48,6 +52,7 @@ class BookKeeper:
     def process_event_ranges_update(self, actor_id, eventRangesUpdate):
         pandaID = self.actors[actor_id]
         ranges_update = EventRangeUpdate.build_from_dict(pandaID, eventRangesUpdate)
+        self.logging_actor.info.remote("BookKeeper", f"Built rangeUpdate: {ranges_update}")
         self.jobs.process_event_ranges_update(ranges_update)
         for r in ranges_update[pandaID]:
             if r['eventRangeID'] in self.rangesID_by_actor[actor_id] and r['eventStatus'] != "running":
@@ -63,10 +68,10 @@ class BookKeeper:
             self.jobs.get_eventranges(pandaID).update_range_state(rangeID, EventRange.READY)
         actor_ranges.clear()
         self.actors[actor_id] = None
-    
+
     def n_ready(self, pandaID):
         return self.jobs.get_eventranges(pandaID).nranges_available()
-    
+
     def is_flagged_no_more_events(self, pandaID):
         return self.jobs.get_eventranges(pandaID).no_more_ranges
 
@@ -79,9 +84,9 @@ class ESDriver(BaseDriver):
         self.logging_actor = LoggingActor.remote(self.config)
 
         self.nodes = build_nodes_resource_list(self.config)
-        
+
         # As actors request 2 * corepernode, make sure to request enough events to serve all actors
-        self.n_events_per_request = max(self.config.resources['corepernode'] * len(self.nodes) * 2, self.config.harvester['min_nevents']) 
+        self.n_events_per_request = max(self.config.resources['corepernode'] * len(self.nodes) * 2, self.config.harvester['min_nevents'])
 
         self.requestsQueue = Queue()
         self.jobQueue = Queue()
@@ -115,7 +120,7 @@ class ESDriver(BaseDriver):
         """
         Create new ray actors, one per node
         """
-        
+
         for node_constraint in self.nodes:
             _, _, nodeip = node_constraint.partition('@')
             actor_id = f"Actor_{nodeip}"
@@ -136,7 +141,7 @@ class ESDriver(BaseDriver):
                 if message == Messages.IDLE:
                     pass
                 if message == Messages.REQUEST_NEW_JOB:
-                    # important to have at least one job with event ranges assigned as job without eventranges will not get assigned 
+                    # important to have at least one job with event ranges assigned as job without eventranges will not get assigned
                     job = self.bookKeeper.assign_job_to_actor(actor_id)
                     self.logging_actor.info.remote(self.id, f"Sending {job} to {actor_id}")
                     self[actor_id].receive_job.remote(Messages.REPLY_OK if job else Messages.REPLY_NO_MORE_JOBS, job)
@@ -149,8 +154,9 @@ class ESDriver(BaseDriver):
 
                     # did not fetch enough event and harvester might have more, needs to get more events now
                     while len(evt_range) < nranges and not self.bookKeeper.is_flagged_no_more_events(pandaID):
-                        self.logging_actor.debug.remote(self.id, f"Not enough event ranges to satisfy actor request. available: {len(evt_range)} requested: {nranges}")
-                        self.request_event_ranges(block = True)
+                        self.logging_actor.debug.remote(
+                            self.id, f"Not enough event ranges to satisfy actor request. available: {len(evt_range)} requested: {nranges}")
+                        self.request_event_ranges(block=True)
                         evt_range += self.bookKeeper.fetch_event_ranges(actor_id, nranges - len(evt_range))
 
                     if evt_range:
@@ -166,19 +172,27 @@ class ESDriver(BaseDriver):
                     self.logging_actor.info.remote(self.id, f"{actor_id} sent a eventranges update: {data}")
                     update = json.loads(data['eventRanges'][0])
                     self.bookKeeper.process_event_ranges_update(actor_id, update)
-                elif message == Messages.PROCESS_DONE:  #TODO actor should drain jobupdate, rangeupdate queue and send a final update.
-                    self.terminated.append(actor_id)
-                    self.bookKeeper.process_actor_end(actor_id)
-                    # do not get new messages from this actor
-                    continue
+                elif message == Messages.PROCESS_DONE:  # TODO actor should drain jobupdate, rangeupdate queue and send a final update.
+                    # try to assign a new job to the actor
+                    self.logging_actor.info.remote(self.id, f"{actor_id} finished processing current job, checking for a new job...")
+                    has_jobs = self.bookKeeper.has_jobs_ready()
+                    if has_jobs:
+                        self.logging_actor.info.remote(self.id, f"More jobs to be processed by {actor_id}")
+                        self[actor_id].mark_new_job.remote()
+                    else:
+                        self.logging_actor.info.remote(self.id, f" no more job for {actor_id}")
+                        self.terminated.append(actor_id)
+                        self.bookKeeper.process_actor_end(actor_id)
+                        # do not get new messages from this actor
+                        continue
 
                 self.actors_message_queue.append(self[actor_id].get_message.remote())
             self.on_tick()
             new_messages, self.actors_message_queue = ray.wait(self.actors_message_queue)
 
-    def request_event_ranges(self, block = False):
+    def request_event_ranges(self, block=False):
         """
-        If no event range request, checks if any jobs needs more ranges, and if so, sends a requests to harvester. 
+        If no event range request, checks if any jobs needs more ranges, and if so, sends a requests to harvester.
         If an event range request has been sent (including one from the same call of this function), checks if a reply is available. If so,
         add the ranges to the bookKeeper. If block == true and a request has been sent, blocks until a reply is received
         """
@@ -191,7 +205,7 @@ class ESDriver(BaseDriver):
                     self.logging_actor.debug.remote(self.id, f"Job {pandaID} has no more events. Skipping request...")
                     continue
                 n_available_ranges = self.bookKeeper.n_ready(pandaID)
-                if n_available_ranges < self.n_events_per_request :
+                if n_available_ranges < self.n_events_per_request:
                     job = self.bookKeeper.jobs[pandaID]
                     evnt_request.add_event_request(pandaID, self.n_events_per_request, job['taskID'], job['jobsetID'])
 
@@ -208,7 +222,6 @@ class ESDriver(BaseDriver):
                 self.n_eventsrequest -= 1
             except Empty as e:
                 pass
-
 
     def on_tick(self):
         self.request_event_ranges()

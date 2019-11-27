@@ -41,7 +41,7 @@ class HarvesterFileCommunicator(BaseCommunicator):
             # wait on job file creation
             while not os.path.isfile(self.jobspecfile):
                 time.sleep(1)
-            
+
             # load job and remove request file
             with open(self.jobspecfile) as f:
                 job = json.load(f)
@@ -59,10 +59,10 @@ class HarvesterFileCommunicator(BaseCommunicator):
 
             while not os.path.isfile(self.eventrangesfile):
                 time.sleep(1)
-            
+
             with open(self.eventrangesfile) as f:
                 ranges = json.load(f)
-            
+
             if os.path.isfile(self.eventrequestfile):
                 os.remove(self.eventrequestfile)
             self.eventRangesQueue.put(ranges)
@@ -84,12 +84,12 @@ class HarvesterFileCommunicator(BaseCommunicator):
                 self.update_job(request)
             elif isinstance(request, EventRangeUpdate):
                 self.update_events(request)
-            else:  #if any other request is received, stop the thread
+            else:  # if any other request is received, stop the thread
                 break
 
     def start(self):
         self.communicator_thread.start()
-    
+
     def stop(self):
         self.requestsQueue.put(None)
-        self.communicator_thread.join() 
+        self.communicator_thread.join()

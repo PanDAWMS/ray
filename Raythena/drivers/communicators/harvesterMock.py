@@ -25,7 +25,7 @@ class HarvesterMock(BaseCommunicator):
         self.guid = '9C81A8C7-FA15-D940-942B-2E40AF22C4D6'
         self.inFile = "EVNT.01469903._009502.pool.root.1"
         self.inFileAbs = os.path.expandvars(os.path.join(self.config.ray['workdir'], self.inFile))
-        self.nevents = 100
+        self.nevents = 32
         self.served_events = 0
         self.ncores = self.config.resources['corepernode']
 
@@ -85,7 +85,7 @@ class HarvesterMock(BaseCommunicator):
         raise NotImplementedError("Base method not implemented")
 
     def get_panda_queue_name(self):
-        return "NERSC_Cori_p2_ES"
+        return "NERSC_Cori_p2_mcore"
 
     def request_job(self, job_request):
         hash = hashlib.md5()

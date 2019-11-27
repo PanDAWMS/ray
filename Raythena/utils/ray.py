@@ -11,7 +11,7 @@ def build_nodes_resource_list(config, run_actor_on_head=False):
     workerpernode = config.resources.get('workerpernode',1)
     for node in nodes:
         naddr = node['NodeManagerAddress']
-        if not run_actor_on_head and naddr == head_ip:
+        if not node['alive'] or (not run_actor_on_head and naddr == head_ip):
             continue
         node_custom_resource = f"{custom_resource}@{naddr}"
         ray.experimental.set_resource(node_custom_resource, workerpernode, node['NodeID'])
