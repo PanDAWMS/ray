@@ -161,7 +161,10 @@ class Pilot2HttpPayload(ESPayload):
     async def handle_updateJob(self, request):
         body = await self.parse_qs_body(request)
         await self.job_update.put(body)
-        return web.json_response(body, dumps=self.json_encoder)
+        res = {
+            "StatusCode": 0
+        }
+        return web.json_response(res, dumps=self.json_encoder)
 
     async def handle_getEventRanges(self, request):
         body = await self.parse_qs_body(request)
@@ -190,7 +193,10 @@ class Pilot2HttpPayload(ESPayload):
     async def handle_updateEventRanges(self, request):
         body = await self.parse_qs_body(request)
         await self.ranges_update.put(body)
-        return web.json_response(body, dumps=self.json_encoder)
+        res = {
+            "StatusCode": 0
+        }
+        return web.json_response(res, dumps=self.json_encoder)
 
     async def handle_updateJobsInBulk(self, request):
         """
