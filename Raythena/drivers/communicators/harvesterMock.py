@@ -22,10 +22,18 @@ class HarvesterMock(BaseCommunicator):
         self.taskId = '0'
         self.config = config
         self.scope = 'mc15_13TeV'
-        self.guid = '9C81A8C7-FA15-D940-942B-2E40AF22C4D6'
-        self.inFile = "EVNT.01469903._009502.pool.root.1"
-        self.inFileAbs = os.path.expandvars(os.path.join(self.config.ray['workdir'], self.inFile))
-        self.nevents = 32
+        self.guid = '74DFB3ED-DAA7-E011-8954-001E4F3D9CB1,74DFB3ED-DAA7-E011-8954-001E4F3D9CB1'
+        self.guids = self.guid.split(",")
+        self.inFiles = "EVNT.12458444._000048.pool.root.1,EVNT.12458444._000052.pool.root.1"
+        workdir = os.path.expandvars(self.config.ray['workdir'])
+        self.files = self.inFiles.split(",")
+        self.nfiles = len(self.files)
+        self.inFilesAbs = list()
+        for f in self.files:
+            self.inFilesAbs.append(os.path.join(workdir, f))
+
+        self.nevents_per_file = 100
+        self.nevents = self.nevents_per_file * self.nfiles
         self.served_events = 0
         self.ncores = self.config.resources['corepernode']
 
@@ -66,16 +74,19 @@ class HarvesterMock(BaseCommunicator):
             request_dict = request[pandaID]
             nranges = min(self.nevents - self.served_events, request_dict['nRanges'])
             for i in range(self.served_events + 1, self.served_events + nranges + 1):
+                file_idx = self.served_events % self.nevents_per_file
                 rangeId = f"Range-{i:05}"
                 range_list.append({
-                    'lastEvent': i,
+                    'lastEvent': i - file_idx * self.nevents_per_file,
                     'eventRangeID': rangeId,
-                    'startEvent': i,
+                    'startEvent': i - file_idx * self.nevents_per_file,
                     'scope': self.scope,
-                    'LFN': self.inFileAbs,
-                    'GUID': self.guid})
+                    'LFN': self.inFilesAbs[file_idx],
+                    'GUID': self.guids[file_idx]})
+
+                self.served_events += 1
+
             self.event_ranges[pandaID] = range_list
-        self.served_events += nranges
         self.eventRangesQueue.put(self.event_ranges)
 
     def update_job(self, job_status):
@@ -85,7 +96,7 @@ class HarvesterMock(BaseCommunicator):
         raise NotImplementedError("Base method not implemented")
 
     def get_panda_queue_name(self):
-        return "NERSC_Cori_p2_mcore"
+        return "NERSC_Cori_p2_ES"
 
     def request_job(self, job_request):
         hash = hashlib.md5()
@@ -116,7 +127,7 @@ class HarvesterMock(BaseCommunicator):
                         u'cloud': u'US',
                         u'StatusCode': 0,
                         u'homepackage': u'Athena/master',
-                        u'inFiles': self.inFile,
+                        u'inFiles': self.inFiles,
                         u'processingType': u'pilot-ptest',
                         u'ddmEndPointOut': u'UTA_SWT2_DATADISK,UTA_SWT2_DATADISK',
                         u'fsize': u'118612262',
