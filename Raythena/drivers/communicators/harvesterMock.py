@@ -32,7 +32,7 @@ class HarvesterMock(BaseCommunicator):
         for f in self.files:
             self.inFilesAbs.append(os.path.join(workdir, f))
 
-        self.nevents_per_file = 100
+        self.nevents_per_file = 10000
         self.nevents = self.nevents_per_file * self.nfiles
         self.served_events = 0
         self.ncores = self.config.resources['corepernode']
@@ -74,7 +74,7 @@ class HarvesterMock(BaseCommunicator):
             request_dict = request[pandaID]
             nranges = min(self.nevents - self.served_events, request_dict['nRanges'])
             for i in range(self.served_events + 1, self.served_events + nranges + 1):
-                file_idx = self.served_events % self.nevents_per_file
+                file_idx = self.served_events // self.nevents_per_file
                 rangeId = f"Range-{i:05}"
                 range_list.append({
                     'lastEvent': i - file_idx * self.nevents_per_file,

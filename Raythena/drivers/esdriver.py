@@ -300,10 +300,18 @@ if __name__ == "__main__":
     evnt_request = EventRangeRequest()
     for pandaID in bookKeeper.jobs:
         cjob = bookKeeper.jobs[pandaID]
-        evnt_request.add_event_request(pandaID, 100, cjob['taskID'], cjob['jobsetID'])
+        evnt_request.add_event_request(pandaID, 1000, cjob['taskID'], cjob['jobsetID'])
     assert len(evnt_request) == 1
-    requestsQueue.put(evnt_request)
-    ranges = eventRangesQueue.get()
+    ranges = list()
+    more_events = True
+    while more_events:
+        requestsQueue.put(evnt_request)
+        r = eventRangesQueue.get()
+        for pandaID in bookKeeper.jobs:
+            if not r[pandaID]:
+                more_events = False
+        if more_events:
+            ranges.append(r)
 
     # assign ranges to jobs
     bookKeeper.add_event_ranges(ranges)
