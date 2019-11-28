@@ -169,7 +169,7 @@ class ESDriver(BaseDriver):
                 elif message == Messages.UPDATE_JOB:
                     self.logging_actor.info.remote(self.id, f"{actor_id} sent a job update: {data}")
                 elif message == Messages.UPDATE_EVENT_RANGES:
-                    self.logging_actor.info.remote(self.id, f"{actor_id} sent a eventranges update: {data}")
+                    self.logging_actor.info.remote(self.id, f"{actor_id} sent a eventranges update")
                     update = json.loads(data['eventRanges'][0])
                     self.bookKeeper.process_event_ranges_update(actor_id, update)
                 elif message == Messages.PROCESS_DONE:  # TODO actor should drain jobupdate, rangeupdate queue and send a final update.
@@ -217,7 +217,7 @@ class ESDriver(BaseDriver):
         if self.n_eventsrequest > 0:
             try:
                 ranges = self.eventRangesQueue.get(block)
-                self.logging_actor.debug.remote(self.id, f"Fetched eventrange response: {ranges}")
+                self.logging_actor.debug.remote(self.id, f"Fetched eventrange response")
                 self.bookKeeper.add_event_ranges(ranges)
                 self.n_eventsrequest -= 1
             except Empty as e:
@@ -258,7 +258,10 @@ class ESDriver(BaseDriver):
         if self.n_eventsrequest > 0:
             self.request_event_ranges(block=True)
 
-        self.handle_actors()
+        try:
+            self.handle_actors()
+        except Exception as e:
+            self.logging_actor.error.remote(self.id, f"Error while handling actors. stopping...")
 
         self.communicator.stop()
 
