@@ -32,7 +32,7 @@ class HarvesterMock(BaseCommunicator):
         for f in self.files:
             self.inFilesAbs.append(os.path.join(workdir, f))
 
-        self.nevents_per_file = 20
+        self.nevents_per_file = 10000
         self.nevents = self.nevents_per_file * self.nfiles
         self.served_events = 0
         self.ncores = self.config.resources['corepernode']
