@@ -59,6 +59,10 @@ from Raythena.utils.importUtils import import_from_string
     '--harvester-endpoint',
     help='Directory to use to communicate with harvester'
 )
+@click.option(
+    '--panda-queue',
+    help='Panda queue provided to the payload'
+)
 def cli(*args, **kwargs):
 
     config = Config(kwargs['config'], *args, **kwargs)
