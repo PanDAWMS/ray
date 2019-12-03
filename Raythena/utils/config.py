@@ -8,9 +8,9 @@ class Config:
     conf_template = {
         'payload': {
             'plugin': str,
-            'virtualenv': str,
             "bindir": str,
-            "pandaqueue": str
+            "pandaqueue": str,
+            "logfilename": str
         },
         'harvester': {
             'endpoint': str,
@@ -23,13 +23,11 @@ class Config:
             'headip': str,
             'redisport': int,
             'redispassword': str,
-            'virtualenv': str,
             'driver': str
         },
         'resources': {
             'corepernode': int,
             'workerpernode': int,
-            'condabindir': str
         },
         'logging': {
             'level': str,
@@ -54,17 +52,13 @@ class Config:
     def __str__(self):
         return str(self.__dict__)
 
-    def _parse_cli_args(self, conda_bin, config, debug, payload_bindir, payload_venv, ray_driver, ray_head_ip,
-                        ray_redis_password, ray_redis_port, ray_venv, ray_workdir, harvester_endpoint, panda_queue):
+    def _parse_cli_args(self, config, debug, payload_bindir, ray_driver, ray_head_ip,
+                        ray_redis_password, ray_redis_port, ray_workdir, harvester_endpoint, panda_queue, core_per_node):
 
-        if conda_bin:
-            self.resources['condabindir'] = conda_bin
         if debug:
             self.logging['level'] = 'debug'
         if payload_bindir:
             self.payload['bindir'] = payload_bindir
-        if payload_venv:
-            self.payload['virtualenv'] = payload_venv
         if ray_driver:
             self.ray['driver'] = ray_driver
         if ray_head_ip:
@@ -73,14 +67,14 @@ class Config:
             self.ray['redispassword'] = ray_redis_password
         if ray_redis_port:
             self.ray['redisport'] = ray_redis_port
-        if ray_venv:
-            self.ray['virtualenv'] = ray_venv
         if ray_workdir:
             self.ray['workdir'] = ray_workdir
         if harvester_endpoint:
             self.harvester['endpoint'] = harvester_endpoint
         if panda_queue:
             self.payload['pandaqueue'] = panda_queue
+        if core_per_node:
+            self.resources['corepernode'] = int(core_per_node)
 
     def _validate_section(self, template_section_name, section_params, template_params):
         for name, value in template_params.items():

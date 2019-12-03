@@ -91,7 +91,8 @@ class Pilot2HttpPayload(ESPayload):
             f.write(cmd)
         st = os.stat(cmd_script)
         os.chmod(cmd_script, st.st_mode | stat.S_IEXEC)
-        return f"shifter /bin/bash {cmd_script} > wrapper.stdout 2> wrapper.stderr"
+        payload_log = self.config.payload.get('logfilename', 'wrapper')
+        return f"shifter /bin/bash {cmd_script} > {payload_log}.stdout 2> {payload_log}.stderr"
 
     def is_complete(self):
         return self.pilot_process is not None and self.pilot_process.poll() is not None

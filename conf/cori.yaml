@@ -1,8 +1,8 @@
 payload:
   plugin: pilot2http:Pilot2HttpPayload
-  virtualenv: pilot2
   bindir:
   pandaqueue: NERSC_Cori_p2_ES
+  logfilename: log.pilotwrapper
 
 harvester:
   endpoint: $SCRATCH/raythena/harvester
@@ -14,14 +14,12 @@ ray:
   headip:
   redisport:
   redispassword:
-  virtualenv: raythena
   driver: esdriver:ESDriver
   workdir: $SCRATCH/raythena/workdir
 
 resources:
   corepernode: 32
   workerpernode: 1
-  condabindir:
 
 logging:
   level: info

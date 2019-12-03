@@ -10,18 +10,6 @@ from Raythena.utils.importUtils import import_from_string
 
 @click.command()
 @click.option(
-    '--conda-bin',
-    help='Path to conda bin directory which contains activate.'
-)
-@click.option(
-    '--ray-venv',
-    help='Name of Ray virtualenv.'
-)
-@click.option(
-    '--payload-venv',
-    help='Name of payload virtualenv.'
-)
-@click.option(
     '--payload-bindir',
     help='Directory where payload source code is located.'
 )
@@ -62,6 +50,10 @@ from Raythena.utils.importUtils import import_from_string
 @click.option(
     '--panda-queue',
     help='Panda queue provided to the payload'
+)
+@click.option(
+    '--core-per-node',
+    help='Used to determine how many events should be buffered by ray actors'
 )
 def cli(*args, **kwargs):
 
