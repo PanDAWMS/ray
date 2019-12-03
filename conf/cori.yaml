@@ -2,6 +2,7 @@ payload:
   plugin: pilot2http:Pilot2HttpPayload
   virtualenv: pilot2
   bindir:
+  pandaqueue: NERSC_Cori_p2_ES
 
 harvester:
   endpoint: $SCRATCH/raythena/harvester

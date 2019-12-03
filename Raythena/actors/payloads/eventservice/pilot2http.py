@@ -2,6 +2,7 @@ import asyncio
 import functools
 import json
 import os
+import stat
 import shlex
 import threading
 from asyncio import Queue, QueueEmpty
@@ -71,20 +72,26 @@ class Pilot2HttpPayload(ESPayload):
         """
         """
         cmd = str()
-        conda_activate = os.path.expandvars(os.path.join(self.config.resources['condabindir'], 'activate'))
-        pilot_venv = self.config.payload['virtualenv']
-        if os.path.isfile(conda_activate) and pilot_venv is not None:
-            cmd += f"source {conda_activate} {pilot_venv}; source /cvmfs/atlas.cern.ch/repo/sw/local/setup-yampl.sh;"
+        os.path.dirname(os.getcwd())
+        cmd += f"export LD_LIBRARY_PATH=/global/project/projectdirs/atlas/esseivaj/raythena/lib:$LD_LIBRARY_PATH;"
+        cmd += f"export PYTHONPATH=/global/project/projectdirs/atlas/esseivaj/raythena/python-bindings:$PYTHONPATH;"
+        cmd += f"cp {self.config.ray['workdir']}/pilot2.tar.gz {os.getcwd()}/pilot2.tar.gz;"
         prodSourceLabel = shlex.quote(self.current_job['prodSourceLabel'])
 
-        pilot_bin = os.path.expandvars(os.path.join(self.config.payload['bindir'], "pilot.py"))
-        queue_escaped = shlex.quote(self.current_job['destinationSE'])
+        pilotwrapper_bin = os.path.expandvars(os.path.join(self.config.payload['bindir'], "runpilot2-wrapper.sh"))
+        queue_escaped = shlex.quote(self.config.payload['pandaqueue'])
         # use exec to replace the shell process with python. Allows to send signal to the python process if needed
-        cmd += f"exec python {shlex.quote(pilot_bin)} -q {queue_escaped} -r {queue_escaped} -s {queue_escaped} " \
-               f"-i PR -j {prodSourceLabel} --pilot-user=ATLAS -t -w generic --url=http://{self.host} " \
+        #uses python 2.7 from lcg as default python version in the container is 2.6 which is not supported by pilot
+        cmd += f"{shlex.quote(pilotwrapper_bin)}  --piloturl local -q {queue_escaped} -r {queue_escaped} -s {queue_escaped} " \
+               f"-i PR -j {prodSourceLabel} --container --mute --pilot-user=atlashpc -t -w generic --url=http://{self.host} " \
                f"-p {self.port} -d --allow-same-user=False --resource-type MCORE;"
 
-        return cmd
+        cmd_script = os.path.join(os.getcwd(), "payload.sh")
+        with open(cmd_script, 'w') as f:
+            f.write(cmd)
+        st = os.stat(cmd_script)
+        os.chmod(cmd_script, st.st_mode | stat.S_IEXEC)
+        return f"shifter /bin/bash {cmd_script} > wrapper.stdout 2> wrapper.stderr"
 
     def is_complete(self):
         return self.pilot_process is not None and self.pilot_process.poll() is not None

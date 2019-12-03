@@ -9,7 +9,8 @@ class Config:
         'payload': {
             'plugin': str,
             'virtualenv': str,
-            "bindir": str
+            "bindir": str,
+            "pandaqueue": str
         },
         'harvester': {
             'endpoint': str,
@@ -54,7 +55,7 @@ class Config:
         return str(self.__dict__)
 
     def _parse_cli_args(self, conda_bin, config, debug, payload_bindir, payload_venv, ray_driver, ray_head_ip,
-                        ray_redis_password, ray_redis_port, ray_venv, ray_workdir, harvester_endpoint):
+                        ray_redis_password, ray_redis_port, ray_venv, ray_workdir, harvester_endpoint, panda_queue):
 
         if conda_bin:
             self.resources['condabindir'] = conda_bin
@@ -78,6 +79,8 @@ class Config:
             self.ray['workdir'] = ray_workdir
         if harvester_endpoint:
             self.harvester['endpoint'] = harvester_endpoint
+        if panda_queue:
+            self.payload['pandaqueue'] = panda_queue
 
     def _validate_section(self, template_section_name, section_params, template_params):
         for name, value in template_params.items():

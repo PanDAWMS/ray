@@ -32,7 +32,7 @@ class HarvesterMock(BaseCommunicator):
         for f in self.files:
             self.inFilesAbs.append(os.path.join(workdir, f))
 
-        self.nevents_per_file = 10000
+        self.nevents_per_file = 50
         self.nevents = self.nevents_per_file * self.nfiles
         self.served_events = 0
         self.ncores = self.config.resources['corepernode']
@@ -96,7 +96,7 @@ class HarvesterMock(BaseCommunicator):
         raise NotImplementedError("Base method not implemented")
 
     def get_panda_queue_name(self):
-        return "NERSC_Cori_p2_ES"
+        return self.config.payload['pandaqueue']
 
     def request_job(self, job_request):
         hash = hashlib.md5()
@@ -113,7 +113,7 @@ class HarvesterMock(BaseCommunicator):
                     {
                         u'jobsetID': self.jobsetId,
                         u'logGUID': log_guid,
-                        u'cmtConfig': u'x86_64-centos7-gcc8-opt',
+                        u'cmtConfig': u'x86_64-slc6-gcc49-opt',
                         u'prodDBlocks': u'user.mlassnig:user.mlassnig.pilot.test.single.hits',
                         u'dispatchDBlockTokenForOut': u'NULL,NULL',
                         u'destinationDBlockToken': u'NULL,NULL',
@@ -126,7 +126,7 @@ class HarvesterMock(BaseCommunicator):
                         u'eventService': 'true',
                         u'cloud': u'US',
                         u'StatusCode': 0,
-                        u'homepackage': u'Athena/master',
+                        u'homepackage': u'AtlasOffline/21.0.15',
                         u'inFiles': self.inFiles,
                         u'processingType': u'pilot-ptest',
                         u'ddmEndPointOut': u'UTA_SWT2_DATADISK,UTA_SWT2_DATADISK',
@@ -144,9 +144,9 @@ class HarvesterMock(BaseCommunicator):
                         u'transferType': u'NULL',
                         u'destinationDblock': job_name,
                         u'dispatchDBlockToken': u'NULL',
-                        u'jobPars': u' --multiprocess --eventService=True --skipEvents=0 --firstEvent=1 --preExec "from AthenaCommon.DetFlags import DetFlags;DetFlags.ID_setOn();DetFlags.Calo_setOff();DetFlags.Muon_setOff();DetFlags.Lucid_setOff();DetFlags.Truth_setOff()" --athenaopts=--preloadlib=${ATLASMKLLIBDIR_PRELOAD}/libimf.so --preInclude sim:SimulationJobOptions/preInclude.FrozenShowersFCalOnly.py,SimulationJobOptions/preInclude.BeamPipeKill.py --geometryVersion ATLAS-R2-2016-01-00-00_VALIDATION --physicsList QGSP_BERT --randomSeed 1234 --conditionsTag OFLCOND-MC12-SIM-00 --maxEvents=-1 --inputEvgenFile %s --outputHitsFile HITS_%s.pool.root' % (self.inFiles, job_name),
+                        u'jobPars': u'--eventService=True --skipEvents=0 --firstEvent=1 --preExec "from AthenaCommon.DetFlags import DetFlags;DetFlags.ID_setOn();DetFlags.Calo_setOff();DetFlags.Muon_setOff();DetFlags.Lucid_setOff();DetFlags.Truth_setOff()" --athenaopts=--preloadlib=${ATLASMKLLIBDIR_PRELOAD}/libimf.so --preInclude sim:SimulationJobOptions/preInclude.FrozenShowersFCalOnly.py,SimulationJobOptions/preInclude.BeamPipeKill.py --geometryVersion ATLAS-R2-2016-01-00-00_VALIDATION --physicsList QGSP_BERT --randomSeed 1234 --conditionsTag OFLCOND-MC12-SIM-00 --maxEvents=-1 --inputEvgenFile %s --outputHitsFile HITS_%s.pool.root' % (self.inFiles, job_name),
                         u'attemptNr': 0,
-                        u'swRelease': u'Atlas-r21',
+                        u'swRelease': u'Atlas-21.0.15',
                         u'nucleus': u'NULL',
                         u'maxCpuCount': 0,
                         u'outFiles': u'HITS_%s.pool.root,%s.job.log.tgz' % (job_name, job_name),
