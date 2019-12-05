@@ -10,7 +10,9 @@ class Config:
             'plugin': str,
             "bindir": str,
             "pandaqueue": str,
-            "logfilename": str
+            "logfilename": str,
+            "extrasetup": str,
+            "hpcresource": str
         },
         'harvester': {
             'endpoint': str,

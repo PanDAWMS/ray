@@ -73,18 +73,15 @@ class Pilot2HttpPayload(ESPayload):
         """
         cmd = str()
         os.path.dirname(os.getcwd())
-        cmd += f"export LD_LIBRARY_PATH=/global/project/projectdirs/atlas/esseivaj/raythena/lib:$LD_LIBRARY_PATH;"
-        cmd += f"export PYTHONPATH=/global/project/projectdirs/atlas/esseivaj/raythena/python-bindings:$PYTHONPATH;"
-        cmd += f"cp {self.config.ray['workdir']}/pilot2.tar.gz {os.getcwd()}/pilot2.tar.gz;"
+        cmd += self.config.payload['extrasetup']
+        cmd += f"ln -s {self.config.ray['workdir']}/pilot2 {os.getcwd()}/pilot2;"
         prodSourceLabel = shlex.quote(self.current_job['prodSourceLabel'])
 
         pilotwrapper_bin = os.path.expandvars(os.path.join(self.config.payload['bindir'], "runpilot2-wrapper.sh"))
         queue_escaped = shlex.quote(self.config.payload['pandaqueue'])
-        # use exec to replace the shell process with python. Allows to send signal to the python process if needed
-        #uses python 2.7 from lcg as default python version in the container is 2.6 which is not supported by pilot
         cmd += f"{shlex.quote(pilotwrapper_bin)}  --piloturl local -q {queue_escaped} -r {queue_escaped} -s {queue_escaped} " \
-               f"-i PR -j {prodSourceLabel} --container --mute --pilot-user=atlashpc -t -w generic --url=http://{self.host} " \
-               f"-p {self.port} -d --allow-same-user=False --resource-type MCORE;"
+               f"-i PR -j {prodSourceLabel} --container --mute --pilot-user=atlas -t -w generic --url=http://{self.host} " \
+               f"-p {self.port} --allow-same-user=False --resource-type MCORE --hpc-resource {self.config.payload['hpcresource']};"
 
         cmd_script = os.path.join(os.getcwd(), "payload.sh")
         with open(cmd_script, 'w') as f:
@@ -92,7 +89,7 @@ class Pilot2HttpPayload(ESPayload):
         st = os.stat(cmd_script)
         os.chmod(cmd_script, st.st_mode | stat.S_IEXEC)
         payload_log = self.config.payload.get('logfilename', 'wrapper')
-        return f"shifter /bin/bash {cmd_script} > {payload_log}.stdout 2> {payload_log}.stderr"
+        return f"shifter /bin/bash {cmd_script} > {payload_log} 2> {payload_log}.stderr"
 
     def is_complete(self):
         return self.pilot_process is not None and self.pilot_process.poll() is not None
