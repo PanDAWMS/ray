@@ -12,7 +12,10 @@ class Config:
             "pandaqueue": str,
             "logfilename": str,
             "extrasetup": str,
-            "hpcresource": str
+            "hpcresource": str,
+            "extrapostpayload": str,
+            "containerengine": str,
+            "containerextraargs": str
         },
         'harvester': {
             'endpoint': str,

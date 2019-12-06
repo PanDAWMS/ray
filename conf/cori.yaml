@@ -4,7 +4,10 @@ payload:
   pandaqueue: NERSC_Cori_p2_ES
   logfilename: log.pilotwrapper
   extrasetup: export LD_LIBRARY_PATH=/global/project/projectdirs/m2616/yampl/lib:$LD_LIBRARY_PATH;export PYTHONPATH=/global/project/projectdirs/m2616/yampl/python-yampl:$PYTHONPATH;
+  extrapostpayload:
   hpcresource: cori
+  containerengine: shifter
+  containerextraargs:
 
 harvester:
   endpoint: $SCRATCH/raythena/harvester
