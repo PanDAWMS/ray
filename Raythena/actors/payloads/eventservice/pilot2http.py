@@ -13,6 +13,7 @@ import uvloop
 from aiohttp import web
 
 from Raythena.utils.eventservice import ESEncoder
+from Raythena.utils.exception import FailedPayload
 from Raythena.actors.payloads.eventservice.esPayload import ESPayload
 
 
@@ -73,23 +74,35 @@ class Pilot2HttpPayload(ESPayload):
         """
         cmd = str()
         os.path.dirname(os.getcwd())
-        cmd += self.config.payload['extrasetup']
-        cmd += f"ln -s {self.config.ray['workdir']}/pilot2 {os.getcwd()}/pilot2;"
+        cmd += f"{self.config.payload.get('extrasetup', '')};"
+
+        pilot_src = f"{os.getcwd()}/pilot2"
+
+        if not os.path.isdir(pilot_src):
+            raise FailedPayload(self.id)
+
+        cmd += f"ln -s {shlex.quote(self.config.ray['workdir'])}/pilot2 {shlex.quote(pilot_src)};"
         prodSourceLabel = shlex.quote(self.current_job['prodSourceLabel'])
 
         pilotwrapper_bin = os.path.expandvars(os.path.join(self.config.payload['bindir'], "runpilot2-wrapper.sh"))
+
+        if not os.path.isfile(pilotwrapper_bin):
+            raise FailedPayload(self.id)
+
         queue_escaped = shlex.quote(self.config.payload['pandaqueue'])
         cmd += f"{shlex.quote(pilotwrapper_bin)}  --piloturl local -q {queue_escaped} -r {queue_escaped} -s {queue_escaped} " \
                f"-i PR -j {prodSourceLabel} --container --mute --pilot-user=atlas -t -w generic --url=http://{self.host} " \
-               f"-p {self.port} --allow-same-user=False --resource-type MCORE --hpc-resource {self.config.payload['hpcresource']};"
-
+               f"-p {self.port} --allow-same-user=False --resource-type MCORE --hpc-resource {shlex.quote(self.config.payload['hpcresource'])};"
+        cmd += f"{self.config.payload.get('extrapostpayload', '')};"
         cmd_script = os.path.join(os.getcwd(), "payload.sh")
         with open(cmd_script, 'w') as f:
             f.write(cmd)
         st = os.stat(cmd_script)
         os.chmod(cmd_script, st.st_mode | stat.S_IEXEC)
-        payload_log = self.config.payload.get('logfilename', 'wrapper')
-        return f"shifter /bin/bash {cmd_script} > {payload_log} 2> {payload_log}.stderr"
+        payload_log = shlex.quote(self.config.payload.get('logfilename', 'wrapper'))
+        container = shlex.quote(self.config.payload.get('containerengine', ''))
+        container_args = shlex.quote(self.config.payload.get('containerextraargs', ''))
+        return f"{container} {container_args} /bin/bash {cmd_script} > {payload_log} 2> {payload_log}.stderr"
 
     def is_complete(self):
         return self.pilot_process is not None and self.pilot_process.poll() is not None
@@ -127,13 +140,13 @@ class Pilot2HttpPayload(ESPayload):
     def fetch_job_update(self):
         try:
             return self.job_update.get_nowait()
-        except QueueEmpty as e:
+        except QueueEmpty:
             return None
 
     def fetch_ranges_update(self):
         try:
             return self.ranges_update.get_nowait()
-        except QueueEmpty as e:
+        except QueueEmpty:
             return None
 
     def should_request_more_ranges(self):
