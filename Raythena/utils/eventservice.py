@@ -80,13 +80,13 @@ class PandaJobQueue:
     def next_job_to_process(self):
         jobID, ranges_avail = self.jobid_next_job_to_process()
 
-        if jobID is None or ranges_avail == 0:
+        if jobID is None or (ranges_avail == 0 and self[jobID].eventService):
             return None
         return self.jobs[jobID]
 
     def jobid_next_job_to_process(self):
         """
-        Return the jobid that workers requesting new jobs should work on which is defined by the job javing the most events available.
+        Return the jobid that workers requesting new jobs should work on which is defined by the job having the most events available.
         """
         max_jobID = None
         max_avail = 0

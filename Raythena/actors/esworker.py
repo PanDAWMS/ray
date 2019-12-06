@@ -6,6 +6,7 @@ import ray
 from Raythena.utils.eventservice import EventRangeRequest, Messages
 from Raythena.utils.importUtils import import_from_string
 from Raythena.utils.ray import get_node_ip
+from Raythena.utils.exception import IllegalWorkerState, StageInFailed, PluginNotFound
 
 
 @ray.remote
@@ -25,18 +26,41 @@ class ESWorker:
     STAGEIN = 8  # Staging-in data.
     STAGEOUT = 9  # Staging-out data
 
+    STATES_NAME = {
+        READY_FOR_JOB: "READY_FOR_JOB",
+        JOB_REQUESTED: "JOB_REQUESTED",
+        READY_FOR_EVENTS: "READY_FOR_EVENTS",
+        EVENT_RANGES_REQUESTED: "EVENT_RANGES_REQUESTED",
+        FINISHING_LOCAL_RANGES: "FINISHING_LOCAL_RANGES",
+        PROCESSING: "PROCESSING",
+        FINISHING: "FINISHING",
+        DONE: "DONE",
+        STAGEIN: "STAGEIN",
+        STAGEOUT: "STAGEOUT"
+    }
+
     # authorize state transition from x to y if y in TRANSITION[X]
-    TRANSITIONS = {
+    TRANSITIONS_EVENTSERVICE = {
         READY_FOR_JOB: [JOB_REQUESTED],
         JOB_REQUESTED: [STAGEIN, DONE],
+        STAGEIN: [READY_FOR_EVENTS],
         READY_FOR_EVENTS: [EVENT_RANGES_REQUESTED],
         EVENT_RANGES_REQUESTED: [FINISHING_LOCAL_RANGES, PROCESSING],
         FINISHING_LOCAL_RANGES: [STAGEOUT],
         PROCESSING: [READY_FOR_EVENTS],
+        STAGEOUT: [FINISHING],
         FINISHING: [DONE],
-        DONE: [READY_FOR_JOB],
-        STAGEIN: [READY_FOR_EVENTS],
-        STAGEOUT: [FINISHING]
+        DONE: [READY_FOR_JOB]
+    }
+
+    TRANSITIONS_STANDARD = {
+        READY_FOR_JOB: [JOB_REQUESTED],
+        JOB_REQUESTED: [STAGEIN, DONE],
+        STAGEIN: [PROCESSING],
+        PROCESSING: [STAGEOUT],
+        STAGEOUT: [FINISHING],
+        FINISHING: [DONE],
+        DONE: [READY_FOR_JOB]
     }
 
     def __init__(self, actor_id, config, logging_actor):
@@ -44,26 +68,31 @@ class ESWorker:
         self.config = config
         self.logging_actor = logging_actor
         self.job = None
+        self.transitions = ESWorker.TRANSITIONS_STANDARD
         self.node_ip = get_node_ip()
         self.state = ESWorker.READY_FOR_JOB
-        cwd = os.getcwd()
-        self.workdir = os.path.expandvars(self.config.ray.get('workdir', cwd))
-        if os.path.isdir(self.workdir):
-            os.chdir(self.workdir)
+        self.workdir = os.path.expandvars(self.config.ray.get('workdir', os.getcwd()))
 
         payload = self.config.payload['plugin']
-        self.payload_class = import_from_string(f"Raythena.actors.payloads.eventservice.{payload}")
+        try:
+            self.payload_class = import_from_string(f"Raythena.actors.payloads.eventservice.{payload}")
+        except ImportError:
+            raise PluginNotFound(self.id)
         self.payload = self.payload_class(self.id, self.logging_actor, self.config)
         self.logging_actor.info.remote(self.id, "Ray worker started")
 
     def stagein(self):
         self.payload_job_dir = os.path.join(self.workdir, self.job['PandaID'])
         if not os.path.isdir(self.payload_job_dir):
-            self.logging_actor.warn.remote(self.id, f"Specified path {self.payload_job_dir} does not exist. Using cwd {self.workdir}")
+            self.logging_actor.warn.remote(self.id, f"Specified path {self.payload_job_dir} does not exist. Using cwd {os.getcwd()}")
 
         subdir = f"{self.id}_{os.getpid()}"
         self.payload_actor_process_dir = os.path.join(self.payload_job_dir, subdir)
-        os.mkdir(self.payload_actor_process_dir)
+        try:
+            os.mkdir(self.payload_actor_process_dir)
+            os.chdir(self.payload_actor_process_dir)
+        except Exception:
+            raise StageInFailed(self.id)
 
         input_files = self.job['inFiles'].split(",")
         for input_file in input_files:
@@ -73,10 +102,8 @@ class ESWorker:
                 staged_file = os.path.join(self.payload_actor_process_dir, basename)
                 os.symlink(in_abs, staged_file)
 
-        os.chdir(self.payload_actor_process_dir)
-
         self.payload.start(self.job)
-        self.transition_state(ESWorker.READY_FOR_EVENTS)
+        self.transition_state(ESWorker.READY_FOR_EVENTS if self.is_event_service_job() else ESWorker.PROCESSING)
 
     def stageout(self):
         self.logging_actor.info.remote(self.id, "Performing stageout")
@@ -85,16 +112,25 @@ class ESWorker:
         self.terminate_actor()
 
     def transition_state(self, dest):
-        if dest not in self.TRANSITIONS[self.state]:
+        if dest not in self.transitions[self.state]:
             self.logging_actor.error.remote(self.id, f"Illegal transition from {self.state} to {dest}")
-            #TODO Handle illegal state transition accordingly
-            raise Exception(f"Illegal state transition for actor {self.id}")
+            raise IllegalWorkerState(id=self.id, src_state=ESWorker.STATES_NAME[self.state], dst_state=ESWorker.STATES_NAME[dest])
         self.state = dest
+
+    def is_event_service_job(self):
+        return self.job.eventService
+
+    def set_transitions(self):
+        if self.is_event_service_job():
+            self.transitions = ESWorker.TRANSITIONS_EVENTSERVICE
+        else:
+            self.transitions = ESWorker.TRANSITIONS_STANDARD
 
     def receive_job(self, reply, job):
         self.job = job
         if reply == Messages.REPLY_OK and self.job:
             self.transition_state(ESWorker.STAGEIN)
+            self.set_transitions()
             self.stagein()
         else:
             self.transition_state(ESWorker.DONE)
@@ -136,7 +172,7 @@ class ESWorker:
 
     def should_request_ranges(self):
         # do not transition if not in a state allowing for event ranges request
-        if ESWorker.READY_FOR_EVENTS not in self.TRANSITIONS[self.state]:
+        if ESWorker.READY_FOR_EVENTS not in self.transitions[self.state]:
             return False
 
         res = self.payload.should_request_more_ranges()
@@ -161,7 +197,7 @@ class ESWorker:
                 self.transition_state(ESWorker.STAGEOUT)
                 self.stageout()
                 return self.return_message(Messages.PROCESS_DONE)
-            elif self.state == ESWorker.READY_FOR_EVENTS or self.should_request_ranges():
+            elif self.is_event_service_job() and self.state == ESWorker.READY_FOR_EVENTS or self.should_request_ranges():
                 req = EventRangeRequest()
                 req.add_event_request(self.job['PandaID'],
                                       self.config.resources['corepernode'] * 2,
