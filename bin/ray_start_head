@@ -22,4 +22,4 @@ if [[ -z "$REDIS_PORT" ]] || [[ -z "$REDIS_PASSWORD" ]]; then
     exit 1
 fi
 
-ray start --block --head --redis-port=$REDIS_PORT --redis-password=$REDIS_PASSWORD "$@"
+ray start --block --head --redis-port=$REDIS_PORT --redis-password=$REDIS_PASSWORD --num-cpus 1 "$@"
