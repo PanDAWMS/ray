@@ -74,14 +74,16 @@ class Pilot2HttpPayload(ESPayload):
         """
         cmd = str()
         os.path.dirname(os.getcwd())
-        cmd += f"{self.config.payload.get('extrasetup', '')};"
+        extra_setup = self.config.payload.get('extrasetup', '')
+        if extra_setup:
+            cmd += f"{extra_setup}{';' if not extra_setup.endswith(';') else ''}"
 
-        pilot_src = f"{os.getcwd()}/pilot2"
+        pilot_src = f"{shlex.quote(self.config.ray['workdir'])}/pilot2"
 
         if not os.path.isdir(pilot_src):
             raise FailedPayload(self.id)
 
-        cmd += f"ln -s {shlex.quote(self.config.ray['workdir'])}/pilot2 {shlex.quote(pilot_src)};"
+        cmd += f"ln -s {pilot_src} {os.path.join(os.getcwd(), 'pilot2')};"
         prodSourceLabel = shlex.quote(self.current_job['prodSourceLabel'])
 
         pilotwrapper_bin = os.path.expandvars(os.path.join(self.config.payload['bindir'], "runpilot2-wrapper.sh"))
@@ -93,7 +95,10 @@ class Pilot2HttpPayload(ESPayload):
         cmd += f"{shlex.quote(pilotwrapper_bin)}  --piloturl local -q {queue_escaped} -r {queue_escaped} -s {queue_escaped} " \
                f"-i PR -j {prodSourceLabel} --container --mute --pilot-user=atlas -t -w generic --url=http://{self.host} " \
                f"-p {self.port} --allow-same-user=False --resource-type MCORE --hpc-resource {shlex.quote(self.config.payload['hpcresource'])};"
-        cmd += f"{self.config.payload.get('extrapostpayload', '')};"
+
+        extra_script = self.config.payload.get('extrapostpayload', '')
+        if extra_script:
+            cmd += f"{extra_script}{';' if not extra_script.endswith(';') else ''}"
         cmd_script = os.path.join(os.getcwd(), "payload.sh")
         with open(cmd_script, 'w') as f:
             f.write(cmd)
@@ -101,7 +106,11 @@ class Pilot2HttpPayload(ESPayload):
         os.chmod(cmd_script, st.st_mode | stat.S_IEXEC)
         payload_log = shlex.quote(self.config.payload.get('logfilename', 'wrapper'))
         container = shlex.quote(self.config.payload.get('containerengine', ''))
-        container_args = shlex.quote(self.config.payload.get('containerextraargs', ''))
+        container_args = self.config.payload.get('containerextraargs', '')
+        if container_args:
+            container_args = shlex.quote(container_args)
+        else:
+            container_args = ''
         return f"{container} {container_args} /bin/bash {cmd_script} > {payload_log} 2> {payload_log}.stderr"
 
     def is_complete(self):
@@ -171,7 +180,6 @@ class Pilot2HttpPayload(ESPayload):
         return body
 
     async def handle_getJob(self, request):
-        body = await self.parse_qs_body(request)
         job = self.current_job if self.current_job else dict()
         self.logging_actor.debug.remote(self.id, f"Serving job {job}")
         return web.json_response(job, dumps=self.json_encoder)

@@ -80,7 +80,7 @@ class PandaJobQueue:
     def next_job_to_process(self):
         jobID, ranges_avail = self.jobid_next_job_to_process()
 
-        if jobID is None or (ranges_avail == 0 and self[jobID].eventService):
+        if jobID is None or (ranges_avail == 0 and self[jobID]['eventService']):
             return None
         return self.jobs[jobID]
 

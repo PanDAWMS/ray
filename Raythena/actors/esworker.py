@@ -9,7 +9,7 @@ from Raythena.utils.ray import get_node_ip
 from Raythena.utils.exception import IllegalWorkerState, StageInFailed, PluginNotFound
 
 
-@ray.remote
+@ray.remote(num_cpus=0)
 class ESWorker:
     """
     Actor running on HPC compute node. Each actor will start a payload plugin
@@ -113,12 +113,12 @@ class ESWorker:
 
     def transition_state(self, dest):
         if dest not in self.transitions[self.state]:
-            self.logging_actor.error.remote(self.id, f"Illegal transition from {self.state} to {dest}")
+            self.logging_actor.error.remote(self.id, f"Illegal transition from {ESWorker.STATES_NAME[self.state]} to {ESWorker.STATES_NAME[dest]}")
             raise IllegalWorkerState(id=self.id, src_state=ESWorker.STATES_NAME[self.state], dst_state=ESWorker.STATES_NAME[dest])
         self.state = dest
 
     def is_event_service_job(self):
-        return self.job.eventService
+        return self.job and self.job['eventService']
 
     def set_transitions(self):
         if self.is_event_service_job():
@@ -197,7 +197,7 @@ class ESWorker:
                 self.transition_state(ESWorker.STAGEOUT)
                 self.stageout()
                 return self.return_message(Messages.PROCESS_DONE)
-            elif self.is_event_service_job() and self.state == ESWorker.READY_FOR_EVENTS or self.should_request_ranges():
+            elif self.is_event_service_job() and (self.state == ESWorker.READY_FOR_EVENTS or self.should_request_ranges()):
                 req = EventRangeRequest()
                 req.add_event_request(self.job['PandaID'],
                                       self.config.resources['corepernode'] * 2,
