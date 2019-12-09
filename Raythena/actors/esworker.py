@@ -4,7 +4,7 @@ import time
 import ray
 
 from Raythena.utils.eventservice import EventRangeRequest, Messages
-from Raythena.utils.importUtils import import_from_string
+from Raythena.utils.plugins import PluginsRegistry
 from Raythena.utils.ray import get_node_ip
 from Raythena.utils.exception import IllegalWorkerState, StageInFailed, PluginNotFound
 
@@ -72,10 +72,10 @@ class ESWorker:
         self.node_ip = get_node_ip()
         self.state = ESWorker.READY_FOR_JOB
         self.workdir = os.path.expandvars(self.config.ray.get('workdir', os.getcwd()))
-
+        self.plugin_registry = PluginsRegistry()
         payload = self.config.payload['plugin']
         try:
-            self.payload_class = import_from_string(f"Raythena.actors.payloads.eventservice.{payload}")
+            self.payload_class = self.plugin_registry.get_plugin(payload)
         except ImportError:
             raise PluginNotFound(self.id)
         self.payload = self.payload_class(self.id, self.logging_actor, self.config)
