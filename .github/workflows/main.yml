@@ -1,0 +1,23 @@
+name: build_and_test
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  build_and_test:
+    name: build_and_test
+    runs-on: ubuntu-18.04
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v1
+    - name: Setup python version
+      uses: actions/setup-python@v1
+      with:
+        python-version: 3.7
+        architecture: x64
+    - name: Install application
+      run: pip install .
+    - name: Run tests
+      run: pytest
