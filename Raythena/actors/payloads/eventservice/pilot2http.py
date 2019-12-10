@@ -163,7 +163,7 @@ class Pilot2HttpPayload(ESPayload):
             return True
         if self.no_more_ranges:
             return False
-        return self.ranges_queue.qsize() < self.config.resources['corepernode'] * 2
+        return self.ranges_queue.qsize() == 0
 
     async def http_handler(self, request: web.BaseRequest):
         self.logging_actor.debug.remote(self.id, f"Routing {request.method} {request.path}")
