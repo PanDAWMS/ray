@@ -17,7 +17,6 @@ setup(
         'ray',
         'psutil',
         'uvloop',
-        'aiohttp',
-        'pytest'
+        'aiohttp'
     ],
 )
