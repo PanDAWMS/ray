@@ -107,7 +107,7 @@ class ESWorker:
 
     def stageout(self):
         self.logging_actor.info.remote(self.id, "Performing stageout")
-        #TODO move payload out file to harvester dir, drain jobupdate and rangeupdate from payload
+        # TODO move payload out file to harvester dir, drain jobupdate and rangeupdate from payload
         self.transition_state(ESWorker.FINISHING)
         self.terminate_actor()
 
@@ -146,7 +146,7 @@ class ESWorker:
 
     def receive_event_ranges(self, reply, eventranges_update):
         if reply == Messages.REPLY_NO_MORE_EVENT_RANGES or not eventranges_update:
-            #no new ranges... finish processing local cache then terminate actor
+            # no new ranges... finish processing local cache then terminate actor
             self.transition_state(ESWorker.FINISHING_LOCAL_RANGES)
             self.payload.submit_new_ranges(None)
             return

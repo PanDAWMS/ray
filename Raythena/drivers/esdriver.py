@@ -1,4 +1,3 @@
-import psutil
 import ray
 import json
 import os
@@ -57,7 +56,7 @@ class BookKeeper:
         for r in ranges_update[pandaID]:
             if r['eventRangeID'] in self.rangesID_by_actor[actor_id] and r['eventStatus'] != "running":
                 self.rangesID_by_actor[actor_id].remove(r['eventRangeID'])
-        #TODO trigger stageout
+        # TODO trigger stageout
 
     def process_actor_end(self, actor_id):
         pandaID = self.actors[actor_id]
@@ -220,7 +219,7 @@ class ESDriver(BaseDriver):
                 self.logging_actor.debug.remote(self.id, f"Fetched eventrange response")
                 self.bookKeeper.add_event_ranges(ranges)
                 self.n_eventsrequest -= 1
-            except Empty as e:
+            except Empty:
                 pass
 
     def on_tick(self):
@@ -248,7 +247,7 @@ class ESDriver(BaseDriver):
             cjob = self.bookKeeper.jobs[pandaID]
             os.makedirs(os.path.expandvars(os.path.join(self.config.ray['workdir'], cjob['PandaID'])))
 
-        #sends an initial event range request
+        # sends an initial event range request
         self.request_event_ranges()
 
         self.create_actors()
@@ -260,7 +259,7 @@ class ESDriver(BaseDriver):
 
         try:
             self.handle_actors()
-        except Exception as e:
+        except Exception:
             self.logging_actor.error.remote(self.id, f"Error while handling actors. stopping...")
 
         self.communicator.stop()
@@ -274,7 +273,6 @@ class ESDriver(BaseDriver):
 
 
 if __name__ == "__main__":
-    import os
     from Raythena.drivers.communicators.harvesterMock import HarvesterMock
 
     class ConfMock:

@@ -443,7 +443,7 @@ class PandaJobRequest:
         self.mem = mem
         self.cpu = cpu
         self.allowOtherCountry = allowOtherCountry
-    
+
     def __str__(self):
         return str(self.__dict__)
 
@@ -472,7 +472,7 @@ class EventRangeRequest:
 
     def __iter__(self):
         return iter(self.request)
-    
+
     def __getitem__(self, k):
         return self.request[k]
 

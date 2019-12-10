@@ -1,4 +1,3 @@
-from Raythena.drivers.esdriver import ESDriver
 
 
 class TestDriver:

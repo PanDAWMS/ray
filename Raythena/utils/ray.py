@@ -8,14 +8,14 @@ def build_nodes_resource_list(config, run_actor_on_head=False):
     head_ip = config.ray['headip']
     resource_list = list()
     custom_resource = "payload_slot"
-    workerpernode = config.resources.get('workerpernode',1)
+    workerpernode = config.resources.get('workerpernode', 1)
     for node in nodes:
         naddr = node['NodeManagerAddress']
         if not node['alive'] or (not run_actor_on_head and naddr == head_ip):
             continue
         node_custom_resource = f"{custom_resource}@{naddr}"
         ray.experimental.set_resource(node_custom_resource, workerpernode, node['NodeID'])
-        resource_list.extend([node_custom_resource]*workerpernode)
+        resource_list.extend([node_custom_resource] * workerpernode)
     return resource_list
 
 

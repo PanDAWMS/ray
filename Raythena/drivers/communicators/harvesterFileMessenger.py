@@ -4,7 +4,7 @@ import threading
 import configparser
 import json
 
-from Raythena.utils.eventservice import EventRangeRequest, PandaJobRequest, PandaJobUpdate, EventRangeUpdate, PandaJob
+from Raythena.utils.eventservice import EventRangeRequest, PandaJobRequest, PandaJobUpdate, EventRangeUpdate
 
 from Raythena.drivers.communicators.baseCommunicator import BaseCommunicator
 
