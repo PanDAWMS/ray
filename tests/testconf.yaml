@@ -1,0 +1,31 @@
+payload:
+  plugin: pilot2http:Pilot2HttpPayload
+  bindir:
+  pandaqueue: NERSC_Cori_p2_ES
+  logfilename: log.pilotwrapper
+  extrasetup: export LD_LIBRARY_PATH=/global/project/projectdirs/m2616/yampl/lib:$LD_LIBRARY_PATH;export PYTHONPATH=/global/project/projectdirs/m2616/yampl/python-yampl:$PYTHONPATH;
+  extrapostpayload:
+  hpcresource: cori
+  containerengine:
+  containerextraargs:
+
+harvester:
+  endpoint: /tmp/raythena/harvester
+  communicator: harvesterMock:HarvesterMock
+  harvesterconf: /tmp/raythena/harvester/panda_harvester.cfg
+  min_nevents: 170000
+
+ray:
+  headip:
+  redisport:
+  redispassword:
+  driver: esdriver:ESDriver
+  workdir: /tmp/raythena/workdir
+
+resources:
+  corepernode: 8
+  workerpernode: 1
+
+logging:
+  level: info
+  logfile: raythena.log
