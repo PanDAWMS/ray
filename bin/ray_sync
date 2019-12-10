@@ -21,7 +21,7 @@ def wait_on_head():
         try:
             print(f"waiting for ray to initialize... {ray_ip}:{redis_port}, {redis_password}")
             ray.init(address=f"{ray_ip}:{redis_port}", redis_password=redis_password)
-        except ConnectionError:
+        except (ConnectionError, ValueError):
             time.sleep(1)
             print("ray not yet initialized...")
 
