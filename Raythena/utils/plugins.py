@@ -27,8 +27,13 @@ class PluginsRegistry:
     def get_plugin(self, plugin_name):
         plugin_module, _, plugin_class = plugin_name.partition(":")
 
+        if not plugin_class:
+            raise ValueError("plugin name should be formatted as <plugin.module:PluginClass>")
+
         for name, plugin in self.plugins.items():
             if name.endswith(plugin_module):
                 if not hasattr(plugin, plugin_class):
                     raise ImportError(f"Can't import plugin {plugin_class} from {plugin.__name__}")
                 return getattr(plugin, plugin_class)
+
+        raise ImportError(f"Module {plugin_module} not found")
