@@ -194,7 +194,8 @@ class EventRangeQueue:
     def build_from_list(ranges_list):
         ranges_queue = EventRangeQueue()
         for r in ranges_list:
-            ranges_queue.add(EventRange.build_from_dict(r))
+            ranges_queue.append(EventRange.build_from_dict(r))
+        return ranges_queue
 
     def update_range_state(self, rangeID, new_state):
         if rangeID not in self.eventranges_by_id:
@@ -209,8 +210,9 @@ class EventRangeQueue:
         for r in rangesUpdate:
             rangeID = r['eventRangeID']
             rangeStatus = r['eventStatus']
-            if rangeStatus == "running" and rangeID not in self.rangesID_by_state[EventRange.ASSIGNED]:
-                raise Exception(f"Unexpected state: {rangeID} updated as running is not assigned")
+            if (rangeStatus == "finished" or rangeStatus == "failed" or rangeStatus == "running")\
+               and rangeID not in self.rangesID_by_state[EventRange.ASSIGNED]:
+                raise Exception(f"Unexpected state: tried to update unassigned {rangeID} to {rangeStatus}")
             if rangeStatus == "finished":
                 self.update_range_state(rangeID, EventRange.DONE)
             else:
@@ -240,11 +242,6 @@ class EventRangeQueue:
     def concat(self, ranges):
         for r in ranges:
             self.append(r)
-
-    def process_ranges_update(self, ranges_update):
-        for r in ranges_update:
-            self.update_range_state(r['eventRangeID'],
-                                    EventRange.DONE if r['eventStatus'] == 'finished' else EventRange.FAILED)
 
     def get_next_ranges(self, nranges):
         res = list()
