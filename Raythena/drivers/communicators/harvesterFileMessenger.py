@@ -65,6 +65,9 @@ class HarvesterFileCommunicator(BaseCommunicator):
 
             if os.path.isfile(self.eventrequestfile):
                 os.remove(self.eventrequestfile)
+            if os.path.isfile(self.eventrangesfile):
+                os.rename(self.eventrangesfile, f"self.eventrangesfile-{self.ranges_requests_count}")
+            self.ranges_requests_count += 1
             self.eventRangesQueue.put(ranges)
 
     def update_job(self, request):
@@ -89,6 +92,7 @@ class HarvesterFileCommunicator(BaseCommunicator):
 
     def start(self):
         if not self.communicator_thread.is_alive():
+            self.ranges_requests_count = 0
             self.communicator_thread.start()
 
     def stop(self):
