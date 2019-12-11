@@ -10,9 +10,9 @@ payload:
   containerextraargs:
 
 harvester:
-  endpoint: /tmp/raythena/harvester
+  endpoint: .
   communicator: harvesterMock:HarvesterMock
-  harvesterconf: /tmp/raythena/harvester/panda_harvester.cfg
+  harvesterconf: tests/panda_harvester_test.cfg
   min_nevents: 170000
 
 ray:
@@ -20,7 +20,7 @@ ray:
   redisport:
   redispassword:
   driver: esdriver:ESDriver
-  workdir: /tmp/raythena/workdir
+  workdir: .
 
 resources:
   corepernode: 8

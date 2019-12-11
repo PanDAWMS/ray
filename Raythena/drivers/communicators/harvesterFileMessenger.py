@@ -16,7 +16,7 @@ class HarvesterFileCommunicator(BaseCommunicator):
         self.harvester_conf_file = os.path.expandvars(self.config.harvester['harvesterconf'])
         self.harvester_workdir = os.path.expandvars(self.config.harvester['endpoint'])
         if not os.path.isfile(self.harvester_conf_file):
-            raise Exception("Harvester config file not found")
+            raise FileNotFoundError("Harvester config file not found")
         self.harvester_conf = configparser.ConfigParser()
         self.harvester_conf.read(self.harvester_conf_file)
         for k in self.harvester_conf['payload_interaction']:
