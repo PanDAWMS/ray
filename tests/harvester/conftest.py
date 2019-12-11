@@ -4,7 +4,6 @@ import pytest
 import os
 from Raythena.drivers.communicators.harvesterMock import HarvesterMock
 from Raythena.drivers.communicators.harvesterFileMessenger import HarvesterFileCommunicator
-from Raythena.utils.eventservice import PandaJobRequest
 
 
 @pytest.fixture
@@ -42,12 +41,3 @@ def harvester_file_communicator(tmpdir, config, request_queue, jobs_queue, range
     yield communicator
     communicator.stop()
     clean_files([communicator.jobrequestfile, communicator.jobspecfile, communicator.eventrequestfile, communicator.eventrangesfile])
-
-
-@pytest.fixture
-def sample_job(harvester_mock, request_queue, jobs_queue):
-    harvester_mock.start()
-    request_queue.put(PandaJobRequest())
-    job = jobs_queue.get(timeout=5)
-    harvester_mock.stop()
-    return job
