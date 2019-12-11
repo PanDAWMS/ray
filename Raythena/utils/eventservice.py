@@ -232,6 +232,8 @@ class EventRangeQueue:
         return len(self.rangesID_by_state[EventRange.DONE])
 
     def append(self, eventrange):
+        if isinstance(eventrange, dict):
+            eventrange = EventRange.build_from_dict(eventrange)
         self.eventranges_by_id[eventrange.eventRangeID] = eventrange
         self.rangesID_by_state[eventrange.status].append(eventrange.eventRangeID)
 
@@ -319,7 +321,7 @@ class EventRangeUpdate:
         }
     ]
 
-    The JSON schema that should be send is as shown below.
+    The JSON schema that should be sent to harvester is as shown below.
 
     eventstatus in [running, finished, failed, fatal]
     type in [output, es_output, zip_output, log]
@@ -364,6 +366,9 @@ class EventRangeUpdate:
 
     def __iter__(self):
         return iter(self.range_update)
+
+    def __str__(self):
+        return json.dumps(self.range_update)
 
     def __getitem__(self, k):
         return self.range_update[k]

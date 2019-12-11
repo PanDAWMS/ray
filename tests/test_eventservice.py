@@ -1,0 +1,123 @@
+from Raythena.utils.eventservice import EventRange, EventRangeQueue, EventRangeRequest, EventRangeUpdate
+
+
+class TestEventRangeRequest:
+
+    def test_from_dict_init(self):
+        request_dict = {
+            "0": {
+                "nRanges": 10,
+                "pandaID": "0",
+                "taskID": "0",
+                "jobsetID": "0"
+            },
+            "1": {
+                "nRanges": 20,
+                "pandaID": "1",
+                "taskID": "1",
+                "jobsetID": "1"
+            }
+        }
+
+        ranges_request = EventRangeRequest.build_from_dict(request_dict)
+        ranges_request_init = EventRangeRequest()
+        for pandaID, req in request_dict.items():
+            ranges_request_init.add_event_request(pandaID, req['nRanges'], req['taskID'], req['jobsetID'])
+        assert len(request_dict) == len(ranges_request) == len(ranges_request_init)
+        for id1, id2, id3 in zip(ranges_request, ranges_request_init, request_dict):
+            assert ranges_request[id1]['pandaID'] == ranges_request_init[id2]['pandaID'] == request_dict[id3]['pandaID']
+
+
+class TestEventRangeUpdate:
+
+    def test_build_range_update(self, nevents, sample_rangeupdate, sample_failed_rangeupdate):
+        pandaID = "0"
+        ranges_update = EventRangeUpdate.build_from_dict(pandaID, sample_rangeupdate)
+        assert pandaID in ranges_update
+        ranges = ranges_update[pandaID]
+        assert len(ranges) == nevents
+        for r in ranges:
+            assert "eventRangeID" in r and "eventStatus" in r and "path" in r and "type" in r and "chksum" in r and "fsize" in r and "guid" in r
+
+        ranges_update = EventRangeUpdate.build_from_dict(pandaID, sample_failed_rangeupdate)
+        assert pandaID in ranges_update
+        ranges = ranges_update[pandaID]
+        assert len(ranges) == nevents
+        for r in ranges:
+            assert "eventRangeID" in r and "eventStatus" in r and \
+                "path" not in r and "type" not in r and "chksum" not in r and "fsize" not in r and "guid" not in r
+
+
+class TestEventRangeQueue:
+
+    def test_new(self, sample_job, sample_ranges):
+        ranges_queue = EventRangeQueue()
+        assert not ranges_queue.no_more_ranges
+        assert len(ranges_queue) == 0
+
+    def test_concat(self, sample_job, sample_ranges):
+        ranges_queue = EventRangeQueue()
+        ranges = list(sample_ranges.values())[0]
+        ranges_queue.concat(ranges)
+        assert len(ranges) == len(ranges_queue) == ranges_queue.nranges_available() == ranges_queue.nranges_remaining()
+        assert ranges_queue.nranges_assigned() == ranges_queue.nranges_done() == ranges_queue.nranges_failed() == 0
+        assert ranges_queue[ranges[0]['eventRangeID']].eventRangeID == ranges[0]['eventRangeID']
+
+    def test_update(self, sample_job, sample_ranges):
+        pass
+
+    def test_get_next(self, sample_job, sample_ranges):
+        ranges_queue = EventRangeQueue()
+        assert not ranges_queue.get_next_ranges(10)
+        ranges = list(sample_ranges.values())[0]
+        ranges_queue.concat(ranges)
+        nranges = len(ranges_queue)
+        nranges_requested = max(1, int(nranges / 3))
+        requested_ranges = ranges_queue.get_next_ranges(nranges_requested)
+        assert len(requested_ranges) == nranges_requested
+        assert ranges_queue.nranges_assigned() == nranges_requested
+        assert ranges_queue.nranges_remaining() == nranges
+        assert ranges_queue.nranges_available() == nranges - nranges_requested
+        for requested_range in requested_ranges:
+            assert ranges_queue[requested_range.eventRangeID].status == EventRange.ASSIGNED
+
+        requested_ranges = ranges_queue.get_next_ranges(nranges)
+        assert len(requested_ranges) == nranges - nranges_requested
+        assert ranges_queue.nranges_available() == 0
+        assert ranges_queue.nranges_assigned() == ranges_queue.nranges_remaining() == nranges
+        assert len(ranges_queue.get_next_ranges(1)) == 0
+
+
+class TestEventRanges:
+
+    def test_new(self):
+        id = "Range-0"
+        start = 0
+        last = 0
+        guid = "abc"
+        pfn = "/path/to/file"
+        scope = "13Tev"
+
+        r = EventRange(id, start, last, pfn, guid, scope)
+        assert r.status == EventRange.READY
+        assert r.nevents() == 1
+
+    def test_build_from_dict(self):
+        id = "Range-0"
+        start = 0
+        last = 0
+        guid = "abc"
+        pfn = "/path/to/fil"
+        scope = "13Tev"
+        r_dict = {
+            "eventRangeID": id,
+            "LFN": pfn,
+            "lastEvent": last,
+            "startEvent": start,
+            "GUID": guid,
+            "scope": scope
+        }
+        range_from_dict = EventRange.build_from_dict(r_dict)
+        assert range_from_dict.PFN == pfn and range_from_dict.eventRangeID == id and range_from_dict.startEvent == start \
+            and range_from_dict.lastEvent == last and range_from_dict.GUID == guid and range_from_dict.scope == scope
+        assert range_from_dict.status == EventRange.READY
