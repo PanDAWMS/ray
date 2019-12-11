@@ -1,3 +1,4 @@
+import pytest
 from Raythena.utils.eventservice import EventRange, EventRangeQueue, EventRangeRequest, EventRangeUpdate
 
 
@@ -50,21 +51,48 @@ class TestEventRangeUpdate:
 
 class TestEventRangeQueue:
 
-    def test_new(self, sample_job, sample_ranges):
+    def test_new(self, nevents, sample_job, sample_ranges):
         ranges_queue = EventRangeQueue()
         assert not ranges_queue.no_more_ranges
         assert len(ranges_queue) == 0
+        ranges = list(sample_ranges.values())[0]
+        ranges_queue = EventRangeQueue.build_from_list(ranges)
+        assert len(ranges) == len(ranges_queue) == ranges_queue.nranges_available() == ranges_queue.nranges_remaining() == nevents
+        assert ranges_queue.nranges_assigned() == ranges_queue.nranges_done() == ranges_queue.nranges_failed() == 0
 
-    def test_concat(self, sample_job, sample_ranges):
+    def test_concat(self, nevents, sample_job, sample_ranges):
         ranges_queue = EventRangeQueue()
         ranges = list(sample_ranges.values())[0]
         ranges_queue.concat(ranges)
-        assert len(ranges) == len(ranges_queue) == ranges_queue.nranges_available() == ranges_queue.nranges_remaining()
+        assert len(ranges) == len(ranges_queue) == ranges_queue.nranges_available() == ranges_queue.nranges_remaining() == nevents
         assert ranges_queue.nranges_assigned() == ranges_queue.nranges_done() == ranges_queue.nranges_failed() == 0
         assert ranges_queue[ranges[0]['eventRangeID']].eventRangeID == ranges[0]['eventRangeID']
+        for r in ranges:
+            assert r['eventRangeID'] in ranges_queue
 
-    def test_update(self, sample_job, sample_ranges):
-        pass
+    def test_update(self, sample_job, sample_ranges, nevents, sample_rangeupdate, sample_failed_rangeupdate):
+        pandaID = "0"
+        ranges = list(sample_ranges.values())[0]
+        ranges_queue = EventRangeQueue.build_from_list(ranges)
+
+        nsuccess = int(nevents / 2)
+        ranges_update = EventRangeUpdate.build_from_dict(pandaID, sample_rangeupdate)[pandaID][:nsuccess]
+        failed_ranges_update = EventRangeUpdate.build_from_dict(pandaID, sample_failed_rangeupdate)[pandaID][nsuccess:]
+
+        with pytest.raises(Exception):
+            ranges_queue.update_ranges(ranges_update)
+
+        ranges_queue.get_next_ranges(nevents)
+        ranges_queue.update_ranges(ranges_update)
+        assert len(ranges_update) == ranges_queue.nranges_done()
+        assert ranges_queue.nranges_available() == 0
+        assert ranges_queue.nranges_assigned() == nevents - len(ranges_update)
+        assert ranges_queue.nranges_remaining() == nevents - len(ranges_update)
+
+        ranges_queue.update_ranges(failed_ranges_update)
+        assert len(failed_ranges_update) == ranges_queue.nranges_failed()
+        assert ranges_queue.nranges_assigned() == 0
+        assert ranges_queue.nranges_remaining() == 0
 
     def test_get_next(self, sample_job, sample_ranges):
         ranges_queue = EventRangeQueue()

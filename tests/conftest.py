@@ -19,7 +19,7 @@ def config(config_path):
 
 @pytest.fixture
 def nevents():
-    return 3
+    return 100
 
 
 @pytest.fixture
