@@ -88,8 +88,11 @@ class HarvesterFileCommunicator(BaseCommunicator):
                 break
 
     def start(self):
-        self.communicator_thread.start()
+        if not self.communicator_thread.is_alive():
+            self.communicator_thread.start()
 
     def stop(self):
-        self.requestsQueue.put(None)
-        self.communicator_thread.join()
+        if self.communicator_thread.is_alive():
+            self.requestsQueue.put(None)
+            self.communicator_thread.join()
+            self.communicator_thread = threading.Thread(target=self.run, name="communicator-thread")
