@@ -62,7 +62,7 @@ class TestHarvesterFileMessenger:
         request_queue.put(evnt_request)
 
         while not os.path.isfile(harvester_file_communicator.eventrequestfile):
-            time.sleep(1)
+            time.sleep(0.01)
 
         ranges_res = {}
         with open(harvester_file_communicator.eventrequestfile, 'r') as f:
@@ -84,3 +84,19 @@ class TestHarvesterFileMessenger:
         for pandaIDSent, pandaIDCom in zip(ranges_res, ranges_com):
             assert pandaIDSent == pandaIDCom
             assert len(ranges_res[pandaIDSent]) == len(ranges_com[pandaIDSent]) == n_events
+
+        assert not os.path.isfile(harvester_file_communicator.eventrequestfile)
+        assert not os.path.isfile(harvester_file_communicator.eventrangesfile)
+        request_queue.put(evnt_request)
+        while not os.path.isfile(harvester_file_communicator.eventrequestfile):
+            time.sleep(0.01)
+
+        ranges_res = {}
+        for pandaID in evnt_request:
+            ranges_res[pandaID] = []
+        with open(harvester_file_communicator.eventrangesfile, 'w') as f:
+            json.dump(ranges_res, f)
+        ranges_com = ranges_queue.get(timeout=5)
+        for pandaIDSent, pandaIDCom in zip(ranges_res, ranges_com):
+            assert pandaIDSent == pandaIDCom
+            assert len(ranges_res[pandaIDSent]) == len(ranges_com[pandaIDSent]) == 0
