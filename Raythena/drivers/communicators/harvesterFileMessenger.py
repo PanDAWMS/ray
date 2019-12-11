@@ -40,7 +40,7 @@ class HarvesterFileCommunicator(BaseCommunicator):
 
             # wait on job file creation
             while not os.path.isfile(self.jobspecfile):
-                time.sleep(1)
+                time.sleep(0.01)
 
             # load job and remove request file
             with open(self.jobspecfile) as f:
@@ -58,7 +58,7 @@ class HarvesterFileCommunicator(BaseCommunicator):
             os.rename(eventRequestFileTmp, self.eventrequestfile)
 
             while not os.path.isfile(self.eventrangesfile):
-                time.sleep(1)
+                time.sleep(0.01)
 
             with open(self.eventrangesfile) as f:
                 ranges = json.load(f)
@@ -66,7 +66,7 @@ class HarvesterFileCommunicator(BaseCommunicator):
             if os.path.isfile(self.eventrequestfile):
                 os.remove(self.eventrequestfile)
             if os.path.isfile(self.eventrangesfile):
-                os.rename(self.eventrangesfile, f"self.eventrangesfile-{self.ranges_requests_count}")
+                os.rename(self.eventrangesfile, f"{self.eventrangesfile}-{self.ranges_requests_count}")
             self.ranges_requests_count += 1
             self.eventRangesQueue.put(ranges)
 
