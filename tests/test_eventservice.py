@@ -154,10 +154,67 @@ class TestEventRanges:
 
 class TestPandaJobQueue:
 
-    def test_build_pandajob_queue(self, njobs, sample_multijobs):
+    def test_build_pandajob_queue(self, is_eventservice, njobs, sample_multijobs):
         assert len(sample_multijobs) == njobs
         pandajob_queue = PandaJobQueue()
+        pandajob_queue_fromdict = PandaJobQueue.build_from_dict(sample_multijobs)
         assert len(pandajob_queue) == 0
+        assert not pandajob_queue.next_job_to_process()
+
+        pandajob_queue = PandaJobQueue(sample_multijobs)
+        assert len(pandajob_queue) == len(pandajob_queue_fromdict) == njobs
+        job = pandajob_queue.next_job_to_process()
+        if is_eventservice:
+            assert not job
+        else:
+            assert job
+
+        for pandaID in pandajob_queue:
+            event_ranges = pandajob_queue.get_eventranges(pandaID)
+            assert isinstance(event_ranges, EventRangeQueue)
+            assert len(event_ranges) == 0
+            assert pandajob_queue.has_job(pandaID)
+
+    def test_pandajob_process_event_ranges_reply(self, is_eventservice, njobs, sample_multijobs, sample_ranges):
+        if not is_eventservice:
+            pytest.skip("Not eventservice jobs")
+        pandajob_queue = PandaJobQueue(sample_multijobs)
+
+        pandajob_queue.process_event_ranges_reply(sample_ranges)
+
+        job = pandajob_queue.next_job_to_process()
+        assert job['PandaID'] in sample_ranges
+
+        for pandaID in pandajob_queue:
+            ranges = pandajob_queue.get_eventranges(pandaID)
+            assert len(ranges) == len(sample_ranges[pandaID])
+            assert not ranges.no_more_ranges
+            sample_ranges[pandaID] = []
+
+        pandajob_queue.process_event_ranges_reply(sample_ranges)
+        for pandaID in pandajob_queue:
+            ranges = pandajob_queue.get_eventranges(pandaID)
+            assert ranges.no_more_ranges
+
+    def test_process_event_ranges_update(self, is_eventservice, njobs, nevents, sample_multijobs, sample_ranges, sample_rangeupdate):
+        if not is_eventservice:
+            pytest.skip("Not eventservice jobs")
+        pandajob_queue = PandaJobQueue(sample_multijobs)
+
+        pandajob_queue.process_event_ranges_reply(sample_ranges)
+
+        job = pandajob_queue.next_job_to_process()
+        assert job == pandajob_queue.next_job_to_process()
+        ranges_update = EventRangeUpdate.build_from_dict(job['PandaID'], sample_rangeupdate)
+
+        ranges_queue = pandajob_queue.get_eventranges(job['PandaID'])
+        _ = job.get_next_ranges(nevents)
+        pandajob_queue.process_event_ranges_update(ranges_update)
+        assert not ranges_queue.no_more_ranges
+        assert ranges_queue.nranges_done() == nevents
+        assert ranges_queue.nranges_remaining() == ranges_queue.nranges_available() == 0
+        job_2 = pandajob_queue.next_job_to_process()
+        assert job['PandaID'] != job_2['PandaID']
 
 
 class TestPandaJob:

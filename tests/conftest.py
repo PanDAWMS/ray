@@ -27,20 +27,35 @@ def njobs():
     return 3
 
 
-@pytest.fixture
-def sample_ranges(nevents):
-    pandaID = '0'
-    range_list = list()
-    res = {pandaID: range_list}
+@pytest.fixture(params=[True, False])
+def is_eventservice(request):
+    return request.param
 
-    for i in range(nevents):
-        range_list.append({
-            'lastEvent': i,
-            'eventRangeID': f"Range-{i:05}",
-            'startEvent': i,
-            'scope': '13Mev',
-            'LFN': "EVNT-2.pool.root.1",
-            'GUID': '0'})
+
+@pytest.fixture
+def pandaids(njobs):
+    res = []
+    for i in range(njobs):
+        hash = hashlib.md5()
+        hash.update(str(time.time()).encode('utf-8'))
+        res.append(hash.hexdigest())
+    return res
+
+
+@pytest.fixture
+def sample_ranges(nevents, pandaids):
+    res = {}
+    for pandaID in pandaids:
+        range_list = list()
+        res[pandaID] = range_list
+        for i in range(nevents):
+            range_list.append({
+                'lastEvent': i,
+                'eventRangeID': f"Range-{i:05}",
+                'startEvent': i,
+                'scope': '13Mev',
+                'LFN': "EVNT-2.pool.root.1",
+                'GUID': '0'})
     return res
 
 
@@ -68,10 +83,9 @@ def sample_failed_rangeupdate(nevents):
 
 
 @pytest.fixture
-def sample_multijobs(njobs):
+def sample_multijobs(request, is_eventservice, pandaids):
     res = {}
-
-    for i in range(njobs):
+    for pandaID in pandaids:
         hash = hashlib.md5()
 
         hash.update(str(time.time()).encode('utf-8'))
@@ -80,8 +94,6 @@ def sample_multijobs(njobs):
         hash.update(str(time.time()).encode('utf-8'))
         job_name = hash.hexdigest()
 
-        hash.update(str(time.time()).encode('utf-8'))
-        pandaID = hash.hexdigest()
         jobsetId = '0'
         taskId = '0'
         ncores = '8'
@@ -102,7 +114,7 @@ def sample_multijobs(njobs):
             u'GUID': guid,
             u'realDatasetsIn': u'user.mlassnig:user.mlassnig.pilot.test.single.hits',
             u'nSent': 0,
-            u'eventService': 'true',
+            u'eventService': str(is_eventservice),
             u'cloud': u'US',
             u'StatusCode': 0,
             u'homepackage': u'AtlasOffline/21.0.15',
@@ -124,13 +136,13 @@ def sample_multijobs(njobs):
             u'destinationDblock': job_name,
             u'dispatchDBlockToken': u'NULL',
             u'jobPars': (
-                '--eventService=True --skipEvents=0 --firstEvent=1 --preExec "from AthenaCommon.DetFlags '
+                '--eventService=%s --skipEvents=0 --firstEvent=1 --preExec "from AthenaCommon.DetFlags '
                 'import DetFlags;DetFlags.ID_setOn();DetFlags.Calo_setOff();'
                 'DetFlags.Muon_setOff();DetFlags.Lucid_setOff();DetFlags.Truth_setOff() "'
                 '--athenaopts=--preloadlib=${ATLASMKLLIBDIR_PRELOAD}/libimf.so '
                 '--preInclude sim:SimulationJobOptions/preInclude.FrozenShowersFCalOnly.py,SimulationJobOptions/preInclude.BeamPipeKill.py '
                 '--geometryVersion ATLAS-R2-2016-01-00-00_VALIDATION --physicsList QGSP_BERT --randomSeed 1234 --conditionsTag OFLCOND-MC12-SIM-00 '
-                '--maxEvents=-1 --inputEvgenFile %s --outputHitsFile HITS_%s.pool.root)' % (inFiles, job_name)),
+                '--maxEvents=-1 --inputEvgenFile %s --outputHitsFile HITS_%s.pool.root)' % (str(is_eventservice), inFiles, job_name)),
             u'attemptNr': 0,
             u'swRelease': u'Atlas-21.0.15',
             u'nucleus': u'NULL',
