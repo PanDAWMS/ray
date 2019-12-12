@@ -55,6 +55,7 @@ class PandaJobQueue:
 
     def __init__(self, jobs=None):
         self.jobs = dict()
+        self.distributed_jobs_ids = list()
 
         if jobs:
             self.add_jobs(jobs)
@@ -95,8 +96,9 @@ class PandaJobQueue:
             return max_jobID, max_avail
 
         for jobID, job in self.jobs.items():
-            if 'eventService' not in job or job['eventService'].lower() == "false":
-                return job['PandaID'], 0
+            if ('eventService' not in job or job['eventService'].lower() == "false") and jobID not in self.distributed_jobs_ids:
+                self.distributed_jobs_ids.append(jobID)
+                return jobID, 0
             if job.nranges_available() > max_avail:
                 max_avail = job.nranges_available()
                 max_jobID = jobID
