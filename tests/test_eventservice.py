@@ -1,5 +1,6 @@
 import pytest
 from Raythena.utils.eventservice import EventRange, EventRangeQueue, EventRangeRequest, EventRangeUpdate
+from Raythena.utils.eventservice import PandaJob, PandaJobQueue, PandaJobRequest, PandaJobUpdate
 
 
 class TestEventRangeRequest:
@@ -135,7 +136,7 @@ class TestEventRanges:
         start = 0
         last = 0
         guid = "abc"
-        pfn = "/path/to/fil"
+        pfn = "/path/to/file"
         scope = "13Tev"
         r_dict = {
             "eventRangeID": id,
@@ -149,3 +150,63 @@ class TestEventRanges:
         assert range_from_dict.PFN == pfn and range_from_dict.eventRangeID == id and range_from_dict.startEvent == start \
             and range_from_dict.lastEvent == last and range_from_dict.GUID == guid and range_from_dict.scope == scope
         assert range_from_dict.status == EventRange.READY
+
+
+class TestPandaJobQueue:
+
+    def test_build_pandajob_queue(self, njobs, sample_multijobs):
+        assert len(sample_multijobs) == njobs
+        pandajob_queue = PandaJobQueue()
+        assert len(pandajob_queue) == 0
+
+
+class TestPandaJob:
+
+    def test_build_pandajob(self, sample_job):
+        job_dict = list(sample_job.values())[0]
+        job = PandaJob(job_dict)
+        for k in job_dict:
+            assert k in job
+            assert job_dict[k] == job[k]
+
+
+class TestPandaJobRequest:
+
+    def test_build_pandajob_request(self):
+        request_dict = {
+            "node": "nodename",
+            "diskSpace": 230000,
+            "workingGroup": "grp",
+            "prodSourceLabel": "test",
+            "computingElement": "ce",
+            "siteName": "nersc",
+            "resourceType": "rt",
+            "mem": 230000,
+            "cpu": 32,
+            "allowOtherCountry": "false"
+        }
+        jobrequest = PandaJobRequest(**request_dict)
+        for k in request_dict:
+            assert request_dict[k] == getattr(jobrequest, k)
+
+
+class TestPandaJobUpdate:
+
+    def test_build_pandajob_update(self):
+        update_dict = {
+            'node': ['nid00038'],
+            'startTime': ['1574112042.86'],
+            'jobMetrics': ['coreCount=32'],
+            'siteName': ['NERSC_Cori_p2_ES'],
+            'timestamp': ['2019-11-18T13:20:45-08:00'],
+            'coreCount': ['32'],
+            'attemptNr': ['0'],
+            'jobId': ['7a75654803d17d54f9129e2a6974beda'],
+            'batchID': ['25932742'],
+            'state': ['starting'],
+            'schedulerID': ['unknown'],
+            'pilotID': ['unknown|SLURM|PR|2.2.2 (1)']
+        }
+        jobupdate = PandaJobUpdate(**update_dict)
+        for k in update_dict:
+            assert update_dict[k] == getattr(jobupdate, k)

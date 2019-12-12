@@ -26,7 +26,7 @@ class ESEncoder(json.JSONEncoder):
             return o.eventranges_by_id
 
         if isinstance(o, PandaJobUpdate):
-            raise NotImplementedError()
+            raise o.to_dict()
         if isinstance(o, EventRangeUpdate):
             return o.range_update
 
@@ -277,8 +277,15 @@ class PandaJobUpdate:
 
     """
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, **kwargs):
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
+    def __str__(self):
+        return str(self.__dict__)
+
+    def to_dict(self):
+        return self.__dict__
 
 
 class EventRangeUpdate:
@@ -421,10 +428,10 @@ class PandaJobRequest:
         "node": _,
         "diskSpace": _,
         "workingGroup": _,
-        "prodSourceLabel: _,
-        "computingElement: _,
+        "prodSourceLabel": _,
+        "computingElement": _,
         "siteName": _,
-        "resourceType: _,
+        "resourceType": _,
         "mem": _,
         "cpu": _,
         "allowOtherCountry": _
