@@ -43,7 +43,6 @@ class TestPlugins:
         plugin_str = config.payload['plugin']
         assert plugin_str
         module, sep, plugin_class = plugin_str.partition(":")
-        print(f"Module: {module}, class: {plugin_class}")
         with pytest.raises(ValueError):
             plugins.get_plugin(module)
 

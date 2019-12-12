@@ -3,7 +3,6 @@
 class TestDriver:
 
     def test_one(self, tmpdir):
-        print(f"Temp dir: {tmpdir}")
         assert True
 
     def test_two(self):
