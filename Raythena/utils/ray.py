@@ -39,7 +39,7 @@ def setup_ray(config):
 
 
 def shutdown_ray(config):
-    if is_external_cluster(config) and ray.is_initialized():
+    if ray.is_initialized():
         ray.shutdown()
 
 

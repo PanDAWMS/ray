@@ -1,15 +1,23 @@
 import pytest
 import hashlib
 import time
+from Raythena.utils.ray import setup_ray, shutdown_ray
 from Raythena.utils.config import Config
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def config_path():
     return "tests/testconf.yaml"
 
 
-@pytest.fixture
+@pytest.fixture(scope="class")
+def requires_ray(config):
+    setup_ray(config)
+    yield
+    shutdown_ray(config)
+
+
+@pytest.fixture(scope="class")
 def config(config_path):
     return Config(
         config_path, config=None, debug=False, payload_bindir=None,
