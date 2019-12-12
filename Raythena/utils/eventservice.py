@@ -80,7 +80,7 @@ class PandaJobQueue:
     def next_job_to_process(self):
         jobID, ranges_avail = self.jobid_next_job_to_process()
 
-        if jobID is None or (ranges_avail == 0 and self[jobID]['eventService']):
+        if jobID is None:
             return None
         return self.jobs[jobID]
 
@@ -95,6 +95,8 @@ class PandaJobQueue:
             return max_jobID, max_avail
 
         for jobID, job in self.jobs.items():
+            if 'eventService' not in job or job['eventService'].lower() == "false":
+                return job['PandaID'], 0
             if job.nranges_available() > max_avail:
                 max_avail = job.nranges_available()
                 max_jobID = jobID
