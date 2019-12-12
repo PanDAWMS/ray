@@ -167,7 +167,10 @@ class TestPandaJobQueue:
         if is_eventservice:
             assert not job
         else:
-            assert job
+            for i in range(1, njobs):
+                next_job = pandajob_queue.next_job_to_process()
+                assert job['PandaID'] != next_job['PandaID']
+                job = next_job
 
         for pandaID in pandajob_queue:
             event_ranges = pandajob_queue.get_eventranges(pandaID)
