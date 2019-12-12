@@ -49,7 +49,9 @@ class BookKeeper:
         return ranges
 
     def process_event_ranges_update(self, actor_id, eventRangesUpdate):
-        pandaID = self.actors[actor_id]
+        pandaID = self.actors.get(actor_id, None)
+        if not pandaID:
+            return
         ranges_update = EventRangeUpdate.build_from_dict(pandaID, eventRangesUpdate)
         self.logging_actor.info.remote("BookKeeper", f"Built rangeUpdate: {ranges_update}")
         self.jobs.process_event_ranges_update(ranges_update)
@@ -59,8 +61,12 @@ class BookKeeper:
         # TODO trigger stageout
 
     def process_actor_end(self, actor_id):
-        pandaID = self.actors[actor_id]
-        actor_ranges = self.rangesID_by_actor[actor_id]
+        pandaID = self.actors.get(actor_id, None)
+        if not pandaID:
+            return
+        actor_ranges = self.rangesID_by_actor.get(actor_id, None)
+        if not actor_ranges:
+            return
         self.logging_actor.warn.remote("BookKeeper", f"{actor_id} finished with {len(actor_ranges)} remaining to process")
         for rangeID in actor_ranges:
             self.logging_actor.warn.remote("BookKeeper", f"{actor_id} finished without processing range {rangeID}")
