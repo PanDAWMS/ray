@@ -6,7 +6,7 @@ import ray
 from Raythena.utils.eventservice import EventRangeRequest, Messages
 from Raythena.utils.plugins import PluginsRegistry
 from Raythena.utils.ray import get_node_ip
-from Raythena.utils.exception import IllegalWorkerState, StageInFailed, PluginNotFound
+from Raythena.utils.exception import IllegalWorkerState, StageInFailed
 
 
 @ray.remote(num_cpus=0)
@@ -74,10 +74,7 @@ class ESWorker:
         self.workdir = os.path.expandvars(self.config.ray.get('workdir', os.getcwd()))
         self.plugin_registry = PluginsRegistry()
         payload = self.config.payload['plugin']
-        try:
-            self.payload_class = self.plugin_registry.get_plugin(payload)
-        except ImportError:
-            raise PluginNotFound(self.id)
+        self.payload_class = self.plugin_registry.get_plugin(payload)
         self.payload = self.payload_class(self.id, self.logging_actor, self.config)
         self.logging_actor.info.remote(self.id, "Ray worker started")
 

@@ -2,6 +2,7 @@ import importlib
 import pkgutil
 
 import Raythena.actors.payloads
+from Raythena.utils.exception import PluginNotFound
 
 
 class PluginsRegistry:
@@ -33,7 +34,7 @@ class PluginsRegistry:
         for name, plugin in self.plugins.items():
             if name.endswith(plugin_module):
                 if not hasattr(plugin, plugin_class):
-                    raise ImportError(f"Can't import plugin {plugin_class} from {plugin.__name__}")
+                    raise PluginNotFound(id="tests", message=f"Can't import plugin {plugin_class} from {plugin.__name__}")
                 return getattr(plugin, plugin_class)
 
-        raise ImportError(f"Module {plugin_module} not found")
+        raise PluginNotFound(id="tests", message=f"Module {plugin_module} not found")
