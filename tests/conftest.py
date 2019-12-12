@@ -172,7 +172,7 @@ def sample_multijobs(request, is_eventservice, pandaids):
 
 
 @pytest.fixture
-def sample_job():
+def sample_job(is_eventservice):
     hash = hashlib.md5()
 
     hash.update(str(time.time()).encode('utf-8'))
@@ -203,7 +203,7 @@ def sample_job():
                 u'GUID': guid,
                 u'realDatasetsIn': u'user.mlassnig:user.mlassnig.pilot.test.single.hits',
                 u'nSent': 0,
-                u'eventService': 'true',
+                u'eventService': str(is_eventservice),
                 u'cloud': u'US',
                 u'StatusCode': 0,
                 u'homepackage': u'AtlasOffline/21.0.15',
@@ -225,13 +225,13 @@ def sample_job():
                 u'destinationDblock': job_name,
                 u'dispatchDBlockToken': u'NULL',
                 u'jobPars': (
-                    '--eventService=True --skipEvents=0 --firstEvent=1 --preExec "from AthenaCommon.DetFlags '
+                    '--eventService=%s --skipEvents=0 --firstEvent=1 --preExec "from AthenaCommon.DetFlags '
                     'import DetFlags;DetFlags.ID_setOn();DetFlags.Calo_setOff();'
                     'DetFlags.Muon_setOff();DetFlags.Lucid_setOff();DetFlags.Truth_setOff() "'
                     '--athenaopts=--preloadlib=${ATLASMKLLIBDIR_PRELOAD}/libimf.so '
                     '--preInclude sim:SimulationJobOptions/preInclude.FrozenShowersFCalOnly.py,SimulationJobOptions/preInclude.BeamPipeKill.py '
                     '--geometryVersion ATLAS-R2-2016-01-00-00_VALIDATION --physicsList QGSP_BERT --randomSeed 1234 --conditionsTag OFLCOND-MC12-SIM-00 '
-                    '--maxEvents=-1 --inputEvgenFile %s --outputHitsFile HITS_%s.pool.root)' % (inFiles, job_name)),
+                    '--maxEvents=-1 --inputEvgenFile %s --outputHitsFile HITS_%s.pool.root)' % (str(is_eventservice), inFiles, job_name)),
                 u'attemptNr': 0,
                 u'swRelease': u'Atlas-21.0.15',
                 u'nucleus': u'NULL',
