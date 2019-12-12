@@ -1,5 +1,6 @@
 import pytest
 from Raythena.utils.plugins import PluginsRegistry
+from Raythena.utils.exception import PluginNotFound
 
 
 class TestPlugins:
@@ -49,13 +50,13 @@ class TestPlugins:
         with pytest.raises(ValueError):
             plugins.get_plugin(plugin_class)
 
-        with pytest.raises(ImportError):
+        with pytest.raises(PluginNotFound):
             plugins.get_plugin(f"{plugin_str}_donotexists")
 
-        with pytest.raises(ImportError):
+        with pytest.raises(PluginNotFound):
             plugins.get_plugin(f"donotexists.{plugin_str}")
 
-        with pytest.raises(ImportError):
+        with pytest.raises(PluginNotFound):
             plugins.get_plugin(f"{module}.donotexists:{plugin_class}")
 
         plugin_str_full = f"{payloads_es.__name__}.{plugin_str}"
