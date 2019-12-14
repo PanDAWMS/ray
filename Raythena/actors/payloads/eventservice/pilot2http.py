@@ -5,7 +5,7 @@ import os
 import stat
 import shlex
 import threading
-from asyncio import Queue, QueueEmpty
+from asyncio import Queue, QueueEmpty, Event
 from subprocess import DEVNULL, Popen
 from urllib.parse import parse_qs
 
@@ -46,11 +46,12 @@ class Pilot2HttpPayload(ESPayload):
         self.loop = asyncio.get_event_loop()
         self.current_job = None
         self.no_more_ranges = False
-        self.stop_queue = Queue()
+        self.stop_event = Event()
         self.ranges_update = Queue()
         self.job_update = Queue()
         self.ranges_queue = Queue()
         self.router = AsyncRouter()
+        self.router.register('/', self.handle_getJob)
         self.router.register('/server/panda/getJob', self.handle_getJob)
         self.router.register('/server/panda/updateJob', self.handle_updateJob)
         self.router.register('/server/panda/updateJobsInBulk', self.handle_updateJobsInBulk)
@@ -121,7 +122,7 @@ class Pilot2HttpPayload(ESPayload):
 
     def start(self, job):
         if not self.server_thread or not self.server_thread.is_alive():
-            self.stop_queue = Queue()
+            self.stop_event = Event()
             self.ranges_update = Queue()
             self.job_update = Queue()
             self.current_job = job
@@ -138,8 +139,7 @@ class Pilot2HttpPayload(ESPayload):
                 self.pilot_process.terminate()
                 pexit = self.pilot_process.wait()
             self.logging_actor.debug.remote(self.id, f"Payload return code: {pexit}")
-
-            asyncio.run_coroutine_threadsafe(self.stop_queue.put(True), self.loop)
+            asyncio.run_coroutine_threadsafe(self.notify_stop_server_task(), self.loop)
             self.server_thread.join()
             self.logging_actor.info.remote(self.id, f"Communicator stopped")
 
@@ -167,7 +167,10 @@ class Pilot2HttpPayload(ESPayload):
 
     async def http_handler(self, request: web.BaseRequest):
         self.logging_actor.debug.remote(self.id, f"Routing {request.method} {request.path}")
-        return await self.router.route(request.path, request=request)
+        try:
+            return await self.router.route(request.path, request=request)
+        except Exception:
+            return web.json_response({"StatusCode": 500}, dumps=self.json_encoder)
 
     async def parse_qs_body(self, request):
         """
@@ -251,13 +254,13 @@ class Pilot2HttpPayload(ESPayload):
         self.logging_actor.debug.remote(self.id, f"======= Serving on http://{self.host}:{self.port}/ ======")
         return self.site
 
+    async def notify_stop_server_task(self):
+        self.stop_event.set()
+
     async def serve(self):
         await self.startup_server()
         self._start_payload()
-        should_stop = False
-        while not should_stop:
-            should_stop = await self.stop_queue.get()
-
+        await self.stop_event.wait()
         if self.site:
             self.logging_actor.debug.remote(self.id, f"======= Stopped http://{self.host}:{self.port}/ ======")
             await self.site.stop()
