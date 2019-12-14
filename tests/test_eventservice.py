@@ -38,6 +38,7 @@ class TestEventRangeUpdate:
         assert pandaID in ranges_update
         ranges = ranges_update[pandaID]
         assert len(ranges) == nevents
+        assert len(ranges_update) == 1
         for r in ranges:
             assert "eventRangeID" in r and "eventStatus" in r and "path" in r and "type" in r and "chksum" in r and "fsize" in r and "guid" in r
 
@@ -48,6 +49,15 @@ class TestEventRangeUpdate:
         for r in ranges:
             assert "eventRangeID" in r and "eventStatus" in r and \
                 "path" not in r and "type" not in r and "chksum" not in r and "fsize" not in r and "guid" not in r
+
+        with pytest.raises(Exception):
+            ranges_update.range_update[pandaID] = None
+            EventRangeUpdate(ranges_update.range_update)
+
+        with pytest.raises(Exception):
+            ranges_update[pandaID] = None
+        ranges_update[pandaID] = []
+        assert not ranges_update[pandaID]
 
 
 class TestEventRangeQueue:
@@ -60,6 +70,14 @@ class TestEventRangeQueue:
         ranges_queue = EventRangeQueue.build_from_list(ranges)
         assert len(ranges) == len(ranges_queue) == ranges_queue.nranges_available() == ranges_queue.nranges_remaining() == nevents
         assert ranges_queue.nranges_assigned() == ranges_queue.nranges_done() == ranges_queue.nranges_failed() == 0
+
+        with pytest.raises(Exception):
+            ranges_queue["key"] = None
+
+        ranges_queue_2 = EventRangeQueue()
+        for range_id in ranges_queue:
+            ranges_queue_2[range_id] = ranges_queue[range_id]
+            assert ranges_queue_2[range_id] == ranges_queue[range_id]
 
     def test_concat(self, nevents, sample_job, sample_ranges):
         ranges_queue = EventRangeQueue()
@@ -94,6 +112,9 @@ class TestEventRangeQueue:
         assert len(failed_ranges_update) == ranges_queue.nranges_failed()
         assert ranges_queue.nranges_assigned() == 0
         assert ranges_queue.nranges_remaining() == 0
+
+        with pytest.raises(Exception):
+            ranges_queue.update_range_state("unknown", EventRange.ASSIGNED)
 
     def test_get_next(self, sample_job, sample_ranges):
         ranges_queue = EventRangeQueue()
@@ -177,6 +198,14 @@ class TestPandaJobQueue:
             assert isinstance(event_ranges, EventRangeQueue)
             assert len(event_ranges) == 0
             assert pandajob_queue.has_job(pandaID)
+            with pytest.raises(Exception):
+                pandajob_queue[pandaID] = None
+
+        pandajob_queue_2 = PandaJobQueue()
+        for pandaID in pandajob_queue:
+            job = pandajob_queue[pandaID]
+            pandajob_queue_2["key"] = job
+            assert "key" in pandajob_queue_2
 
     def test_pandajob_process_event_ranges_reply(self, is_eventservice, njobs, sample_multijobs, sample_ranges):
         if not is_eventservice:
@@ -198,6 +227,10 @@ class TestPandaJobQueue:
         for pandaID in pandajob_queue:
             ranges = pandajob_queue.get_eventranges(pandaID)
             assert ranges.no_more_ranges
+
+        sample_ranges["key"] = None
+        pandajob_queue.process_event_ranges_reply(sample_ranges)
+        assert "key" not in pandajob_queue
 
     def test_process_event_ranges_update(self, is_eventservice, njobs, nevents, sample_multijobs, sample_ranges, sample_rangeupdate):
         if not is_eventservice:
@@ -228,6 +261,9 @@ class TestPandaJob:
         for k in job_dict:
             assert k in job
             assert job_dict[k] == job[k]
+        assert job.get_id() == list(sample_job.keys())[0]
+        job["k"] = "v"
+        assert job["k"] == "v"
 
 
 class TestPandaJobRequest:

@@ -3,13 +3,13 @@ from Raythena.utils.eventservice import EventRangeRequest, PandaJobRequest
 
 class TestHarvesterMock:
 
-    def test_get_job(self, config, harvester_mock, request_queue, jobs_queue):
+    def test_get_job(self, harvester_mock, request_queue, jobs_queue):
         harvester_mock.start()
         request_queue.put(PandaJobRequest())
         job = jobs_queue.get(timeout=5)
         assert job is not None and isinstance(job, dict)
 
-    def test_get_ranges(self, config, harvester_mock, request_queue, jobs_queue, ranges_queue):
+    def test_get_ranges(self, harvester_mock, request_queue, jobs_queue, ranges_queue):
         harvester_mock.start()
         request_queue.put(PandaJobRequest())
         jobs = jobs_queue.get(timeout=5)
