@@ -35,5 +35,5 @@ jobs:
         flake8 .
     - name: Run tests
       run: |
-        pip install pytest
+        pip install pytest requests
         pytest
