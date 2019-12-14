@@ -17,6 +17,8 @@ setup(
         'ray',
         'psutil',
         'uvloop',
-        'aiohttp'
-    ],
+        'aiohttp',
+        'tox',
+        'setproctitle'
+    ]
 )
