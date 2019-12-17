@@ -189,6 +189,7 @@ class ESWorker:
             if os.path.isfile(cfile):
                 dst = os.path.join(harvester_endpoint, cfile)
                 range_update["path"] = dst
+                self.logging_actor.debug.remote(self.id, f"Moving {cfile} to {dst}")
                 shutil.move(cfile, dst)
         return ranges
 
