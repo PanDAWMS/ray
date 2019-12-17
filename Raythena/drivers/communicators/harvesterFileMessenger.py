@@ -49,6 +49,8 @@ class HarvesterFileCommunicator(BaseCommunicator):
 
             if os.path.isfile(self.jobrequestfile):
                 os.remove(self.jobrequestfile)
+            if os.path.isfile(self.jobspecfile):
+                os.remove(self.jobspecfile)
             self.jobQueue.put(job)
 
     def request_event_ranges(self, request):

@@ -255,14 +255,16 @@ class ESDriver(BaseDriver):
             os.makedirs(os.path.expandvars(os.path.join(self.config.ray['workdir'], cjob['PandaID'])))
 
         # sends an initial event range request
-        self.request_event_ranges()
+        self.request_event_ranges(block=True)
+        if not self.bookKeeper.has_jobs_ready():
+            self.communicator.stop()
+            self.logging_actor.critical.remote(self.id, f"Couldn't fetch a job with event ranges, stopping...")
+            time.sleep(5)
+            return
 
         self.create_actors()
 
         self.start_actors()
-
-        if self.n_eventsrequest > 0:
-            self.request_event_ranges(block=True)
 
         try:
             self.handle_actors()
