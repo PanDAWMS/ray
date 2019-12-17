@@ -95,7 +95,7 @@ class Pilot2HttpPayload(ESPayload):
         queue_escaped = shlex.quote(self.config.payload['pandaqueue'])
         cmd += f"{shlex.quote(pilotwrapper_bin)}  --piloturl local -q {queue_escaped} -r {queue_escaped} -s {queue_escaped} " \
                f"-i PR -j {prodSourceLabel} --container --mute --pilot-user=atlas -t -w generic --url=http://{self.host} " \
-               f"-p {self.port} --allow-same-user=False --resource-type MCORE --cleanup=False --use-https=False " \
+               f"-p {self.port} --allow-same-user=False --resource-type MCORE --cleanup=False " \
                f"--hpc-resource {shlex.quote(self.config.payload['hpcresource'])};"
 
         extra_script = self.config.payload.get('extrapostpayload', '')
