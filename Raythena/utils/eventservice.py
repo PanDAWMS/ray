@@ -392,6 +392,9 @@ class EventRangeUpdate:
         update_dict = dict()
         update_dict[pandaID] = list()
 
+        if isinstance(range_update, dict) and "zipFile" not in range_update and "eventRangeID" not in range_update:
+            range_update = json.loads(range_update['eventRanges'][0])
+
         for range_elt in range_update:
             fileInfo = range_elt.get('zipFile', None)
             rangesInfo = range_elt.get('eventRanges', None)

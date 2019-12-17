@@ -1,5 +1,4 @@
 import ray
-import json
 import os
 import time
 
@@ -52,12 +51,12 @@ class BookKeeper:
         pandaID = self.actors.get(actor_id, None)
         if not pandaID:
             return
+
         if not isinstance(eventRangesUpdate, EventRangeUpdate):
-            eventRangesUpdate = json.loads(eventRangesUpdate['eventRanges'][0])
-        ranges_update = EventRangeUpdate.build_from_dict(pandaID, eventRangesUpdate)
-        self.logging_actor.info.remote("BookKeeper", f"Built rangeUpdate: {ranges_update}")
-        self.jobs.process_event_ranges_update(ranges_update)
-        for r in ranges_update[pandaID]:
+            eventRangesUpdate = EventRangeUpdate.build_from_dict(pandaID, eventRangesUpdate)
+        self.logging_actor.info.remote("BookKeeper", f"Built rangeUpdate: {eventRangesUpdate}")
+        self.jobs.process_event_ranges_update(eventRangesUpdate)
+        for r in eventRangesUpdate[pandaID]:
             if r['eventRangeID'] in self.rangesID_by_actor[actor_id] and r['eventStatus'] != "running":
                 self.rangesID_by_actor[actor_id].remove(r['eventRangeID'])
         # TODO trigger stageout
