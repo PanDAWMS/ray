@@ -1,4 +1,5 @@
 import os
+import shutil
 import time
 import threading
 import configparser
@@ -36,7 +37,7 @@ class HarvesterFileCommunicator(BaseCommunicator):
                 request_tmp = f"{self.jobrequestfile}.tmp"
                 with open(request_tmp, 'w') as f:
                     json.dump(request.to_dict(), f)
-                os.rename(request_tmp, self.jobrequestfile)
+                shutil.move(request_tmp, self.jobrequestfile)
 
             # wait on job file creation
             while not os.path.isfile(self.jobspecfile):
@@ -55,7 +56,7 @@ class HarvesterFileCommunicator(BaseCommunicator):
             eventRequestFileTmp = f"{self.eventrequestfile}.tmp"
             with open(eventRequestFileTmp, 'w') as f:
                 json.dump(request.request, f)
-            os.rename(eventRequestFileTmp, self.eventrequestfile)
+            shutil.move(eventRequestFileTmp, self.eventrequestfile)
 
             while not os.path.isfile(self.eventrangesfile):
                 time.sleep(0.01)
@@ -66,7 +67,7 @@ class HarvesterFileCommunicator(BaseCommunicator):
             if os.path.isfile(self.eventrequestfile):
                 os.remove(self.eventrequestfile)
             if os.path.isfile(self.eventrangesfile):
-                os.rename(self.eventrangesfile, f"{self.eventrangesfile}-{self.ranges_requests_count}")
+                shutil.move(self.eventrangesfile, f"{self.eventrangesfile}-{self.ranges_requests_count}")
             self.ranges_requests_count += 1
             self.eventRangesQueue.put(ranges)
 
@@ -74,7 +75,14 @@ class HarvesterFileCommunicator(BaseCommunicator):
         pass
 
     def update_events(self, request):
-        pass
+
+        tmp_statusdumpfile = f"{self.eventstatusdumpjsonfile}.tmp"
+        with open(tmp_statusdumpfile, 'w') as f:
+            json.dump(request, f)
+        while os.path.isfile(self.eventstatusdumpjsonfile):
+            time.sleep(0.5)
+
+        shutil.move(tmp_statusdumpfile, self.eventstatusdumpjsonfile)
 
     def run(self):
         while True:

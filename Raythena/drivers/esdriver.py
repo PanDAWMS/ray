@@ -59,7 +59,7 @@ class BookKeeper:
         for r in eventRangesUpdate[pandaID]:
             if r['eventRangeID'] in self.rangesID_by_actor[actor_id] and r['eventStatus'] != "running":
                 self.rangesID_by_actor[actor_id].remove(r['eventRangeID'])
-        # TODO trigger stageout
+        return eventRangesUpdate
 
     def process_actor_end(self, actor_id):
         pandaID = self.actors.get(actor_id, None)
@@ -176,7 +176,8 @@ class ESDriver(BaseDriver):
                     self.logging_actor.info.remote(self.id, f"{actor_id} sent a job update: {data}")
                 elif message == Messages.UPDATE_EVENT_RANGES:
                     self.logging_actor.info.remote(self.id, f"{actor_id} sent a eventranges update")
-                    self.bookKeeper.process_event_ranges_update(actor_id, data)
+                    eventranges_update = self.bookKeeper.process_event_ranges_update(actor_id, data)
+                    self.requestsQueue.put(eventranges_update)
                 elif message == Messages.PROCESS_DONE:  # TODO actor should drain jobupdate, rangeupdate queue and send a final update.
                     # try to assign a new job to the actor
                     self.logging_actor.info.remote(self.id, f"{actor_id} finished processing current job, checking for a new job...")

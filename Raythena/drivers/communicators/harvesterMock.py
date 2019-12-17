@@ -32,7 +32,7 @@ class HarvesterMock(BaseCommunicator):
         for f in self.files:
             self.inFilesAbs.append(os.path.join(workdir, f))
 
-        self.nevents_per_file = 50
+        self.nevents_per_file = 2
         self.nevents = self.nevents_per_file * self.nfiles
         self.served_events = 0
         self.ncores = self.config.resources['corepernode']
@@ -90,10 +90,10 @@ class HarvesterMock(BaseCommunicator):
         self.eventRangesQueue.put(self.event_ranges)
 
     def update_job(self, job_status):
-        raise NotImplementedError("Base method not implemented")
+        pass
 
     def update_events(self, evnt_status):
-        raise NotImplementedError("Base method not implemented")
+        pass
 
     def get_panda_queue_name(self):
         return self.config.payload['pandaqueue']
