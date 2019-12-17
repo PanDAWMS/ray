@@ -145,13 +145,13 @@ class HarvesterMock(BaseCommunicator):
                         u'destinationDblock': job_name,
                         u'dispatchDBlockToken': u'NULL',
                         u'jobPars': (
-                            '--eventService=True --skipEvents=0 --firstEvent=1 --preExec "from AthenaCommon.DetFlags '
+                            '--eventService=True --skipEvents=0 --firstEvent=1 --preExec \'from AthenaCommon.DetFlags '
                             'import DetFlags;DetFlags.ID_setOn();DetFlags.Calo_setOff();'
-                            'DetFlags.Muon_setOff();DetFlags.Lucid_setOff();DetFlags.Truth_setOff() "'
+                            'DetFlags.Muon_setOff();DetFlags.Lucid_setOff();DetFlags.Truth_setOff()\' '
                             '--athenaopts=--preloadlib=${ATLASMKLLIBDIR_PRELOAD}/libimf.so '
                             '--preInclude sim:SimulationJobOptions/preInclude.FrozenShowersFCalOnly.py,SimulationJobOptions/preInclude.BeamPipeKill.py '
                             '--geometryVersion ATLAS-R2-2016-01-00-00_VALIDATION --physicsList QGSP_BERT --randomSeed 1234 --conditionsTag OFLCOND-MC12-SIM-00 '
-                            '--maxEvents=-1 --inputEvgenFile %s --outputHitsFile HITS_%s.pool.root)' % (self.inFiles, job_name)),
+                            '--maxEvents=-1 --inputEvgenFile %s --outputHitsFile HITS_%s.pool.root' % (self.inFiles, job_name)),
                         u'attemptNr': 0,
                         u'swRelease': u'Atlas-21.0.15',
                         u'nucleus': u'NULL',

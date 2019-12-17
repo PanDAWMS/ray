@@ -265,8 +265,8 @@ class ESDriver(BaseDriver):
 
         try:
             self.handle_actors()
-        except Exception:
-            self.logging_actor.error.remote(self.id, f"Error while handling actors. stopping...")
+        except Exception as e:
+            self.logging_actor.error.remote(self.id, f"Error while handling actors: {e}. stopping...")
 
         self.communicator.stop()
 
