@@ -398,7 +398,7 @@ class EventRangeUpdate:
             fileData = dict()
 
             if fileInfo:
-                if fileInfo['lfn'].find('.root') > -1:
+                if fileInfo['lfn'].find('.root.Range') > -1:
                     ftype = "es_output"
                 else:
                     ftype = "zip_output"

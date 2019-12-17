@@ -1,9 +1,10 @@
 import os
 import time
-
+import shutil
 import ray
+import json
 
-from Raythena.utils.eventservice import EventRangeRequest, Messages
+from Raythena.utils.eventservice import EventRangeRequest, Messages, EventRangeUpdate
 from Raythena.utils.plugins import PluginsRegistry
 from Raythena.utils.ray import get_node_ip
 from Raythena.utils.exception import IllegalWorkerState, StageInFailed
@@ -177,6 +178,20 @@ class ESWorker:
             self.transition_state(ESWorker.READY_FOR_EVENTS)
         return res
 
+    def move_ranges_file(self, ranges_update):
+        harvester_endpoint = self.config.harvester.get("endpoint", "")
+        if not os.path.isdir(harvester_endpoint):
+            return
+        ranges = json.loads(ranges_update['eventRanges'][0])
+        ranges = EventRangeUpdate.build_from_dict(self.job.get_id(), ranges)
+        for range_update in ranges[self.job.get_id()]:
+            cfile = range_update.get("path", "")
+            if os.path.isfile(cfile):
+                dst = os.path.join(harvester_endpoint, cfile)
+                range_update["path"] = dst
+                shutil.move(cfile, dst)
+        return ranges
+
     def get_message(self):
         """
         Return a message to the driver depending on the current actor state
@@ -213,6 +228,7 @@ class ESWorker:
                 ranges_update = self.payload.fetch_ranges_update()
                 if ranges_update:
                     self.logging_actor.info.remote(self.id, f"Fetched rangesupdate from payload: {ranges_update}")
+                    ranges_update = self.move_ranges_file(ranges_update)
                     return self.return_message(Messages.UPDATE_EVENT_RANGES, ranges_update)
 
                 time.sleep(1)  # Nothing to do, sleeping...

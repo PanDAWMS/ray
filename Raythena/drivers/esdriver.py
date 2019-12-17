@@ -52,6 +52,8 @@ class BookKeeper:
         pandaID = self.actors.get(actor_id, None)
         if not pandaID:
             return
+        if not isinstance(eventRangesUpdate, EventRangeUpdate):
+            eventRangesUpdate = json.loads(eventRangesUpdate['eventRanges'][0])
         ranges_update = EventRangeUpdate.build_from_dict(pandaID, eventRangesUpdate)
         self.logging_actor.info.remote("BookKeeper", f"Built rangeUpdate: {ranges_update}")
         self.jobs.process_event_ranges_update(ranges_update)
@@ -175,8 +177,7 @@ class ESDriver(BaseDriver):
                     self.logging_actor.info.remote(self.id, f"{actor_id} sent a job update: {data}")
                 elif message == Messages.UPDATE_EVENT_RANGES:
                     self.logging_actor.info.remote(self.id, f"{actor_id} sent a eventranges update")
-                    update = json.loads(data['eventRanges'][0])
-                    self.bookKeeper.process_event_ranges_update(actor_id, update)
+                    self.bookKeeper.process_event_ranges_update(actor_id, data)
                 elif message == Messages.PROCESS_DONE:  # TODO actor should drain jobupdate, rangeupdate queue and send a final update.
                     # try to assign a new job to the actor
                     self.logging_actor.info.remote(self.id, f"{actor_id} finished processing current job, checking for a new job...")
