@@ -12,7 +12,7 @@ payload:
 harvester:
   endpoint: $SCRATCH/raythena/harvester
   communicator: harvesterFileMessenger:HarvesterFileCommunicator
-  harvesterconf: $SCRATCH/raythena/harvester/panda_harvester.cfg
+  harvesterconf: /project/projectdirs/m2616/harvester/etc/panda/panda_harvester.cfg
   min_nevents: 170000
 
 ray:
