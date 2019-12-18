@@ -1,7 +1,7 @@
 payload:
   plugin: pilot2http:Pilot2HttpPayload
   bindir: /opt/miniconda/bin # used if ray runs in container, overrided by dockerfile envvar
-  virtualenv: pilot2 # oused if ray runs in container, overrided by dockerfile envvar
+  virtualenv: pilot # oused if ray runs in container, overrided by dockerfile envvar
   condabindir: /opt/miniconda/bin # used if ray runs in container, overrided by dockerfile envvar
   pandaqueue: NERSC_Cori_p2_ES
   logfilename: log.pilotwrapper
