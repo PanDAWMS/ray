@@ -10,7 +10,7 @@ from Raythena.utils.ray import get_node_ip
 from Raythena.utils.exception import IllegalWorkerState, StageInFailed
 
 
-@ray.remote(num_cpus=1)
+@ray.remote(num_cpus=0)
 class ESWorker:
     """
     Actor running on HPC compute node. Each actor will start a payload plugin

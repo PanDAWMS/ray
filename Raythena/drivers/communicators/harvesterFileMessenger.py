@@ -47,10 +47,11 @@ class HarvesterFileCommunicator(BaseCommunicator):
             with open(self.jobspecfile) as f:
                 job = json.load(f)
 
-            if os.path.isfile(self.jobrequestfile):
-                os.remove(self.jobrequestfile)
-            if os.path.isfile(self.jobspecfile):
-                os.remove(self.jobspecfile)
+        if os.path.isfile(self.jobrequestfile):
+            os.remove(self.jobrequestfile)
+        if os.path.isfile(self.jobspecfile):
+            os.remove(self.jobspecfile)
+        if job:
             self.jobQueue.put(job)
 
     def request_event_ranges(self, request):
@@ -60,18 +61,18 @@ class HarvesterFileCommunicator(BaseCommunicator):
                 json.dump(request.request, f)
             shutil.move(eventRequestFileTmp, self.eventrequestfile)
 
-            while not os.path.isfile(self.eventrangesfile):
-                time.sleep(0.01)
+        while not os.path.isfile(self.eventrangesfile):
+            time.sleep(0.01)
 
-            with open(self.eventrangesfile) as f:
-                ranges = json.load(f)
+        with open(self.eventrangesfile) as f:
+            ranges = json.load(f)
 
-            if os.path.isfile(self.eventrequestfile):
-                os.remove(self.eventrequestfile)
-            if os.path.isfile(self.eventrangesfile):
-                shutil.move(self.eventrangesfile, f"{self.eventrangesfile}-{self.ranges_requests_count}")
-            self.ranges_requests_count += 1
-            self.eventRangesQueue.put(ranges)
+        if os.path.isfile(self.eventrequestfile):
+            os.remove(self.eventrequestfile)
+        if os.path.isfile(self.eventrangesfile):
+            shutil.move(self.eventrangesfile, f"{self.eventrangesfile}-{self.ranges_requests_count}")
+        self.ranges_requests_count += 1
+        self.eventRangesQueue.put(ranges)
 
     def update_job(self, request):
         pass

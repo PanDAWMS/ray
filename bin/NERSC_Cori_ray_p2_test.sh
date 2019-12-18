@@ -27,7 +27,7 @@ export HARVESTER_NNODE={nNode}
 
 export HARVESTER_VENV=/global/project/projectdirs/m2616/harvester/bin
 
-export PANDA_QUEUE=NERSC_Cori_p2_ES
+export PANDA_QUEUE=NERSC_Cori_p2_ES_Test
 export container_setup=/usr/atlas/release_setup.sh
 export HARVESTER_CONTAINER_RELEASE_SETUP_FILE=$container_setup
 export pilot_wrapper_bin=/project/projectdirs/atlas/esseivaj/raythena/software/runpilot2-wrapper.sh

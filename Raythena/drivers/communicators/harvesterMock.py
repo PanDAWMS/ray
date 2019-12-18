@@ -1,6 +1,7 @@
 import hashlib
 import os
 import time
+import random
 import threading
 
 from Raythena.utils.eventservice import EventRangeRequest, PandaJobRequest, PandaJobUpdate, EventRangeUpdate
@@ -13,15 +14,12 @@ class HarvesterMock(BaseCommunicator):
     def __init__(self, requestsQueue, jobQueue, eventRangesQueue, config):
         super().__init__(requestsQueue, jobQueue, eventRangesQueue, config)
         self.communicator_thread = threading.Thread(target=self.run, name="communicator-thread")
-        hash = hashlib.md5()
-
-        hash.update(str(time.time()).encode('utf-8'))
         self.event_ranges = None
-        self.pandaID = hash.hexdigest()
-        self.jobsetId = '0'
-        self.taskId = '0'
+        self.pandaID = random.randint(0, 100)
+        self.jobsetId = random.randint(0, 100)
+        self.taskId = random.randint(0, 100)
         self.config = config
-        self.scope = 'mc15_13TeV'
+        self.scope = 'mc16_13TeV'
         self.guid = '74DFB3ED-DAA7-E011-8954-001E4F3D9CB1,74DFB3ED-DAA7-E011-8954-001E4F3D9CB1'
         self.guids = self.guid.split(",")
         self.inFiles = "EVNT.12458444._000048.pool.root.1,EVNT.12458444._000052.pool.root.1"
@@ -32,7 +30,7 @@ class HarvesterMock(BaseCommunicator):
         for f in self.files:
             self.inFilesAbs.append(os.path.join(workdir, f))
 
-        self.nevents_per_file = 2
+        self.nevents_per_file = 50
         self.nevents = self.nevents_per_file * self.nfiles
         self.served_events = 0
         self.ncores = self.config.resources['corepernode']
@@ -109,7 +107,7 @@ class HarvesterMock(BaseCommunicator):
 
         self.jobQueue.put(
             {
-                self.pandaID:
+                str(self.pandaID):
                     {
                         u'jobsetID': self.jobsetId,
                         u'logGUID': log_guid,

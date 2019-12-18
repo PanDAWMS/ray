@@ -571,6 +571,8 @@ class PandaJob:
 
     def __init__(self, jobDef):
         self.job = jobDef
+        if "PandaID" in self:
+            self["PandaID"] = str(self["PandaID"])
         self.event_ranges_queue = EventRangeQueue()
 
     def nranges_available(self):

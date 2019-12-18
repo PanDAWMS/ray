@@ -141,7 +141,7 @@ class ESDriver(BaseDriver):
                 'config': self.config,
                 'logging_actor': self.logging_actor
             }
-            actor = ESWorker.options(resources={node_constraint: 1}).remote(kwargs=actor_args)
+            actor = ESWorker.options(resources={node_constraint: 1}).remote(**actor_args)
             self.actors[actor_id] = actor
 
     def handle_actors(self):

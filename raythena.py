@@ -60,21 +60,22 @@ def cli(*args, **kwargs):
     config = Config(kwargs['config'], *args, **kwargs)
 
     setup_ray(config)
+    try:
+        driver_class = import_from_string(f"Raythena.drivers.{config.ray['driver']}")
+        driver = driver_class(config)
 
-    driver_class = import_from_string(f"Raythena.drivers.{config.ray['driver']}")
-    driver = driver_class(config)
-
-    signal.signal(signal.SIGINT, functools.partial(cleanup, config, driver))
-    signal.signal(signal.SIGTERM, functools.partial(cleanup, config, driver))
-    signal.signal(signal.SIGQUIT, functools.partial(cleanup, config, driver))
-    signal.signal(signal.SIGSEGV, functools.partial(cleanup, config, driver))
-    signal.signal(signal.SIGXCPU, functools.partial(cleanup, config, driver))
-    signal.signal(signal.SIGUSR1, functools.partial(cleanup, config, driver))
-    signal.signal(signal.SIGBUS, functools.partial(cleanup, config, driver))
-
-    driver.run()
-
-    shutdown_ray(config)
+        signal.signal(signal.SIGINT, functools.partial(cleanup, config, driver))
+        signal.signal(signal.SIGTERM, functools.partial(cleanup, config, driver))
+        signal.signal(signal.SIGQUIT, functools.partial(cleanup, config, driver))
+        signal.signal(signal.SIGSEGV, functools.partial(cleanup, config, driver))
+        signal.signal(signal.SIGXCPU, functools.partial(cleanup, config, driver))
+        signal.signal(signal.SIGUSR1, functools.partial(cleanup, config, driver))
+        signal.signal(signal.SIGBUS, functools.partial(cleanup, config, driver))
+        driver.run()
+    except Exception:
+        pass
+    finally:
+        shutdown_ray(config)
 
 
 def cleanup(config, driver, signum, frame):

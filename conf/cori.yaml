@@ -11,7 +11,7 @@ payload:
 
 harvester:
   endpoint: $SCRATCH/raythena/harvester
-  communicator: harvesterMock:HarvesterMock
+  communicator: harvesterFileMessenger:HarvesterFileCommunicator
   harvesterconf: $SCRATCH/raythena/harvester/panda_harvester.cfg
   min_nevents: 170000
 
