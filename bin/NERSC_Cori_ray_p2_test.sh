@@ -36,7 +36,6 @@ export pilot_tar_file=/project/projectdirs/atlas/esseivaj/raythena/software/pilo
 export SOURCEDIR=/project/projectdirs/atlas/esseivaj/raythena/software/raythena
 export BINDIR=$SOURCEDIR/bin
 export CONFDIR=$SOURCEDIR/conf
-export OPENBLAS_NUM_THREADS=1
 
 export RAYTHENA_HARVESTER_ENDPOINT=$HARVESTER_ACCESS_POINT
 export RAYTHENA_RAY_WORKDIR=$HARVESTER_ACCESS_POINT
@@ -51,7 +50,7 @@ export NWORKERS=$(($HARVESTER_NNODE - 1))
 export RAYTHENA_CORE_PER_NODE=$SLURM_CPUS_PER_TASK
 
 cp $pilot_wrapper_bin $RAYTHENA_RAY_WORKDIR
-tar xzf $pilot_tar_file -C${RAYTHENA_RAY_WORKDIR} 
+tar xzf $pilot_tar_file -C$RAYTHENA_RAY_WORKDIR
 
 
 # setup ray
