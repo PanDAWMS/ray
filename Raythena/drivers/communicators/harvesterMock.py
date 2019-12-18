@@ -166,6 +166,6 @@ class HarvesterMock(BaseCommunicator):
                         u'ddmEndPointIn': u'UTA_SWT2_DATADISK',
                         u'taskID': self.taskId,
                         u'logFile': u'%s.job.log.tgz' % job_name
-                    }
+                }
             }
         )
