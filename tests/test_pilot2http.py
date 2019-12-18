@@ -61,16 +61,16 @@ class TestPilot2Http:
         payload.stop()
         os.chdir(cwd)
 
-    def test_build_command(self, payload, config):
+    def test_build_container_command(self, payload, config):
         wdir = config.ray['workdir']
         with pytest.raises(FailedPayload):
-            payload._build_pilot_command()
+            payload._build_pilot_container_command()
         os.makedirs(os.path.join(wdir, "pilot2"))
         with pytest.raises(FailedPayload):
-            payload._build_pilot_command()
+            payload._build_pilot_container_command()
         with open(os.path.join(wdir, "runpilot2-wrapper.sh"), 'w') as f:
             f.write("str")
-        _ = payload._build_pilot_command()
+        _ = payload._build_pilot_container_command()
         cmd_file = os.path.join(wdir, "payload.sh")
         assert os.path.isfile(cmd_file)
 

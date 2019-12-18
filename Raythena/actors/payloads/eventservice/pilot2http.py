@@ -61,7 +61,7 @@ class Pilot2HttpPayload(ESPayload):
         self.router.register('/server/panda/getKeyPair', self.handle_getkeyPair)
 
     def _start_payload(self):
-        command = self._build_pilot_command()
+        command = self._build_pilot_container_command() if self.config.payload.get('containerengine', None) else self._build_pilot_command()
         self.logging_actor.info.remote(self.id, f"Final payload command: {command}")
         # using PIPE will cause the subprocess to hang because
         # we're not reading data using communicate() and the pipe buffer becomes full as pilot2
@@ -71,10 +71,37 @@ class Pilot2HttpPayload(ESPayload):
         self.logging_actor.info.remote(self.id, f"Pilot payload started with PID {self.pilot_process.pid}")
 
     def _build_pilot_command(self):
+        cmd = str()
+        conda_activate = os.path.expandvars(os.path.join(self.config.payload.get('condabindir', ''), 'activate'))
+        pilot_venv = self.config.payload.get('virtualenv', '')
+
+        if os.path.isfile(conda_activate) and pilot_venv is not None:
+            cmd += f"source {conda_activate} {pilot_venv};"
+
+        extra_setup = self.config.payload.get('extrasetup', '')
+        if extra_setup:
+            cmd += f"{extra_setup}{';' if not extra_setup.endswith(';') else ''}"
+
+        prodSourceLabel = shlex.quote(self.current_job['prodSourceLabel'])
+
+        pilot_bin = os.path.expandvars(os.path.join(self.config.payload.get('bindir', ''), "pilot.py"))
+        queue_escaped = shlex.quote(self.config.payload.get('pandaqueue', ''))
+        payload_log = shlex.quote(self.config.payload.get('logfilename', 'wrapper'))
+        # use exec to replace the shell process with python. Allows to send signal to the python process if needed
+        cmd += f"python {shlex.quote(pilot_bin)} -q {queue_escaped} -r {queue_escaped} -s {queue_escaped} " \
+               f"-i PR -j {prodSourceLabel} --pilot-user=ATLAS -t -w generic --url=http://{self.host} " \
+               f"-p {self.port} --allow-same-user=False --resource-type MCORE > {payload_log} 2> {payload_log}.stderr;"
+
+        extra_script = self.config.payload.get('extrapostpayload', '')
+        if extra_script:
+            cmd += f"{extra_script}{';' if not extra_script.endswith(';') else ''}"
+
+        return cmd
+
+    def _build_pilot_container_command(self):
         """
         """
         cmd = str()
-        os.path.dirname(os.getcwd())
         extra_setup = self.config.payload.get('extrasetup', '')
         if extra_setup:
             cmd += f"{extra_setup}{';' if not extra_setup.endswith(';') else ''}"

@@ -1,4 +1,4 @@
-FROM atlas/centos7-atlasos:latest
+FROM atlas/athena:22.0.5_2019-09-24T2128_100.0.2
 USER root
 
 ARG BUILD_DIR=/tmpbuild 
@@ -15,6 +15,7 @@ ENV LANG=en_US.utf8 \
     ENTRYPOINT_BIN=${ENTRYPOINT_BIN} \
     RAYTHENA_PAYLOAD_BINDIR=/opt/pilot2
 ENV RAYTHENA_CONF_DIR=${CONDA_HOME}/envs/${RAYTHENA_RAY_VENV}/conf
+ENV RAYTHENA_CONFIG=${RAYTHENA_CONF_DIR}/incontainer.yaml
 
 RUN curl -o ${CONDA_INSTALLER} ${CONDA_DOWNLOAD_URL}; \
     chmod +x ${CONDA_INSTALLER}; \
@@ -26,20 +27,22 @@ RUN conda create -y -n${RAYTHENA_PAYLOAD_VENV} python=2.7; \
     conda create -y -n${RAYTHENA_RAY_VENV} python=3.7; \
     mkdir ${BUILD_DIR}
 
+RUN git clone https://github.com/esseivaju/pilot2.git ${RAYTHENA_PAYLOAD_BINDIR}
+
 COPY . ${BUILD_DIR}/
-RUN git clone https://github.com/PanDAWMS/pilot2.git ${RAYTHENA_PAYLOAD_BINDIR}; \
-    sed -i 's/^pandaserver:.*$/pandaserver: http:\/\/127.0.0.1:8080/g' ${RAYTHENA_PAYLOAD_BINDIR}/pilot/util/default.cfg; \
-    sed -i 's/^maximum_getjob_requests:.*$/maximum_getjob_requests: 1/g' ${RAYTHENA_PAYLOAD_BINDIR}/pilot/util/default.cfg;
+
+RUN mkdir -p /opt/yampl/lib; \
+    mkdir /opt/yampl/python-lib; \
+    cp ${BUILD_DIR}/yampl/lib/libyampl.so /opt/yampl/lib; \
+    cp ${BUILD_DIR}/yampl/python-lib/yampl.so /opt/yampl/python-lib
+
 COPY entrypoint.sh ${ENTRYPOINT_BIN}
 RUN chmod +x ${ENTRYPOINT_BIN}; \
     source ${RAYTHENA_CONDA_BIN}/activate; \
     conda activate ${RAYTHENA_RAY_VENV}; \
     source /opt/lcg/binutils/*/x86_64-*/setup.sh; \
     source /opt/lcg/gcc/*/x86_64-*/setup.sh; \
-    # Install nighly build of Ray as current version has a bug and does not run on HPC
-    # https://github.com/ray-project/ray/pull/5857 needs to be released, as of 11.08.2019 it is only merged in the master branch
     cd ${BUILD_DIR}; \
-    pip install ray-0.7.6-cp37-cp37m-linux_x86_64.whl; \
     python setup.py bdist_wheel; \
     pip install dist/*.whl; \
     rm -rf ${BUILD_DIR}

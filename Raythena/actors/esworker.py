@@ -10,7 +10,7 @@ from Raythena.utils.ray import get_node_ip
 from Raythena.utils.exception import IllegalWorkerState, StageInFailed
 
 
-@ray.remote(num_cpus=0)
+@ray.remote(num_cpus=1)
 class ESWorker:
     """
     Actor running on HPC compute node. Each actor will start a payload plugin
@@ -73,6 +73,8 @@ class ESWorker:
         self.node_ip = get_node_ip()
         self.state = ESWorker.READY_FOR_JOB
         self.workdir = os.path.expandvars(self.config.ray.get('workdir', os.getcwd()))
+        if not os.path.isdir(self.workdir):
+            self.workdir = os.getcwd()
         self.plugin_registry = PluginsRegistry()
         payload = self.config.payload['plugin']
         self.payload_class = self.plugin_registry.get_plugin(payload)
@@ -80,9 +82,11 @@ class ESWorker:
         self.logging_actor.info.remote(self.id, "Ray worker started")
 
     def stagein(self):
+
         self.payload_job_dir = os.path.join(self.workdir, self.job['PandaID'])
         if not os.path.isdir(self.payload_job_dir):
             self.logging_actor.warn.remote(self.id, f"Specified path {self.payload_job_dir} does not exist. Using cwd {os.getcwd()}")
+            self.payload_job_dir = self.workdir
 
         subdir = f"{self.id}_{os.getpid()}"
         self.payload_actor_process_dir = os.path.join(self.payload_job_dir, subdir)

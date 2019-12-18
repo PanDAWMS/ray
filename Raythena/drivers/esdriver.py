@@ -98,6 +98,12 @@ class ESDriver(BaseDriver):
         self.jobQueue = Queue()
         self.eventRangesQueue = Queue()
 
+        workdir = os.path.expandvars(self.config.ray.get('workdir'))
+        if not workdir or not os.path.exists(workdir):
+            self.logging_actor.warn.remote(self.id, f"ray workdir '{workdir}' doesn't exist... using cwd {os.getcwd()}")
+            workdir = os.getcwd()
+        self.config.ray['workdir'] = workdir
+
         self.communicator_class = import_from_string(f"Raythena.drivers.communicators.{self.config.harvester['communicator']}")
         self.communicator = self.communicator_class(self.requestsQueue, self.jobQueue, self.eventRangesQueue, config)
         self.communicator.start()
@@ -135,7 +141,7 @@ class ESDriver(BaseDriver):
                 'config': self.config,
                 'logging_actor': self.logging_actor
             }
-            actor = ESWorker._remote(resources={node_constraint: 1}, kwargs=actor_args)
+            actor = ESWorker.options(resources={node_constraint: 1}).remote(kwargs=actor_args)
             self.actors[actor_id] = actor
 
     def handle_actors(self):
@@ -249,10 +255,9 @@ class ESDriver(BaseDriver):
             return
 
         self.bookKeeper.add_jobs(jobs)
-
         for pandaID in self.bookKeeper.jobs:
             cjob = self.bookKeeper.jobs[pandaID]
-            os.makedirs(os.path.expandvars(os.path.join(self.config.ray['workdir'], cjob['PandaID'])))
+            os.makedirs(os.path.join(self.config.ray['workdir'], cjob['PandaID']))
 
         # sends an initial event range request
         self.request_event_ranges(block=True)
@@ -279,101 +284,3 @@ class ESDriver(BaseDriver):
         self.logging_actor.info.remote(self.id, "Graceful shutdown...")
         self.running = False
         self.cleanup()
-
-
-if __name__ == "__main__":
-    from Raythena.drivers.communicators.harvesterMock import HarvesterMock
-
-    class ConfMock:
-        def __init__(self):
-            self.ray = {
-                'workdir': os.getcwd()
-            }
-            self.resources = {
-                'corepernode': 2
-            }
-
-    requestsQueue = Queue()
-    jobQueue = Queue()
-    eventRangesQueue = Queue()
-    config = ConfMock()
-    com = HarvesterMock(requestsQueue, jobQueue, eventRangesQueue, config)
-    com.start()
-    bookKeeper = BookKeeper(None, config)
-    # get job from communicator and register it to the bookkeeper
-    requestsQueue.put(PandaJobRequest())
-    jobs = jobQueue.get()
-    bookKeeper.add_jobs(jobs)
-    assert len(bookKeeper.jobs) == 1
-
-    # request events for each job
-    evnt_request = EventRangeRequest()
-    for pandaID in bookKeeper.jobs:
-        cjob = bookKeeper.jobs[pandaID]
-        evnt_request.add_event_request(pandaID, 1000, cjob['taskID'], cjob['jobsetID'])
-    assert len(evnt_request) == 1
-    ranges = list()
-    more_events = True
-    while more_events:
-        requestsQueue.put(evnt_request)
-        r = eventRangesQueue.get()
-        for pandaID in bookKeeper.jobs:
-            if not r[pandaID]:
-                more_events = False
-        if more_events:
-            ranges.append(r)
-
-    # assign ranges to jobs
-    bookKeeper.add_event_ranges(ranges)
-    actor = "actor1"
-    job = bookKeeper.assign_job_to_actor(actor)
-    n = 20
-    n_success = 5
-    n_failed = 5
-    assert job
-    r = bookKeeper.fetch_event_ranges(actor, n)
-    assert len(r) == n
-
-    # build a fake eventUpdate message
-    updated_events = r[:n_failed]
-    failed_events = r[n_failed:(n_failed + n_success)]
-    status = list()
-
-    for elem in updated_events:
-        r = {
-            "eventRangeID": elem.eventRangeID,
-            "eventStatus": "finished"
-        }
-        status.append(r)
-
-    for elem in failed_events:
-        r = {
-            "eventRangeID": elem.eventRangeID,
-            "eventStatus": "critical"
-        }
-        status.append(r)
-
-    eventupdate = [
-        {
-            "zipFile":
-            {
-                "numEvents": len(status),
-                "lfn": "EventService_premerge_Range-00007.tar",
-                "adler32": "36503831",
-                "objstoreID": 1641,
-                "fsize": 860160,
-                "pathConvention": 1000
-            },
-            "eventRanges": status
-        }
-    ]
-
-    bookKeeper.process_event_ranges_update(actor, eventupdate)
-    assert len(bookKeeper.rangesID_by_actor[actor]) == n - len(updated_events) - len(failed_events)
-
-    bookKeeper.process_actor_end(actor)
-    assert len(bookKeeper.rangesID_by_actor[actor]) == 0
-    assert bookKeeper.jobs.get_eventranges(bookKeeper.actors[actor]).nranges_failed() == n_failed
-    assert bookKeeper.jobs.get_eventranges(bookKeeper.actors[actor]).nranges_done() == n_success
-    assert bookKeeper.jobs.get_eventranges(bookKeeper.actors[actor]).nranges_assigned() == 0
-    com.stop()

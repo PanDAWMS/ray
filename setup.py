@@ -11,7 +11,7 @@ setup(
         'raythena.py'
     ],
     data_files=[
-        ('conf', ['conf/cori.yaml'])
+        ('conf', ['conf/cori.yaml', 'conf/incontainer.yaml'])
     ],
     install_requires=[
         'ray',

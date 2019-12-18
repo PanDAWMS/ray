@@ -15,6 +15,8 @@ def configure_logger(config, file_logging=True):
     handlers.append(ch)
     if file_logging:
         logdir = os.path.expandvars(config.ray.get('workdir', os.getcwd()))
+        if not os.path.isdir(logdir):
+            logdir = os.getcwd()
         log_file = os.path.join(logdir, config.logging['logfile'])
         fh = logging.FileHandler(log_file, mode='w')
         handlers.append(fh)
