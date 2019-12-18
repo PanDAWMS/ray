@@ -3,6 +3,7 @@ import queue
 import pytest
 import os
 from Raythena.drivers.communicators.harvesterMock import HarvesterMock
+from Raythena.drivers.communicators.harvesterMock2205 import HarvesterMock2205
 from Raythena.drivers.communicators.harvesterFileMessenger import HarvesterFileCommunicator
 
 
@@ -21,9 +22,9 @@ def ranges_queue():
     return queue.Queue()
 
 
-@pytest.fixture
-def harvester_mock(config, request_queue, jobs_queue, ranges_queue):
-    mock = HarvesterMock(request_queue, jobs_queue, ranges_queue, config)
+@pytest.fixture(params=[HarvesterMock, HarvesterMock2205])
+def harvester_mock(request, config, request_queue, jobs_queue, ranges_queue):
+    mock = request.param(request_queue, jobs_queue, ranges_queue, config)
     yield mock
     mock.stop()
 
