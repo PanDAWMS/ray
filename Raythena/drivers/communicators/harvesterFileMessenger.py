@@ -81,7 +81,7 @@ class HarvesterFileCommunicator(BaseCommunicator):
 
         tmp_statusdumpfile = f"{self.eventstatusdumpjsonfile}.tmp"
         with open(tmp_statusdumpfile, 'w') as f:
-            json.dump(request, f)
+            json.dump(request.range_update, f)
         while os.path.isfile(self.eventstatusdumpjsonfile):
             time.sleep(0.5)
 
