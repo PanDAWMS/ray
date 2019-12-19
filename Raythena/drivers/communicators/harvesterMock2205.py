@@ -48,7 +48,7 @@ class HarvesterMock2205(HarvesterMock):
                     {
                         u'jobsetID': self.jobsetId,
                         u'logGUID': log_guid,
-                        u'cmtConfig': u'x86_64-centos7-gcc62-opt',
+                        u'cmtConfig': u'x86_64-centos7-gcc8-opt',
                         u'prodDBlocks': u'user.mlassnig:user.mlassnig.pilot.test.single.hits',
                         u'dispatchDBlockTokenForOut': u'NULL,NULL',
                         u'destinationDBlockToken': u'NULL,NULL',
@@ -61,7 +61,7 @@ class HarvesterMock2205(HarvesterMock):
                         u'eventService': 'true',
                         u'cloud': u'US',
                         u'StatusCode': 0,
-                        u'homepackage': u'AtlasOffline/22.0.5',
+                        u'homepackage': u'Athena/22.0.5',
                         u'inFiles': self.inFiles,
                         u'processingType': u'pilot-ptest',
                         u'ddmEndPointOut': u'UTA_SWT2_DATADISK,UTA_SWT2_DATADISK',
