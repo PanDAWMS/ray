@@ -26,24 +26,19 @@ def wait_on_head():
             print("ray not yet initialized...")
 
 
-def wait_workers():
-    nworkers = os.environ.get("NWORKERS", None)
+def wait_workers(nwait=1):
 
-    if nworkers is None:
-        print("Set NWORKERS var")
-        exit(1)
-
-    nworkers = int(nworkers)
     # wait for all workers to connect
-    while len(ray.nodes()) < nworkers + 1:
-        print(f"{len(ray.nodes())-1}/{nworkers} workers connected... ")
+    while len(ray.nodes()) < nwait + 1:
+        print(f"{len(ray.nodes())-1}/{nwait} workers connected... ")
         time.sleep(1)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Wait on ray head node or workers to connect')
     parser.add_argument('--wait-workers', action='store_true')
+    parser.add_argument('--nworkers', dest="nworkers", default=int(os.environ.get("NWORKERS", 1)), type=int)
     args = parser.parse_args()
     wait_on_head()
     if args.wait_workers:
-        wait_workers()
+        wait_workers(args.nworkers)
