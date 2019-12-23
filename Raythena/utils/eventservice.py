@@ -496,7 +496,7 @@ class EventRangeRequest:
         return json.dumps(self.request)
 
     def add_event_request(self, pandaID, nRanges, taskId, jobsetID):
-        self.request[pandaID] = {'pandaID': pandaID, 'nRanges': nRanges, 'taskId': taskId, 'jobsetID': jobsetID}
+        self.request[pandaID] = {'pandaID': pandaID, 'nRanges': nRanges, 'taskID': taskId, 'jobsetID': jobsetID}
 
     @staticmethod
     def build_from_dict(request_dict):
@@ -573,6 +573,8 @@ class PandaJob:
         self.job = jobDef
         if "PandaID" in self:
             self["PandaID"] = str(self["PandaID"])
+        if "coreCount" in self:
+            self["coreCount"] = 32
         self.event_ranges_queue = EventRangeQueue()
 
     def nranges_available(self):
