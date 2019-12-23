@@ -47,30 +47,41 @@ class HarvesterFileCommunicator(BaseCommunicator):
             with open(self.jobspecfile) as f:
                 job = json.load(f)
 
-        if os.path.isfile(self.jobrequestfile):
+        try:
             os.remove(self.jobrequestfile)
-        if os.path.isfile(self.jobspecfile):
+        except FileNotFoundError:
+            pass
+        try:
             os.remove(self.jobspecfile)
+        except FileNotFoundError:
+            pass
         if job:
             self.jobQueue.put(job)
 
     def request_event_ranges(self, request):
-        if not os.path.exists(self.eventrequestfile):
+        if not os.path.isfile(self.eventrangesfile) and not os.path.exists(self.eventrequestfile):
             eventRequestFileTmp = f"{self.eventrequestfile}.tmp"
             with open(eventRequestFileTmp, 'w') as f:
                 json.dump(request.request, f)
             shutil.move(eventRequestFileTmp, self.eventrequestfile)
 
         while not os.path.isfile(self.eventrangesfile):
-            time.sleep(0.01)
+            time.sleep(1)
 
-        with open(self.eventrangesfile) as f:
-            ranges = json.load(f)
+        while os.path.isfile(self.eventrangesfile):
+            try:
+                with open(self.eventrangesfile, 'r') as f:
+                    ranges = json.load(f)
+                if os.path.isfile(self.eventrangesfile):
+                    shutil.move(self.eventrangesfile, f"{self.eventrangesfile}-{self.ranges_requests_count}")
+            except Exception:
+                time.sleep(5)
 
-        if os.path.isfile(self.eventrequestfile):
+        try:
             os.remove(self.eventrequestfile)
-        if os.path.isfile(self.eventrangesfile):
-            shutil.move(self.eventrangesfile, f"{self.eventrangesfile}-{self.ranges_requests_count}")
+        except Exception:
+            pass
+
         self.ranges_requests_count += 1
         self.eventRangesQueue.put(ranges)
 

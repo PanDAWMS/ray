@@ -496,7 +496,7 @@ class EventRangeRequest:
         return json.dumps(self.request)
 
     def add_event_request(self, pandaID, nRanges, taskId, jobsetID):
-        self.request[pandaID] = {'pandaID': pandaID, 'nRanges': nRanges, 'taskId': taskId, 'jobsetID': jobsetID}
+        self.request[pandaID] = {'pandaID': pandaID, 'nRanges': nRanges, 'taskID': taskId, 'jobsetID': jobsetID}
 
     @staticmethod
     def build_from_dict(request_dict):
