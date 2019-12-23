@@ -154,6 +154,8 @@ class ESWorker:
             return
         self.transition_state(ESWorker.PROCESSING)
         for crange in eventranges_update:
+            if not os.path.isabs(crange.PFN):
+                crange.PFN = os.path.join(os.path.expandvars(self.config.harvester['endpoint']), crange.PFN)
             self.payload.submit_new_ranges(crange)
         self.logging_actor.debug.remote(self.id, f"Received {len(eventranges_update)} eventRanges")
         return self.return_message('received_event_range')
