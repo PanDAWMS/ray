@@ -192,11 +192,12 @@ class ESWorker:
         ranges = EventRangeUpdate.build_from_dict(self.job.get_id(), ranges)
         for range_update in ranges[self.job.get_id()]:
             cfile = range_update.get("path", None)
-            if cfile and os.path.isfile(cfile):
+            if cfile:
                 dst = os.path.join(harvester_endpoint, os.path.basename(cfile) if os.path.isabs(cfile) else cfile)
                 range_update["path"] = dst
-                self.logging_actor.debug.remote(self.id, f"Moving {cfile} to {dst}")
-                shutil.move(cfile, dst)
+                if os.path.isfile(cfile) and not os.path.isfile(dst):
+                    self.logging_actor.debug.remote(self.id, f"Moving {cfile} to {dst}")
+                    shutil.move(cfile, dst)
         return ranges
 
     def get_message(self):
