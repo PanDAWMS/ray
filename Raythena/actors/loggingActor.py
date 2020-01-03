@@ -7,7 +7,7 @@ from Raythena.utils.logging import configure_logger
 
 
 @ray.remote(num_cpus=0)
-class LoggingActor:
+class LoggingActor(object):
 
     def __init__(self, config: Config) -> None:
         self.config = config

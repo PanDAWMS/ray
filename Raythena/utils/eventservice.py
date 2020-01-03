@@ -3,7 +3,7 @@ from typing import Union, Tuple, Dict, List
 
 
 # Messages sent by ray actor to the driver
-class Messages:
+class Messages(object):
     REQUEST_NEW_JOB = 0
     REQUEST_EVENT_RANGES = 1
     UPDATE_JOB = 2
@@ -44,7 +44,7 @@ class ESEncoder(json.JSONEncoder):
         return super().default(o)
 
 
-class PandaJobQueue:
+class PandaJobQueue(object):
     """
     Build from the reply to a job request. Harvester will provide the following JSON as a reply:
 
@@ -145,7 +145,7 @@ class PandaJobQueue:
         return res
 
 
-class EventRangeQueue:
+class EventRangeQueue(object):
     """
     Each PandaJob has an eventRangeQueue that should be filled from a reply to an event ranges request:
 
@@ -269,7 +269,7 @@ class EventRangeQueue:
         return res
 
 
-class PandaJobUpdate:
+class PandaJobUpdate(object):
     """
     Pilot 2 sends the following job update:
 
@@ -301,7 +301,7 @@ class PandaJobUpdate:
         return self.__dict__
 
 
-class EventRangeUpdate:
+class EventRangeUpdate(object):
     """
     Event ranges update sent by pilot 2 using JSON schema:
     [
@@ -440,7 +440,7 @@ class EventRangeUpdate:
         return EventRangeUpdate(update_dict)
 
 
-class PandaJobRequest:
+class PandaJobRequest(object):
     """
     Pilot2 requests job using the following JSON schema:
     {
@@ -488,7 +488,7 @@ class PandaJobRequest:
         return self.__dict__
 
 
-class EventRangeRequest:
+class EventRangeRequest(object):
     """
     Send event request to harvester. JSON schema:
     {
@@ -532,7 +532,7 @@ class EventRangeRequest:
         return request
 
 
-class PandaJob:
+class PandaJob(object):
     """
     Wrapper for a panda jobspec. Usually contains the following fields:
     {
@@ -633,7 +633,7 @@ class PandaJob:
         return k in self.job
 
 
-class EventRange:
+class EventRange(object):
     """
     Hold an event range:
     {

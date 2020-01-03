@@ -21,7 +21,7 @@ from Raythena.utils.eventservice import PandaJob, EventRange
 from Raythena.utils.exception import FailedPayload
 
 
-class AsyncRouter:
+class AsyncRouter(object):
 
     def __init__(self) -> None:
         self.routes = dict()

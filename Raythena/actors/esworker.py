@@ -15,7 +15,7 @@ from Raythena.utils.ray import get_node_ip
 
 
 @ray.remote(num_cpus=0)
-class ESWorker:
+class ESWorker(object):
     """
     Actor running on HPC compute node. Each actor will start a payload plugin
     """

@@ -3,7 +3,7 @@ import os
 import yaml
 
 
-class Config:
+class Config(object):
     conf_template = {
         'payload': {
             'plugin': str,

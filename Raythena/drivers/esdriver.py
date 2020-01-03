@@ -19,7 +19,7 @@ EventRangeTypeHint = Dict[str, str]
 PandaJobTypeHint = Dict[str, str]
 
 
-class BookKeeper:
+class BookKeeper(object):
 
     def __init__(self, logging_actor: LoggingActor, config: Config) -> None:
         self.jobs = PandaJobQueue()

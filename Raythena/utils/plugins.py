@@ -6,7 +6,7 @@ import Raythena.actors.payloads
 from Raythena.utils.exception import PluginNotFound
 
 
-class PluginsRegistry:
+class PluginsRegistry(object):
 
     def __init__(self) -> None:
 
