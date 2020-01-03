@@ -97,7 +97,9 @@ class PandaJobQueue:
             return max_job_id, max_avail
 
         for jobID, job in self.jobs.items():
-            if ('eventService' not in job or job['eventService'].lower() == "false") and jobID not in self.distributed_jobs_ids:
+            if (('eventService' not in job or
+                 job['eventService'].lower() == "false") and
+                    jobID not in self.distributed_jobs_ids):
                 self.distributed_jobs_ids.append(jobID)
                 return jobID, 0
             if job.nranges_available() > max_avail:
@@ -116,7 +118,8 @@ class PandaJobQueue:
         if panda_id in self.jobs:
             return self[panda_id].event_ranges_queue
 
-    def process_event_ranges_update(self, ranges_update: 'EventRangeUpdate') -> None:
+    def process_event_ranges_update(self,
+                                    ranges_update: 'EventRangeUpdate') -> None:
         for pandaID in ranges_update:
             self.get_event_ranges(pandaID).update_ranges(ranges_update[pandaID])
 
@@ -204,7 +207,8 @@ class EventRangeQueue:
 
     def update_range_state(self, range_id: str, new_state: int) -> None:
         if range_id not in self.event_ranges_by_id:
-            raise Exception(f"Trying to update non-existing eventrange {range_id}")
+            raise Exception(
+                f"Trying to update non-existing eventrange {range_id}")
 
         r = self.event_ranges_by_id[range_id]
         self.rangesID_by_state[r.status].remove(range_id)
@@ -217,14 +221,17 @@ class EventRangeQueue:
             range_status = r['eventStatus']
             if (range_status == "finished" or range_status == "failed" or range_status == "running")\
                and range_id not in self.rangesID_by_state[EventRange.ASSIGNED]:
-                raise Exception(f"Unexpected state: tried to update unassigned {range_id} to {range_status}")
+                raise Exception(
+                    f"Unexpected state: tried to update unassigned {range_id} to {range_status}"
+                )
             if range_status == "finished":
                 self.update_range_state(range_id, EventRange.DONE)
             else:
                 self.update_range_state(range_id, EventRange.FAILED)
 
     def nranges_remaining(self) -> int:
-        return len(self.event_ranges_by_id) - (self.nranges_done() + self.nranges_failed())
+        return len(self.event_ranges_by_id) - (self.nranges_done() +
+                                               self.nranges_failed())
 
     def nranges_available(self) -> int:
         return len(self.rangesID_by_state[EventRange.READY])
@@ -242,7 +249,8 @@ class EventRangeQueue:
         if isinstance(event_range, dict):
             event_range = EventRange.build_from_dict(event_range)
         self.event_ranges_by_id[event_range.eventRangeID] = event_range
-        self.rangesID_by_state[event_range.status].append(event_range.eventRangeID)
+        self.rangesID_by_state[event_range.status].append(
+            event_range.eventRangeID)
 
     def concat(self, ranges: List[Union[dict, 'EventRange']]) -> None:
         for r in ranges:
@@ -388,12 +396,15 @@ class EventRangeUpdate:
         self.range_update[k] = v
 
     @staticmethod
-    def build_from_dict(panda_id: str, range_update: dict) -> 'EventRangeUpdate':
+    def build_from_dict(panda_id: str,
+                        range_update: dict) -> 'EventRangeUpdate':
 
         update_dict = dict()
         update_dict[panda_id] = list()
 
-        if isinstance(range_update, dict) and "zipFile" not in range_update and "eventRangeID" not in range_update:
+        if isinstance(
+                range_update, dict
+        ) and "zipFile" not in range_update and "eventRangeID" not in range_update:
             range_update = json.loads(range_update['eventRanges'][0])
 
         for range_elt in range_update:
@@ -447,9 +458,18 @@ class PandaJobRequest:
 
     Note that harvester will ignore the content of the job request file and simply check if it exists
     """
-    def __init__(self, node: str = None, disk_space: str = None, working_group: str = None, prod_source_label: str = None,
-                 computing_element: str = None, site_name: str = None, resource_type: str = None, mem: str = None,
-                 cpu: str = None, allow_other_country: str = None) -> None:
+
+    def __init__(self,
+                 node: str = None,
+                 disk_space: str = None,
+                 working_group: str = None,
+                 prod_source_label: str = None,
+                 computing_element: str = None,
+                 site_name: str = None,
+                 resource_type: str = None,
+                 mem: str = None,
+                 cpu: str = None,
+                 allow_other_country: str = None) -> None:
         self.node = node
         self.diskSpace = disk_space
         self.workingGroup = working_group
@@ -481,6 +501,7 @@ class EventRangeRequest:
         ...
     }
     """
+
     def __init__(self) -> None:
         self.request = dict()
 
@@ -497,7 +518,12 @@ class EventRangeRequest:
         return json.dumps(self.request)
 
     def add_event_request(self, panda_id, n_ranges, task_id, jobset_id) -> None:
-        self.request[panda_id] = {'pandaID': panda_id, 'nRanges': n_ranges, 'taskID': task_id, 'jobsetID': jobset_id}
+        self.request[panda_id] = {
+            'pandaID': panda_id,
+            'nRanges': n_ranges,
+            'taskID': task_id,
+            'jobsetID': jobset_id
+        }
 
     @staticmethod
     def build_from_dict(request_dict: dict) -> 'EventRangeRequest':
@@ -627,7 +653,8 @@ class EventRange:
     FAILED = 3
     STATES = [READY, ASSIGNED, DONE, FAILED]
 
-    def __init__(self, event_range_id: str, start_event: int, last_event: int, pfn: str, guid: str, scope: str) -> None:
+    def __init__(self, event_range_id: str, start_event: int, last_event: int,
+                 pfn: str, guid: str, scope: str) -> None:
         self.lastEvent = last_event
         self.eventRangeID = event_range_id
         self.startEvent = start_event
@@ -663,9 +690,8 @@ class EventRange:
 
     @staticmethod
     def build_from_dict(event_ranges_dict: dict) -> 'EventRange':
-        return EventRange(event_ranges_dict['eventRangeID'],
-                          event_ranges_dict['startEvent'],
-                          event_ranges_dict['lastEvent'],
-                          event_ranges_dict.get('PFN', event_ranges_dict.get('LFN', None)),
-                          event_ranges_dict['GUID'],
-                          event_ranges_dict['scope'])
+        return EventRange(
+            event_ranges_dict['eventRangeID'], event_ranges_dict['startEvent'],
+            event_ranges_dict['lastEvent'],
+            event_ranges_dict.get('PFN', event_ranges_dict.get('LFN', None)),
+            event_ranges_dict['GUID'], event_ranges_dict['scope'])

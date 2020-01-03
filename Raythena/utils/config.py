@@ -1,4 +1,3 @@
-
 import yaml
 import os
 
@@ -57,9 +56,11 @@ class Config:
     def __str__(self):
         return str(self.__dict__)
 
-    def _parse_cli_args(self, config: str, debug: bool, payload_bindir: str, ray_driver: str, ray_head_ip: str,
-                        ray_redis_password: str, ray_redis_port: str, ray_workdir: str, harvester_endpoint: str, panda_queue: str,
-                        core_per_node: int) -> None:
+    def _parse_cli_args(self, config: str, debug: bool, payload_bindir: str,
+                        ray_driver: str, ray_head_ip: str,
+                        ray_redis_password: str, ray_redis_port: str,
+                        ray_workdir: str, harvester_endpoint: str,
+                        panda_queue: str, core_per_node: int) -> None:
 
         if debug:
             self.logging['level'] = 'debug'
@@ -82,17 +83,24 @@ class Config:
         if core_per_node:
             self.resources['corepernode'] = int(core_per_node)
 
-    def _validate_section(self, template_section_name: str, section_params: dict, template_params: dict) -> None:
+    def _validate_section(self, template_section_name: str,
+                          section_params: dict, template_params: dict) -> None:
         for name, value in template_params.items():
             if name not in section_params.keys():
-                raise Exception(f"Param '{name}' not found in conf section '{template_section_name}'")
+                raise Exception(
+                    f"Param '{name}' not found in conf section '{template_section_name}'"
+                )
             if isinstance(value, dict):
-                self._validate_section(f"{template_section_name}.{name}", section_params.get(name), value)
+                self._validate_section(f"{template_section_name}.{name}",
+                                       section_params.get(name), value)
 
     def _validate(self) -> None:
         # validate pilot section
         for template_section, template_params in Config.conf_template.items():
             section_params = getattr(self, template_section, None)
             if section_params is None:
-                raise Exception(f"Malformed configuration file: section '{template_section}' not found")
-            self._validate_section(template_section, section_params, template_params)
+                raise Exception(
+                    f"Malformed configuration file: section '{template_section}' not found"
+                )
+            self._validate_section(template_section, section_params,
+                                   template_params)

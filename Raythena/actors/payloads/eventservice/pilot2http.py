@@ -37,7 +37,8 @@ class AsyncRouter:
 
 class Pilot2HttpPayload(ESPayload):
 
-    def __init__(self, id: str, logging_actor: LoggingActor, config: Config) -> None:
+    def __init__(self, id: str, logging_actor: LoggingActor,
+                 config: Config) -> None:
         super().__init__(id, logging_actor, config)
         self.host = '127.0.0.1'
         self.port = 8080
@@ -58,25 +59,40 @@ class Pilot2HttpPayload(ESPayload):
         self.router.register('/', self.handle_get_job)
         self.router.register('/server/panda/getJob', self.handle_get_job)
         self.router.register('/server/panda/updateJob', self.handle_update_job)
-        self.router.register('/server/panda/updateJobsInBulk', self.handle_update_jobs_in_bulk)
+        self.router.register('/server/panda/updateJobsInBulk',
+                             self.handle_update_jobs_in_bulk)
         self.router.register('/server/panda/getStatus', self.handle_get_status)
-        self.router.register('/server/panda/getEventRanges', self.handle_get_event_ranges)
-        self.router.register('/server/panda/updateEventRanges', self.handle_update_event_ranges)
-        self.router.register('/server/panda/getKeyPair', self.handle_get_key_pair)
+        self.router.register('/server/panda/getEventRanges',
+                             self.handle_get_event_ranges)
+        self.router.register('/server/panda/updateEventRanges',
+                             self.handle_update_event_ranges)
+        self.router.register('/server/panda/getKeyPair',
+                             self.handle_get_key_pair)
 
     def _start_payload(self) -> None:
-        command = self._build_pilot_container_command() if self.config.payload.get('containerengine', None) else self._build_pilot_command()
-        self.logging_actor.info.remote(self.id, f"Final payload command: {command}")
+        command = self._build_pilot_container_command(
+        ) if self.config.payload.get('containerengine',
+                                     None) else self._build_pilot_command()
+        self.logging_actor.info.remote(self.id,
+                                       f"Final payload command: {command}")
         # using PIPE will cause the subprocess to hang because
         # we're not reading data using communicate() and the pipe buffer becomes full as pilot2
         # generates a lot of data to the stdout pipe
         # see https://docs.python.org/3.7/library/subprocess.html#subprocess.Popen.wait
-        self.pilot_process = Popen(command, stdin=DEVNULL, stdout=DEVNULL, stderr=DEVNULL, shell=True, close_fds=True)
-        self.logging_actor.info.remote(self.id, f"Pilot payload started with PID {self.pilot_process.pid}")
+        self.pilot_process = Popen(command,
+                                   stdin=DEVNULL,
+                                   stdout=DEVNULL,
+                                   stderr=DEVNULL,
+                                   shell=True,
+                                   close_fds=True)
+        self.logging_actor.info.remote(
+            self.id, f"Pilot payload started with PID {self.pilot_process.pid}")
 
     def _build_pilot_command(self) -> str:
         cmd = str()
-        conda_activate = os.path.expandvars(os.path.join(self.config.payload.get('condabindir', ''), 'activate'))
+        conda_activate = os.path.expandvars(
+            os.path.join(self.config.payload.get('condabindir', ''),
+                         'activate'))
         pilot_venv = self.config.payload.get('virtualenv', '')
 
         if os.path.isfile(conda_activate) and pilot_venv is not None:
@@ -88,9 +104,11 @@ class Pilot2HttpPayload(ESPayload):
 
         prodSourceLabel = shlex.quote(self.current_job['prodSourceLabel'])
 
-        pilot_bin = os.path.expandvars(os.path.join(self.config.payload.get('bindir', ''), "pilot.py"))
+        pilot_bin = os.path.expandvars(
+            os.path.join(self.config.payload.get('bindir', ''), "pilot.py"))
         queue_escaped = shlex.quote(self.config.payload.get('pandaqueue', ''))
-        payload_log = shlex.quote(self.config.payload.get('logfilename', 'wrapper'))
+        payload_log = shlex.quote(
+            self.config.payload.get('logfilename', 'wrapper'))
         # use exec to replace the shell process with python. Allows to send signal to the python process if needed
         cmd += f"python {shlex.quote(pilot_bin)} -q {queue_escaped} -r {queue_escaped} -s {queue_escaped} " \
                f"-i PR -j {prodSourceLabel} --pilot-user=ATLAS -t -w generic --url=http://{self.host} " \
@@ -118,7 +136,8 @@ class Pilot2HttpPayload(ESPayload):
         cmd += f"ln -s {pilot_src} {os.path.join(os.getcwd(), 'pilot2')};"
         prodSourceLabel = shlex.quote(self.current_job['prodSourceLabel'])
 
-        pilotwrapper_bin = os.path.expandvars(os.path.join(self.config.payload['bindir'], "runpilot2-wrapper.sh"))
+        pilotwrapper_bin = os.path.expandvars(
+            os.path.join(self.config.payload['bindir'], "runpilot2-wrapper.sh"))
 
         if not os.path.isfile(pilotwrapper_bin):
             raise FailedPayload(self.id)
@@ -137,7 +156,8 @@ class Pilot2HttpPayload(ESPayload):
             f.write(cmd)
         st = os.stat(cmd_script)
         os.chmod(cmd_script, st.st_mode | stat.S_IEXEC)
-        payload_log = shlex.quote(self.config.payload.get('logfilename', 'wrapper'))
+        payload_log = shlex.quote(
+            self.config.payload.get('logfilename', 'wrapper'))
         container = shlex.quote(self.config.payload.get('containerengine', ''))
         container_args = self.config.payload.get('containerextraargs', '')
         if container_args:
@@ -147,7 +167,8 @@ class Pilot2HttpPayload(ESPayload):
         return f"{container} {container_args} /bin/bash {cmd_script} > {payload_log} 2> {payload_log}.stderr"
 
     def is_complete(self) -> bool:
-        return self.pilot_process is not None and self.pilot_process.poll() is not None
+        return self.pilot_process is not None and self.pilot_process.poll(
+        ) is not None
 
     def return_code(self) -> int:
         return self.pilot_process.poll()
@@ -160,7 +181,8 @@ class Pilot2HttpPayload(ESPayload):
             self.current_job = job
             self.ranges_queue = Queue()
             self.no_more_ranges = False
-            self.server_thread = threading.Thread(target=self.run, name="http-server")
+            self.server_thread = threading.Thread(target=self.run,
+                                                  name="http-server")
             self.server_thread.start()
 
     def stop(self) -> None:
@@ -170,13 +192,16 @@ class Pilot2HttpPayload(ESPayload):
             if pexit is None:
                 self.pilot_process.terminate()
                 pexit = self.pilot_process.wait()
-            self.logging_actor.debug.remote(self.id, f"Payload return code: {pexit}")
-            asyncio.run_coroutine_threadsafe(self.notify_stop_server_task(), self.loop)
+            self.logging_actor.debug.remote(self.id,
+                                            f"Payload return code: {pexit}")
+            asyncio.run_coroutine_threadsafe(self.notify_stop_server_task(),
+                                             self.loop)
             self.server_thread.join()
             self.logging_actor.info.remote(self.id, f"Communicator stopped")
 
     def submit_new_ranges(self, ranges: EventRange) -> None:
-        asyncio.run_coroutine_threadsafe(self.ranges_queue.put(ranges), self.loop)
+        asyncio.run_coroutine_threadsafe(self.ranges_queue.put(ranges),
+                                         self.loop)
 
     def fetch_job_update(self) -> Union[None, Dict[str, str]]:
         try:
@@ -198,11 +223,13 @@ class Pilot2HttpPayload(ESPayload):
         return self.ranges_queue.qsize() == 0
 
     async def http_handler(self, request: web.BaseRequest) -> web.Response:
-        self.logging_actor.debug.remote(self.id, f"Routing {request.method} {request.path}")
+        self.logging_actor.debug.remote(
+            self.id, f"Routing {request.method} {request.path}")
         try:
             return await self.router.route(request.path, request=request)
         except Exception:
-            return web.json_response({"StatusCode": 500}, dumps=self.json_encoder)
+            return web.json_response({"StatusCode": 500},
+                                     dumps=self.json_encoder)
 
     @staticmethod
     async def parse_qs_body(request: web.BaseRequest) -> Dict[str, List[str]]:
@@ -223,12 +250,11 @@ class Pilot2HttpPayload(ESPayload):
     async def handle_update_job(self, request: web.BaseRequest) -> web.Response:
         body = await Pilot2HttpPayload.parse_qs_body(request)
         await self.job_update.put(body)
-        res = {
-            "StatusCode": 0
-        }
+        res = {"StatusCode": 0}
         return web.json_response(res, dumps=self.json_encoder)
 
-    async def handle_get_event_ranges(self, request: web.BaseRequest) -> web.Response:
+    async def handle_get_event_ranges(self,
+                                      request: web.BaseRequest) -> web.Response:
         body = await Pilot2HttpPayload.parse_qs_body(request)
         self.logging_actor.debug.remote(self.id, f"Body: {body}")
         status = 0
@@ -246,22 +272,20 @@ class Pilot2HttpPayload(ESPayload):
                         self.no_more_ranges = True
                         break
                     ranges.append(crange)
-        res = {
-            "StatusCode": status,
-            "eventRanges": ranges
-        }
-        self.logging_actor.info.remote(self.id, f"sending {len(res['eventRanges'])} ranges to pilot")
+        res = {"StatusCode": status, "eventRanges": ranges}
+        self.logging_actor.info.remote(
+            self.id, f"sending {len(res['eventRanges'])} ranges to pilot")
         return web.json_response(res, dumps=self.json_encoder)
 
-    async def handle_update_event_ranges(self, request: web.BaseRequest) -> web.Response:
+    async def handle_update_event_ranges(
+            self, request: web.BaseRequest) -> web.Response:
         body = await Pilot2HttpPayload.parse_qs_body(request)
         await self.ranges_update.put(body)
-        res = {
-            "StatusCode": 0
-        }
+        res = {"StatusCode": 0}
         return web.json_response(res, dumps=self.json_encoder)
 
-    async def handle_update_jobs_in_bulk(self, request: web.BaseRequest) -> web.Response:
+    async def handle_update_jobs_in_bulk(
+            self, request: web.BaseRequest) -> web.Response:
         """
         Not used by pilot2
         """
@@ -273,7 +297,8 @@ class Pilot2HttpPayload(ESPayload):
         """
         raise NotImplementedError(f"{request.path} handler not implemented")
 
-    async def handle_get_key_pair(self, request: web.BaseRequest) -> web.Response:
+    async def handle_get_key_pair(self,
+                                  request: web.BaseRequest) -> web.Response:
         """
         Note used by pilot2
         """
@@ -285,7 +310,9 @@ class Pilot2HttpPayload(ESPayload):
         await runner.setup()
         self.site = web.TCPSite(runner, self.host, self.port)
         await self.site.start()
-        self.logging_actor.debug.remote(self.id, f"======= Serving on http://{self.host}:{self.port}/ ======")
+        self.logging_actor.debug.remote(
+            self.id,
+            f"======= Serving on http://{self.host}:{self.port}/ ======")
         return self.site
 
     async def notify_stop_server_task(self) -> None:
@@ -296,7 +323,9 @@ class Pilot2HttpPayload(ESPayload):
         self._start_payload()
         await self.stop_event.wait()
         if self.site:
-            self.logging_actor.debug.remote(self.id, f"======= Stopped http://{self.host}:{self.port}/ ======")
+            self.logging_actor.debug.remote(
+                self.id,
+                f"======= Stopped http://{self.host}:{self.port}/ ======")
             await self.site.stop()
 
     def run(self) -> None:

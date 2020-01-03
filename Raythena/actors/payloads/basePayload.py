@@ -8,7 +8,8 @@ from Raythena.utils.eventservice import PandaJob
 
 class BasePayload(ABC):
 
-    def __init__(self, id: str, logging_actor: LoggingActor, config: Config) -> None:
+    def __init__(self, id: str, logging_actor: LoggingActor,
+                 config: Config) -> None:
         self.id = id
         self.logging_actor = logging_actor
         self.config = config

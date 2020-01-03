@@ -14,13 +14,18 @@ def wait_on_head() -> None:
     ray_ip = os.environ.get("RAYTHENA_RAY_HEAD_IP", None)
 
     if redis_password is None or redis_port is None or ray_ip is None:
-        print("Set RAYTHENA_RAY_REDIS_PASSWORD, RAYTHENA_RAY_REDIS_PORT, RAYTHENA_RAY_HEAD_IP vars")
+        print(
+            "Set RAYTHENA_RAY_REDIS_PASSWORD, RAYTHENA_RAY_REDIS_PORT, RAYTHENA_RAY_HEAD_IP vars"
+        )
         exit(1)
 
     while not ray.is_initialized():
         try:
-            print(f"waiting for ray to initialize... {ray_ip}:{redis_port}, {redis_password}")
-            ray.init(address=f"{ray_ip}:{redis_port}", redis_password=redis_password)
+            print(
+                f"waiting for ray to initialize... {ray_ip}:{redis_port}, {redis_password}"
+            )
+            ray.init(address=f"{ray_ip}:{redis_port}",
+                     redis_password=redis_password)
         except (ConnectionError, ValueError):
             time.sleep(1)
             print("ray not yet initialized...")
@@ -35,9 +40,13 @@ def wait_workers(nwait: int = 1) -> None:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Wait on ray head node or workers to connect')
+    parser = argparse.ArgumentParser(
+        description='Wait on ray head node or workers to connect')
     parser.add_argument('--wait-workers', action='store_true')
-    parser.add_argument('--nworkers', dest="nworkers", default=int(os.environ.get("NWORKERS", 1)), type=int)
+    parser.add_argument('--nworkers',
+                        dest="nworkers",
+                        default=int(os.environ.get("NWORKERS", 1)),
+                        type=int)
     args = parser.parse_args()
     wait_on_head()
     if args.wait_workers:

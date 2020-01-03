@@ -22,7 +22,8 @@ def configure_logger(config: Config, file_logging: bool = True) -> None:
         fh = logging.FileHandler(log_file, mode='w')
         handlers.append(fh)
 
-    logging.basicConfig(format="{asctime} | {levelname} | {name} | {funcName} | {message}",
-                        style='{',
-                        level=logging.getLevelName(log_level),
-                        handlers=handlers)
+    logging.basicConfig(
+        format="{asctime} | {levelname} | {name} | {funcName} | {message}",
+        style='{',
+        level=logging.getLevelName(log_level),
+        handlers=handlers)

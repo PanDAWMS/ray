@@ -59,7 +59,8 @@ class BaseRaythenaException(Exception):
     def __init__(self, id, error_code, message=None):
         self.id = id
         self.error_code = error_code
-        self.message = message if message else ErrorCodes.get_error_message(error_code)
+        self.message = message if message else ErrorCodes.get_error_message(
+            error_code)
 
 
 class PluginNotFound(BaseRaythenaException):
