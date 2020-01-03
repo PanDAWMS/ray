@@ -18,15 +18,16 @@
 #DPB #SBATCH --cpus-per-task 136
 #SBATCH -N {nNode}
 
-export HARVESTER_WORKER_ID={workerID}
-export HARVESTER_ACCESS_POINT={accessPoint}
-export HARVESTER_NNODE={nNode}
+#export HARVESTER_WORKER_ID={workerID}
+#export HARVESTER_ACCESS_POINT={accessPoint}
+#export HARVESTER_NNODE={nNode}
 
 #for testing without harvester, needs evnt files present in the workdir
-#export HARVESTER_ACCESS_POINT=/global/cscratch1/sd/esseivaj/raythena/workdir
-#export HARVESTER_WORKDIR=$HARVESTER_ACCESS_POINT
-#export HARVESTER_NNODE=$SLURM_NNODES
+export HARVESTER_ACCESS_POINT=/global/cscratch1/sd/esseivaj/raythena/workdir
+export HARVESTER_WORKDIR=$HARVESTER_ACCESS_POINT
+export HARVESTER_NNODE=$SLURM_NNODES
 
+export HARVESTER_HOME=/global/project/projectdirs/m2616/harvester
 export HARVESTER_VENV=/global/project/projectdirs/m2616/harvester/bin
 
 export PANDA_QUEUE=NERSC_Cori_p2_ES_Test
@@ -57,13 +58,20 @@ tar xzf $pilot_tar_file -C$RAYTHENA_RAY_WORKDIR
 
 # setup ray
 source $HARVESTER_VENV/activate
-srun -N1 -n1 -w $SLURMD_NODENAME $BINDIR/ray_start_head &
+nodes=$(scontrol show hostnames $SLURM_JOB_NODELIST)
+
+srun --nodes 1 --ntasks 1 -w $SLURMD_NODENAME $BINDIR/ray_start_head &
 
 $BINDIR/ray_sync
-
-srun -x $SLURMD_NODENAME -N$NWORKERS -n$NWORKERS $BINDIR/ray_start_worker &
-
-$BINDIR/ray_sync --wait-workers --nworkers $NWORKERS
+i=1
+for n in $nodes; do
+  if [[ "$n" == "$SLURMD_NODENAME" ]]; then
+	  continue
+  fi
+  srun --nodes 1 --ntasks 1 -w $n $BINDIR/ray_start_worker &
+  $BINDIR/ray_sync --wait-workers --nworkers $i
+  i=$(($i+1))
+done
 
 python $SOURCEDIR/raythena.py
 
