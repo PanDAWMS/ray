@@ -1,5 +1,7 @@
-import pytest
 import socket
+
+import pytest
+
 from Raythena.utils.ray import cluster_size, build_nodes_resource_list, get_node_ip
 
 
@@ -8,7 +10,8 @@ class TestRayUtils:
 
     def test_build_nodes_resource_list(self, config):
         constraints = build_nodes_resource_list(config)
-        assert len(constraints) == cluster_size() * config.resources['workerpernode']
+        assert len(
+            constraints) == cluster_size() * config.resources['workerpernode']
 
     def test_cluster_size(self):
         assert cluster_size() > 0

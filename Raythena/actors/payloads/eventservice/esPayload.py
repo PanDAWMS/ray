@@ -1,8 +1,8 @@
 from abc import abstractmethod
 from typing import Union, Dict
 
-from Raythena.actors.payloads.basePayload import BasePayload
 from Raythena.actors.loggingActor import LoggingActor
+from Raythena.actors.payloads.basePayload import BasePayload
 from Raythena.utils.config import Config
 from Raythena.utils.eventservice import EventRange
 

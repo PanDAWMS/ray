@@ -1,10 +1,11 @@
-
-import queue
-import pytest
 import os
+import queue
+
+import pytest
+
+from Raythena.drivers.communicators.harvesterFileMessenger import HarvesterFileCommunicator
 from Raythena.drivers.communicators.harvesterMock import HarvesterMock
 from Raythena.drivers.communicators.harvesterMock2205 import HarvesterMock2205
-from Raythena.drivers.communicators.harvesterFileMessenger import HarvesterFileCommunicator
 
 
 @pytest.fixture
@@ -36,9 +37,14 @@ def clean_files(files):
 
 
 @pytest.fixture
-def harvester_file_communicator(tmpdir, config, request_queue, jobs_queue, ranges_queue):
+def harvester_file_communicator(tmpdir, config, request_queue, jobs_queue,
+                                ranges_queue):
     config.harvester['endpoint'] = str(tmpdir)
-    communicator = HarvesterFileCommunicator(request_queue, jobs_queue, ranges_queue, config)
+    communicator = HarvesterFileCommunicator(request_queue, jobs_queue,
+                                             ranges_queue, config)
     yield communicator
     communicator.stop()
-    clean_files([communicator.jobrequestfile, communicator.jobspecfile, communicator.eventrequestfile, communicator.eventrangesfile])
+    clean_files([
+        communicator.jobrequestfile, communicator.jobspecfile,
+        communicator.eventrequestfile, communicator.eventrangesfile
+    ])

@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from queue import Queue
+
 from Raythena.utils.config import Config
 
 

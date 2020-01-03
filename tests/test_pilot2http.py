@@ -1,9 +1,11 @@
-import pytest
-import time
 import os
+import time
+
+import pytest
 import requests
-from Raythena.actors.payloads.eventservice.pilot2http import Pilot2HttpPayload
+
 from Raythena.actors.loggingActor import LoggingActor
+from Raythena.actors.payloads.eventservice.pilot2http import Pilot2HttpPayload
 from Raythena.utils.eventservice import PandaJob, EventRange
 from Raythena.utils.exception import FailedPayload
 
@@ -82,7 +84,8 @@ class TestPilot2Http:
         res = requests.post('http://127.0.0.1:8080/server/panda/getJob').json()
         assert job['PandaID'] == PandaJob(res)['PandaID']
 
-        assert requests.post('http://127.0.0.1:8080/unknown').json()['StatusCode'] == 500
+        assert requests.post(
+            'http://127.0.0.1:8080/unknown').json()['StatusCode'] == 500
 
         payload.stop()
         assert payload.is_complete()
@@ -108,26 +111,27 @@ class TestPilot2Http:
             pytest.skip()
 
         assert not payload.fetch_job_update()
-        data = {
-            "pilotErrorCode": '0'
-        }
-        res = requests.post('http://127.0.0.1:8080/server/panda/updateJob', data=data).json()
+        data = {"pilotErrorCode": '0'}
+        res = requests.post('http://127.0.0.1:8080/server/panda/updateJob',
+                            data=data).json()
         assert res['StatusCode'] == 0
         job_update = payload.fetch_job_update()
         assert job_update['pilotErrorCode'][0] == data['pilotErrorCode']
 
-    def test_rangesUpdate(self, payload, config, is_eventservice, sample_job, sample_ranges, nevents):
+    def test_rangesUpdate(self, payload, config, is_eventservice, sample_job,
+                          sample_ranges, nevents):
         if not is_eventservice:
             pytest.skip()
 
         assert not payload.fetch_ranges_update()
-        data = {
-            "pilotErrorCode": 0
-        }
-        res = requests.post('http://127.0.0.1:8080/server/panda/updateEventRanges', data=data).json()
+        data = {"pilotErrorCode": 0}
+        res = requests.post(
+            'http://127.0.0.1:8080/server/panda/updateEventRanges',
+            data=data).json()
         assert res['StatusCode'] == 0
 
-    def test_getranges(self, payload, config, is_eventservice, sample_job, sample_ranges, nevents):
+    def test_getranges(self, payload, config, is_eventservice, sample_job,
+                       sample_ranges, nevents):
         if not is_eventservice:
             pytest.skip()
 
@@ -140,20 +144,25 @@ class TestPilot2Http:
             "jobsetID": job["jobsetID"],
             "taskID": job["taskID"]
         }
-        res = requests.post('http://127.0.0.1:8080/server/panda/getEventRanges').json()
+        res = requests.post(
+            'http://127.0.0.1:8080/server/panda/getEventRanges').json()
         assert res['StatusCode'] == 500
         assert payload.should_request_more_ranges()
         for r in list(sample_ranges.values())[0]:
             payload.submit_new_ranges(EventRange.build_from_dict(r))
         payload.submit_new_ranges(None)
 
-        res = requests.post('http://127.0.0.1:8080/server/panda/getEventRanges', data=data).json()
+        res = requests.post('http://127.0.0.1:8080/server/panda/getEventRanges',
+                            data=data).json()
         assert res['StatusCode'] == 0
         assert len(res['eventRanges']) == nevents
 
-        res = requests.post('http://127.0.0.1:8080/server/panda/getEventRanges', data=data).json()
+        res = requests.post('http://127.0.0.1:8080/server/panda/getEventRanges',
+                            data=data).json()
         assert res['StatusCode'] == 0
         assert len(res['eventRanges']) == 0
         assert not payload.should_request_more_ranges()
         data["pandaID"] = "None"
-        assert requests.post('http://127.0.0.1:8080/server/panda/getEventRanges', data=data).json()['StatusCode'] == -1
+        assert requests.post(
+            'http://127.0.0.1:8080/server/panda/getEventRanges',
+            data=data).json()['StatusCode'] == -1

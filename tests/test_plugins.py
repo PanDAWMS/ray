@@ -1,6 +1,7 @@
 import pytest
-from Raythena.utils.plugins import PluginsRegistry
+
 from Raythena.utils.exception import PluginNotFound
+from Raythena.utils.plugins import PluginsRegistry
 
 
 class TestPlugins:
@@ -62,10 +63,12 @@ class TestPlugins:
         pilot_http_plugin = plugins.get_plugin(plugin_str_full)
 
         assert pilot_http_plugin is not None
-        assert issubclass(pilot_http_plugin, payloads_es.pilot2http.Pilot2HttpPayload)
+        assert issubclass(pilot_http_plugin,
+                          payloads_es.pilot2http.Pilot2HttpPayload)
         assert issubclass(pilot_http_plugin, payloads_es.esPayload.ESPayload)
 
         pilot_http_plugin = plugins.get_plugin(plugin_str)
         assert pilot_http_plugin is not None
-        assert issubclass(pilot_http_plugin, payloads_es.pilot2http.Pilot2HttpPayload)
+        assert issubclass(pilot_http_plugin,
+                          payloads_es.pilot2http.Pilot2HttpPayload)
         assert issubclass(pilot_http_plugin, payloads_es.esPayload.ESPayload)

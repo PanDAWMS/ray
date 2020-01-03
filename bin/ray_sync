@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 
-import os
-import ray
-import time
 import argparse
+import os
+import time
+
+import ray
 from redis.exceptions import ConnectionError
 
 
 def wait_on_head() -> None:
-
     redis_password = os.environ.get("RAYTHENA_RAY_REDIS_PASSWORD", None)
     redis_port = os.environ.get("RAYTHENA_RAY_REDIS_PORT", None)
     ray_ip = os.environ.get("RAYTHENA_RAY_HEAD_IP", None)
@@ -32,10 +32,9 @@ def wait_on_head() -> None:
 
 
 def wait_workers(nwait: int = 1) -> None:
-
     # wait for all workers to connect
     while len(ray.nodes()) < nwait + 1:
-        print(f"{len(ray.nodes())-1}/{nwait} workers connected... ")
+        print(f"{len(ray.nodes()) - 1}/{nwait} workers connected... ")
         time.sleep(1)
 
 

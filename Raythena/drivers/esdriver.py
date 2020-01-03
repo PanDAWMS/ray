@@ -1,19 +1,19 @@
-import ray
 import os
 import time
-
-from typing import List, Dict, Union
 from queue import Queue, Empty
+from typing import List, Dict, Union
+
+import ray
 
 from Raythena.actors.esworker import ESWorker
 from Raythena.actors.loggingActor import LoggingActor
+from Raythena.drivers.baseDriver import BaseDriver
+from Raythena.utils.config import Config
 from Raythena.utils.eventservice import (EventRangeRequest, PandaJobRequest,
                                          EventRangeUpdate, Messages,
                                          PandaJobQueue, EventRange)
 from Raythena.utils.importUtils import import_from_string
 from Raythena.utils.ray import (build_nodes_resource_list, get_node_ip)
-from Raythena.utils.config import Config
-from Raythena.drivers.baseDriver import BaseDriver
 
 EventRangeTypeHint = Dict[str, str]
 PandaJobTypeHint = Dict[str, str]

@@ -1,12 +1,13 @@
 #!/usr/bin/env python
-import click
-import signal
 import functools
+import signal
 
-from Raythena.utils.ray import setup_ray, shutdown_ray
+import click
+
 from Raythena.drivers.baseDriver import BaseDriver
 from Raythena.utils.config import Config
 from Raythena.utils.importUtils import import_from_string
+from Raythena.utils.ray import setup_ray, shutdown_ray
 
 
 @click.command()
@@ -57,7 +58,6 @@ from Raythena.utils.importUtils import import_from_string
     help='Used to determine how many events should be buffered by ray actors'
 )
 def cli(*args, **kwargs):
-
     config = Config(kwargs['config'], *args, **kwargs)
 
     setup_ray(config)

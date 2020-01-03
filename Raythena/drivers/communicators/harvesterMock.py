@@ -1,12 +1,13 @@
 import hashlib
 import os
-import time
 import random
+import time
 from queue import Queue
+
+from Raythena.drivers.communicators.baseCommunicator import BaseCommunicator
+from Raythena.utils.config import Config
 from Raythena.utils.eventservice import EventRangeRequest, PandaJobRequest, PandaJobUpdate, EventRangeUpdate
 from Raythena.utils.exception import ExThread
-from Raythena.utils.config import Config
-from Raythena.drivers.communicators.baseCommunicator import BaseCommunicator
 
 
 class HarvesterMock(BaseCommunicator):
@@ -48,7 +49,7 @@ class HarvesterMock(BaseCommunicator):
                 self.update_job(request)
             elif isinstance(request, EventRangeUpdate):
                 self.update_events(request)
-            else:  #if any other request is received, stop the thread
+            else:  # if any other request is received, stop the thread
                 break
 
     def start(self) -> None:

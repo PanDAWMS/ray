@@ -1,13 +1,14 @@
+import configparser
+import json
 import os
 import shutil
 import time
-import configparser
-import json
 from queue import Queue
+
+from Raythena.drivers.communicators.baseCommunicator import BaseCommunicator
 from Raythena.utils.config import Config
 from Raythena.utils.eventservice import EventRangeRequest, PandaJobRequest, PandaJobUpdate, EventRangeUpdate
 from Raythena.utils.exception import ExThread
-from Raythena.drivers.communicators.baseCommunicator import BaseCommunicator
 
 
 class HarvesterFileCommunicator(BaseCommunicator):

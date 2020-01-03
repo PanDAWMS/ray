@@ -219,8 +219,8 @@ class EventRangeQueue:
         for r in ranges_update:
             range_id = r['eventRangeID']
             range_status = r['eventStatus']
-            if (range_status == "finished" or range_status == "failed" or range_status == "running")\
-               and range_id not in self.rangesID_by_state[EventRange.ASSIGNED]:
+            if (range_status == "finished" or range_status == "failed" or range_status == "running") \
+                    and range_id not in self.rangesID_by_state[EventRange.ASSIGNED]:
                 raise Exception(
                     f"Unexpected state: tried to update unassigned {range_id} to {range_status}"
                 )

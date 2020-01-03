@@ -1,5 +1,3 @@
-
-
 class TestDriver:
 
     def test_one(self, tmpdir):

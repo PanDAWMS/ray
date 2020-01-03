@@ -1,12 +1,13 @@
 import hashlib
 import os
-import time
 import random
+import time
 from queue import Queue
-from Raythena.utils.exception import ExThread
-from Raythena.utils.eventservice import PandaJobRequest
-from Raythena.utils.config import Config
+
 from Raythena.drivers.communicators.harvesterMock import HarvesterMock
+from Raythena.utils.config import Config
+from Raythena.utils.eventservice import PandaJobRequest
+from Raythena.utils.exception import ExThread
 
 
 class HarvesterMock2205(HarvesterMock):

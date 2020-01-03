@@ -3,7 +3,6 @@ from queue import Queue, Empty
 
 
 class ErrorCodes:
-
     PLUGIN_NOT_FOUND = 10
     ILLEGAL_WORKER_STATE = 20
     STAGEIN_FAILED = 30

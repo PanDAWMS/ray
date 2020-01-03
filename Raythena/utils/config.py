@@ -1,9 +1,9 @@
-import yaml
 import os
+
+import yaml
 
 
 class Config:
-
     conf_template = {
         'payload': {
             'plugin': str,

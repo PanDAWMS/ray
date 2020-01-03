@@ -1,6 +1,7 @@
 import pytest
-from Raythena.drivers.esdriver import BookKeeper
+
 from Raythena.actors.loggingActor import LoggingActor
+from Raythena.drivers.esdriver import BookKeeper
 
 
 @pytest.mark.usefixtures("requires_ray")
@@ -14,7 +15,8 @@ class TestBookKeeper:
         for pandaID in bookKeeper.jobs:
             assert pandaID in sample_multijobs
 
-    def test_assign_job_to_actor(elf, is_eventservice, config, sample_multijobs, njobs, sample_ranges, nevents):
+    def test_assign_job_to_actor(elf, is_eventservice, config, sample_multijobs,
+                                 njobs, sample_ranges, nevents):
         logging_actor = LoggingActor.remote(config)
         bookKeeper = BookKeeper(logging_actor, config)
         bookKeeper.add_jobs(sample_multijobs)
@@ -37,9 +39,11 @@ class TestBookKeeper:
                     assert job['PandaID'] == job_tmp['PandaID']
                 job = job_tmp
             bookKeeper.fetch_event_ranges(actor_id, nevents)
-            assert bookKeeper.assign_job_to_actor(actor_id)['PandaID'] != job['PandaID']
+            assert bookKeeper.assign_job_to_actor(
+                actor_id)['PandaID'] != job['PandaID']
 
-    def test_add_event_ranges(self, is_eventservice, config, sample_multijobs, njobs, nevents, sample_ranges):
+    def test_add_event_ranges(self, is_eventservice, config, sample_multijobs,
+                              njobs, nevents, sample_ranges):
         if not is_eventservice:
             pytest.skip()
 
@@ -72,7 +76,8 @@ class TestBookKeeper:
             assert bookKeeper.is_flagged_no_more_events(jobID)
         assert bookKeeper.has_jobs_ready()
 
-    def test_fetch_event_ranges(self, is_eventservice, config, sample_multijobs, njobs, nevents, sample_ranges):
+    def test_fetch_event_ranges(self, is_eventservice, config, sample_multijobs,
+                                njobs, nevents, sample_ranges):
         if not is_eventservice:
             pytest.skip()
         worker_ids = [f"w_{i}" for i in range(10)]
@@ -89,12 +94,15 @@ class TestBookKeeper:
         for wid in assigned_workers:
             job = bookKeeper.assign_job_to_actor(wid)
             assert job['PandaID'] in sample_multijobs
-            ranges = bookKeeper.fetch_event_ranges(wid, int(nevents / len(assigned_workers)))
+            ranges = bookKeeper.fetch_event_ranges(
+                wid, int(nevents / len(assigned_workers)))
             assert ranges
         assert not bookKeeper.fetch_event_ranges(wid[0], 1)
 
-    def test_process_event_ranges_update(self, is_eventservice, config, sample_multijobs, njobs,
-                                         nevents, sample_ranges, sample_rangeupdate, sample_failed_rangeupdate):
+    def test_process_event_ranges_update(self, is_eventservice, config,
+                                         sample_multijobs, njobs, nevents,
+                                         sample_ranges, sample_rangeupdate,
+                                         sample_failed_rangeupdate):
         if not is_eventservice:
             pytest.skip("No eventservice jobs")
 
@@ -114,7 +122,8 @@ class TestBookKeeper:
 
         assert not bookKeeper.assign_job_to_actor(actor_id)
 
-    def test_process_actor_end(self, is_eventservice, config, njobs, sample_multijobs, nevents, sample_ranges):
+    def test_process_actor_end(self, is_eventservice, config, njobs,
+                               sample_multijobs, nevents, sample_ranges):
         if not is_eventservice:
             pytest.skip("No eventservice jobs")
 

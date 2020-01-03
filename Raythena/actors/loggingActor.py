@@ -1,8 +1,9 @@
 import logging
+
 import ray
 
-from Raythena.utils.logging import configure_logger
 from Raythena.utils.config import Config
+from Raythena.utils.logging import configure_logger
 
 
 @ray.remote(num_cpus=0)

@@ -1,13 +1,11 @@
 import pytest
+
 from Raythena.utils.importUtils import import_from_string
 
 
 def test_importutils():
-
     errors_string = [
-        "unknown",
-        "unknown:unknown",
-        "unknown:",
+        "unknown", "unknown:unknown", "unknown:",
         "Raythena.drivers.esdriver:ESDriver.unknown"
     ]
     for s in errors_string:
