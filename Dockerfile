@@ -27,9 +27,8 @@ RUN conda create -y -n${RAYTHENA_PAYLOAD_VENV} python=2.7; \
     conda create -y -n${RAYTHENA_RAY_VENV} python=3.7; \
     mkdir ${BUILD_DIR}
 
-RUN git clone https://github.com/esseivaju/pilot2.git ${RAYTHENA_PAYLOAD_BINDIR}
-
 COPY . ${BUILD_DIR}/
+RUN git clone https://github.com/esseivaju/pilot2.git ${RAYTHENA_PAYLOAD_BINDIR}
 
 RUN mkdir -p /opt/yampl/lib; \
     mkdir /opt/yampl/python-lib; \
