@@ -194,7 +194,7 @@ class TestPandaJobQueue:
                 job = next_job
 
         for pandaID in pandajob_queue:
-            event_ranges = pandajob_queue.get_eventranges(pandaID)
+            event_ranges = pandajob_queue.get_event_ranges(pandaID)
             assert isinstance(event_ranges, EventRangeQueue)
             assert len(event_ranges) == 0
             assert pandajob_queue.has_job(pandaID)
@@ -218,14 +218,14 @@ class TestPandaJobQueue:
         assert job['PandaID'] in sample_ranges
 
         for pandaID in pandajob_queue:
-            ranges = pandajob_queue.get_eventranges(pandaID)
+            ranges = pandajob_queue.get_event_ranges(pandaID)
             assert len(ranges) == len(sample_ranges[pandaID])
             assert not ranges.no_more_ranges
             sample_ranges[pandaID] = []
 
         pandajob_queue.process_event_ranges_reply(sample_ranges)
         for pandaID in pandajob_queue:
-            ranges = pandajob_queue.get_eventranges(pandaID)
+            ranges = pandajob_queue.get_event_ranges(pandaID)
             assert ranges.no_more_ranges
 
         sample_ranges["key"] = None
@@ -243,7 +243,7 @@ class TestPandaJobQueue:
         assert job == pandajob_queue.next_job_to_process()
         ranges_update = EventRangeUpdate.build_from_dict(job['PandaID'], sample_rangeupdate)
 
-        ranges_queue = pandajob_queue.get_eventranges(job['PandaID'])
+        ranges_queue = pandajob_queue.get_event_ranges(job['PandaID'])
         _ = job.get_next_ranges(nevents)
         pandajob_queue.process_event_ranges_update(ranges_update)
         assert not ranges_queue.no_more_ranges
@@ -271,19 +271,20 @@ class TestPandaJobRequest:
     def test_build_pandajob_request(self):
         request_dict = {
             "node": "nodename",
-            "diskSpace": 230000,
-            "workingGroup": "grp",
-            "prodSourceLabel": "test",
-            "computingElement": "ce",
-            "siteName": "nersc",
-            "resourceType": "rt",
+            "disk_space": 230000,
+            "working_group": "grp",
+            "prod_source_label": "test",
+            "computing_element": "ce",
+            "site_name": "nersc",
+            "resource_type": "rt",
             "mem": 230000,
             "cpu": 32,
-            "allowOtherCountry": "false"
+            "allow_other_country": "false"
         }
         jobrequest = PandaJobRequest(**request_dict)
-        for k in request_dict:
-            assert request_dict[k] == getattr(jobrequest, k)
+        assert jobrequest.diskSpace == request_dict['disk_space']
+        assert jobrequest.mem == request_dict['mem']
+        assert jobrequest.allowOtherCountry == request_dict['allow_other_country']
 
 
 class TestPandaJobUpdate:

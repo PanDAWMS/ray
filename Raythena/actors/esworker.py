@@ -4,9 +4,13 @@ import shutil
 import ray
 import json
 
-from Raythena.utils.eventservice import EventRangeRequest, Messages, EventRangeUpdate
+from typing import Union, Tuple
+
+from Raythena.utils.eventservice import EventRangeRequest, Messages, EventRangeUpdate, PandaJob
 from Raythena.utils.plugins import PluginsRegistry
 from Raythena.utils.ray import get_node_ip
+from Raythena.utils.config import Config
+from Raythena.actors.loggingActor import LoggingActor
 from Raythena.utils.exception import IllegalWorkerState, StageInFailed
 
 
@@ -64,7 +68,7 @@ class ESWorker:
         DONE: [READY_FOR_JOB]
     }
 
-    def __init__(self, actor_id, config, logging_actor):
+    def __init__(self, actor_id: str, config: Config, logging_actor: LoggingActor) -> None:
         self.id = actor_id
         self.config = config
         self.logging_actor = logging_actor
@@ -72,6 +76,8 @@ class ESWorker:
         self.transitions = ESWorker.TRANSITIONS_STANDARD
         self.node_ip = get_node_ip()
         self.state = ESWorker.READY_FOR_JOB
+        self.payload_job_dir = None
+        self.payload_actor_process_dir = None
         self.workdir = os.path.expandvars(self.config.ray.get('workdir', os.getcwd()))
         if not os.path.isdir(self.workdir):
             self.workdir = os.getcwd()
@@ -81,7 +87,7 @@ class ESWorker:
         self.payload = self.payload_class(self.id, self.logging_actor, self.config)
         self.logging_actor.info.remote(self.id, "Ray worker started")
 
-    def stagein(self):
+    def stagein(self) -> None:
 
         self.payload_job_dir = os.path.join(self.workdir, self.job['PandaID'])
         if not os.path.isdir(self.payload_job_dir):
@@ -107,28 +113,28 @@ class ESWorker:
         self.payload.start(self.job)
         self.transition_state(ESWorker.READY_FOR_EVENTS if self.is_event_service_job() else ESWorker.PROCESSING)
 
-    def stageout(self):
+    def stageout(self) -> None:
         self.logging_actor.info.remote(self.id, "Performing stageout")
         # TODO move payload out file to harvester dir, drain jobupdate and rangeupdate from payload
         self.transition_state(ESWorker.FINISHING)
         self.terminate_actor()
 
-    def transition_state(self, dest):
+    def transition_state(self, dest: int) -> None:
         if dest not in self.transitions[self.state]:
             self.logging_actor.error.remote(self.id, f"Illegal transition from {ESWorker.STATES_NAME[self.state]} to {ESWorker.STATES_NAME[dest]}")
             raise IllegalWorkerState(id=self.id, src_state=ESWorker.STATES_NAME[self.state], dst_state=ESWorker.STATES_NAME[dest])
         self.state = dest
 
-    def is_event_service_job(self):
+    def is_event_service_job(self) -> bool:
         return self.job and self.job['eventService']
 
-    def set_transitions(self):
+    def set_transitions(self) -> None:
         if self.is_event_service_job():
             self.transitions = ESWorker.TRANSITIONS_EVENTSERVICE
         else:
             self.transitions = ESWorker.TRANSITIONS_STANDARD
 
-    def receive_job(self, reply, job):
+    def receive_job(self, reply: int, job: PandaJob) -> Tuple[str, int, object]:
         self.job = job
         if reply == Messages.REPLY_OK and self.job:
             self.transition_state(ESWorker.STAGEIN)
@@ -138,15 +144,15 @@ class ESWorker:
             self.transition_state(ESWorker.DONE)
             self.logging_actor.error.remote(self.id, f"Could not fetch job. Set state to done.")
 
-        return self.return_message('received_job')
+        return self.return_message(Messages.REPLY_OK)
 
-    def mark_new_job(self):
+    def mark_new_job(self) -> None:
         """
         Mark the worker as ready for new jobs
         """
         self.transition_state(ESWorker.READY_FOR_JOB)
 
-    def receive_event_ranges(self, reply, eventranges_update):
+    def receive_event_ranges(self, reply, eventranges_update) -> Union[None, Tuple[str, int, object]]:
         if reply == Messages.REPLY_NO_MORE_EVENT_RANGES or not eventranges_update:
             # no new ranges... finish processing local cache then terminate actor
             self.transition_state(ESWorker.FINISHING_LOCAL_RANGES)
@@ -158,23 +164,23 @@ class ESWorker:
                 crange.PFN = os.path.join(os.path.expandvars(self.config.harvester['endpoint']), crange.PFN)
             self.payload.submit_new_ranges(crange)
         self.logging_actor.debug.remote(self.id, f"Received {len(eventranges_update)} eventRanges")
-        return self.return_message('received_event_range')
+        return self.return_message(Messages.REPLY_OK)
 
-    def return_message(self, message, data=None):
+    def return_message(self, message: int, data: object = None) -> Tuple[str, int, object]:
         return self.id, message, data
 
-    def interrupt(self):
+    def interrupt(self) -> None:
         """
         Interruption from driver
         """
         self.logging_actor.warn.remote(self.id, "Received interruption from driver")
 
-    def terminate_actor(self):
+    def terminate_actor(self) -> None:
         self.logging_actor.info.remote(self.id, f"stopping actor")
         self.payload.stop()
         self.transition_state(ESWorker.DONE)
 
-    def should_request_ranges(self):
+    def should_request_ranges(self) -> bool:
         # do not transition if not in a state allowing for event ranges request
         if ESWorker.READY_FOR_EVENTS not in self.transitions[self.state]:
             return False
@@ -184,7 +190,7 @@ class ESWorker:
             self.transition_state(ESWorker.READY_FOR_EVENTS)
         return res
 
-    def move_ranges_file(self, ranges_update):
+    def move_ranges_file(self, ranges_update: EventRangeUpdate) -> Union[EventRangeUpdate, None]:
         harvester_endpoint = self.config.harvester.get("endpoint", "")
         if not os.path.isdir(harvester_endpoint):
             return
@@ -200,7 +206,7 @@ class ESWorker:
                     shutil.move(cfile, dst)
         return ranges
 
-    def get_message(self):
+    def get_message(self) -> Tuple[str, int, object]:
         """
         Return a message to the driver depending on the current actor state
         """
@@ -213,7 +219,7 @@ class ESWorker:
                 # payload process ended... Start stageout
                 # if an exception occurs when changing state, this means that the payload ended early
                 # send final job / event update
-                self.logging_actor.info.remote(self.id, f"Payload ended with return code {self.payload.returncode()}")
+                self.logging_actor.info.remote(self.id, f"Payload ended with return code {self.payload.return_code()}")
                 self.transition_state(ESWorker.STAGEOUT)
                 self.stageout()
                 return self.return_message(Messages.PROCESS_DONE)

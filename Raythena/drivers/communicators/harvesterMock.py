@@ -2,18 +2,18 @@ import hashlib
 import os
 import time
 import random
-import threading
-
+from queue import Queue
 from Raythena.utils.eventservice import EventRangeRequest, PandaJobRequest, PandaJobUpdate, EventRangeUpdate
-
+from Raythena.utils.exception import ExThread
+from Raythena.utils.config import Config
 from Raythena.drivers.communicators.baseCommunicator import BaseCommunicator
 
 
 class HarvesterMock(BaseCommunicator):
 
-    def __init__(self, requestsQueue, jobQueue, eventRangesQueue, config):
-        super().__init__(requestsQueue, jobQueue, eventRangesQueue, config)
-        self.communicator_thread = threading.Thread(target=self.run, name="communicator-thread")
+    def __init__(self, requests_queue: Queue, job_queue: Queue, event_ranges_queue: Queue, config: Config) -> None:
+        super().__init__(requests_queue, job_queue, event_ranges_queue, config)
+        self.communicator_thread = ExThread(target=self.run, name="communicator-thread")
         self.event_ranges = None
         self.pandaID = random.randint(0, 100)
         self.jobsetId = random.randint(0, 100)
@@ -35,9 +35,9 @@ class HarvesterMock(BaseCommunicator):
         self.served_events = 0
         self.ncores = self.config.resources['corepernode']
 
-    def run(self):
+    def run(self) -> None:
         while True:
-            request = self.requestsQueue.get()
+            request = self.requests_queue.get()
             if isinstance(request, PandaJobRequest):
                 self.request_job(request)
             elif isinstance(request, EventRangeRequest):
@@ -49,14 +49,14 @@ class HarvesterMock(BaseCommunicator):
             else:  #if any other request is received, stop the thread
                 break
 
-    def start(self):
+    def start(self) -> None:
         self.communicator_thread.start()
 
-    def stop(self):
-        self.requestsQueue.put(None)
+    def stop(self) -> None:
+        self.requests_queue.put(None)
         self.communicator_thread.join()
 
-    def request_event_ranges(self, request):
+    def request_event_ranges(self, request: EventRangeRequest) -> None:
 
         self.event_ranges = dict()
 
@@ -64,7 +64,7 @@ class HarvesterMock(BaseCommunicator):
             self.event_ranges[pandaID] = list()
 
         if self.served_events >= self.nevents:
-            self.eventRangesQueue.put(self.event_ranges)
+            self.event_ranges_queue.put(self.event_ranges)
             return
 
         for pandaID in request:
@@ -85,18 +85,18 @@ class HarvesterMock(BaseCommunicator):
                 self.served_events += 1
 
             self.event_ranges[pandaID] = range_list
-        self.eventRangesQueue.put(self.event_ranges)
+        self.event_ranges_queue.put(self.event_ranges)
 
-    def update_job(self, job_status):
+    def update_job(self, job_status: PandaJobUpdate) -> None:
         pass
 
-    def update_events(self, evnt_status):
+    def update_events(self, evnt_status: EventRangeUpdate) -> None:
         pass
 
-    def get_panda_queue_name(self):
+    def get_panda_queue_name(self) -> str:
         return self.config.payload['pandaqueue']
 
-    def request_job(self, job_request):
+    def request_job(self, job_request: PandaJobRequest) -> None:
         hash = hashlib.md5()
 
         hash.update(str(time.time()).encode('utf-8'))
@@ -105,7 +105,7 @@ class HarvesterMock(BaseCommunicator):
         hash.update(str(time.time()).encode('utf-8'))
         job_name = hash.hexdigest()
 
-        self.jobQueue.put(
+        self.job_queue.put(
             {
                 str(self.pandaID):
                     {

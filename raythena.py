@@ -4,6 +4,7 @@ import signal
 import functools
 
 from Raythena.utils.ray import setup_ray, shutdown_ray
+from Raythena.drivers.baseDriver import BaseDriver
 from Raythena.utils.config import Config
 from Raythena.utils.importUtils import import_from_string
 
@@ -78,7 +79,7 @@ def cli(*args, **kwargs):
         shutdown_ray(config)
 
 
-def cleanup(config, driver, signum, frame):
+def cleanup(config: Config, driver: BaseDriver, signum: signal.Signals, frame: signal.FrameType) -> None:
     driver.stop()
 
 

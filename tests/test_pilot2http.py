@@ -86,7 +86,7 @@ class TestPilot2Http:
 
         payload.stop()
         assert payload.is_complete()
-        assert payload.returncode() == payload.pilot_process.returncode
+        assert payload.return_code() == payload.pilot_process.returncode
 
     def endpoint_not_implemented(self, endpoint):
         assert requests.post(f'http://127.0.0.1:8080/server/panda/{endpoint}').json()['StatusCode'] == 500

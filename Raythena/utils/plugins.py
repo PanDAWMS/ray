@@ -1,19 +1,19 @@
 import importlib
 import pkgutil
-
+from typing import Callable
 import Raythena.actors.payloads
 from Raythena.utils.exception import PluginNotFound
 
 
 class PluginsRegistry:
 
-    def __init__(self):
+    def __init__(self) -> None:
 
         self.plugins = dict()
         # adds preconfigured plugins packages
         self.add_plugin_namespace(Raythena.actors.payloads)
 
-    def add_plugin_namespace(self, namespace, recursive=True):
+    def add_plugin_namespace(self, namespace: object, recursive: bool = True) -> None:
 
         walk = pkgutil.walk_packages
         if not recursive:
@@ -25,7 +25,7 @@ class PluginsRegistry:
             }
         )
 
-    def get_plugin(self, plugin_name):
+    def get_plugin(self, plugin_name: str) -> Callable:
         plugin_module, _, plugin_class = plugin_name.partition(":")
 
         if not plugin_class:

@@ -7,7 +7,7 @@ import argparse
 from redis.exceptions import ConnectionError
 
 
-def wait_on_head():
+def wait_on_head() -> None:
 
     redis_password = os.environ.get("RAYTHENA_RAY_REDIS_PASSWORD", None)
     redis_port = os.environ.get("RAYTHENA_RAY_REDIS_PORT", None)
@@ -26,7 +26,7 @@ def wait_on_head():
             print("ray not yet initialized...")
 
 
-def wait_workers(nwait=1):
+def wait_workers(nwait: int = 1) -> None:
 
     # wait for all workers to connect
     while len(ray.nodes()) < nwait + 1:

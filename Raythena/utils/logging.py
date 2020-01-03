@@ -1,9 +1,10 @@
 import logging
 import os
 import sys
+from Raythena.utils.config import Config
 
 
-def configure_logger(config, file_logging=True):
+def configure_logger(config: Config, file_logging: bool = True) -> None:
 
     if config.logging['level'].lower() == 'debug':
         log_level = logging.DEBUG

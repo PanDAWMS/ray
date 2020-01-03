@@ -40,14 +40,14 @@ class Config:
         }
     }
 
-    def __init__(self, configpath, *args, **kwargs):
+    def __init__(self, config_path: str, *args, **kwargs) -> None:
 
-        self.configpath = configpath
+        self.config_path = config_path
         # parse.config file
-        if not self.configpath or not os.path.isfile(self.configpath):
-            raise Exception(f"Could not find config file {self.configpath}")
+        if not self.config_path or not os.path.isfile(self.config_path):
+            raise Exception(f"Could not find config file {self.config_path}")
 
-        with open(self.configpath) as f:
+        with open(self.config_path) as f:
             file_conf = yaml.safe_load(f)
             for k, v in file_conf.items():
                 setattr(self, k, v)
@@ -57,8 +57,9 @@ class Config:
     def __str__(self):
         return str(self.__dict__)
 
-    def _parse_cli_args(self, config, debug, payload_bindir, ray_driver, ray_head_ip,
-                        ray_redis_password, ray_redis_port, ray_workdir, harvester_endpoint, panda_queue, core_per_node):
+    def _parse_cli_args(self, config: str, debug: bool, payload_bindir: str, ray_driver: str, ray_head_ip: str,
+                        ray_redis_password: str, ray_redis_port: str, ray_workdir: str, harvester_endpoint: str, panda_queue: str,
+                        core_per_node: int) -> None:
 
         if debug:
             self.logging['level'] = 'debug'
@@ -81,14 +82,14 @@ class Config:
         if core_per_node:
             self.resources['corepernode'] = int(core_per_node)
 
-    def _validate_section(self, template_section_name, section_params, template_params):
+    def _validate_section(self, template_section_name: str, section_params: dict, template_params: dict) -> None:
         for name, value in template_params.items():
             if name not in section_params.keys():
                 raise Exception(f"Param '{name}' not found in conf section '{template_section_name}'")
             if isinstance(value, dict):
                 self._validate_section(f"{template_section_name}.{name}", section_params.get(name), value)
 
-    def _validate(self):
+    def _validate(self) -> None:
         # validate pilot section
         for template_section, template_params in Config.conf_template.items():
             section_params = getattr(self, template_section, None)

@@ -19,6 +19,7 @@ setup(
         'uvloop',
         'aiohttp',
         'tox',
+        'click',
         'setproctitle'
     ]
 )

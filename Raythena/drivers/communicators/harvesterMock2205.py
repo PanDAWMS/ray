@@ -2,16 +2,18 @@ import hashlib
 import os
 import time
 import random
-import threading
-
+from queue import Queue
+from Raythena.utils.exception import ExThread
+from Raythena.utils.eventservice import PandaJobRequest
+from Raythena.utils.config import Config
 from Raythena.drivers.communicators.harvesterMock import HarvesterMock
 
 
 class HarvesterMock2205(HarvesterMock):
 
-    def __init__(self, requestsQueue, jobQueue, eventRangesQueue, config):
-        super().__init__(requestsQueue, jobQueue, eventRangesQueue, config)
-        self.communicator_thread = threading.Thread(target=self.run, name="communicator-thread")
+    def __init__(self, requests_queue: Queue, job_queue: Queue, event_ranges_queue: Queue, config: Config) -> None:
+        super().__init__(requests_queue, job_queue, event_ranges_queue, config)
+        self.communicator_thread = ExThread(target=self.run, name="communicator-thread")
         self.event_ranges = None
         self.pandaID = random.randint(0, 100)
         self.jobsetId = random.randint(0, 100)
@@ -33,7 +35,7 @@ class HarvesterMock2205(HarvesterMock):
         self.served_events = 0
         self.ncores = self.config.resources['corepernode']
 
-    def request_job(self, job_request):
+    def request_job(self, job_request: PandaJobRequest) -> None:
         hash = hashlib.md5()
 
         hash.update(str(time.time()).encode('utf-8'))
@@ -42,7 +44,7 @@ class HarvesterMock2205(HarvesterMock):
         hash.update(str(time.time()).encode('utf-8'))
         job_name = hash.hexdigest()
 
-        self.jobQueue.put(
+        self.job_queue.put(
             {
                 str(self.pandaID):
                     {

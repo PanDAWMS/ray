@@ -1,7 +1,9 @@
 import ray
+from typing import List
+from Raythena.utils.config import Config
 
 
-def build_nodes_resource_list(config, run_actor_on_head=False):
+def build_nodes_resource_list(config: Config, run_actor_on_head: bool = False) -> List[str]:
     nodes = ray.nodes()
     if len(nodes) == 1:  # only a head node
         run_actor_on_head = True
@@ -19,17 +21,17 @@ def build_nodes_resource_list(config, run_actor_on_head=False):
     return resource_list
 
 
-def cluster_size():
+def cluster_size() -> int:
     if not ray.is_initialized():
         return 0
     return len(ray.nodes())
 
 
-def is_external_cluster(config):
+def is_external_cluster(config: Config) -> bool:
     return config.ray['headip'] is not None and config.ray['redisport'] is not None
 
 
-def setup_ray(config):
+def setup_ray(config: Config) -> None:
     if is_external_cluster(config):
         ray_url = f"{config.ray['headip']}:{config.ray['redisport']}"
         ray.init(address=ray_url,
@@ -38,10 +40,10 @@ def setup_ray(config):
         ray.init()
 
 
-def shutdown_ray(config):
+def shutdown_ray(config: Config) -> None:
     if ray.is_initialized():
         ray.shutdown()
 
 
-def get_node_ip():
+def get_node_ip() -> str:
     return ray.services.get_node_ip_address()

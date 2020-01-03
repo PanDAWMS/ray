@@ -1,3 +1,7 @@
+import threading
+from queue import Queue, Empty
+
+
 class ErrorCodes:
 
     PLUGIN_NOT_FOUND = 10
@@ -17,8 +21,37 @@ class ErrorCodes:
     }
 
     @staticmethod
-    def get_error_message(error_code):
+    def get_error_message(error_code: int) -> str:
         return ErrorCodes.ERROR_CODES_GENRIC_MESSAGES.get(error_code, "")
+
+
+class ExThread(threading.Thread):
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.__ex_queue = Queue()
+
+    def run(self):
+        try:
+            super().run()
+        except Exception as ex:
+            self.__ex_queue.put(ex)
+
+    def get_ex_queue(self) -> Queue:
+        return self.__ex_queue
+
+    def exception_occurred(self) -> bool:
+        return not self.__ex_queue.empty()
+
+    def join_with_ex(self):
+        try:
+            self.join()
+            ex = self.__ex_queue.get_nowait()
+        except Empty:
+            pass
+        else:
+            if ex:
+                raise ex
 
 
 class BaseRaythenaException(Exception):
@@ -65,3 +98,19 @@ class UnknownException(BaseRaythenaException):
 
     def __init__(self, id, message=None):
         super().__init__(id, ErrorCodes.UNKNOWN, message)
+
+
+if __name__ == "__main__":
+    import time
+
+    def err_func():
+        time.sleep(5)
+        raise FailedPayload("123")
+
+    t = ExThread(target=err_func)
+    t.start()
+    try:
+        t.join_with_ex()
+    except FailedPayload as e:
+        print(f"Handling {e}")
+    print(t.get_ex_queue().qsize())

@@ -1,36 +1,50 @@
 import os
 import shutil
 import time
-import threading
 import configparser
 import json
-
+from queue import Queue
+from Raythena.utils.config import Config
 from Raythena.utils.eventservice import EventRangeRequest, PandaJobRequest, PandaJobUpdate, EventRangeUpdate
-
+from Raythena.utils.exception import ExThread
 from Raythena.drivers.communicators.baseCommunicator import BaseCommunicator
 
 
 class HarvesterFileCommunicator(BaseCommunicator):
 
-    def __init__(self, requestsQueue, jobQueue, eventRangesQueue, config):
-        super().__init__(requestsQueue, jobQueue, eventRangesQueue, config)
-        self.harvester_conf_file = os.path.expandvars(self.config.harvester['harvesterconf'])
+    def __init__(self, requests_queue: Queue, job_queue: Queue, event_ranges_queue: Queue, config: Config) -> None:
+        super().__init__(requests_queue, job_queue, event_ranges_queue, config)
         self.harvester_workdir = os.path.expandvars(self.config.harvester['endpoint'])
+        self.ranges_requests_count = 0
+        self._parse_harvester_config()
+        self.communicator_thread = ExThread(target=self.run, name="communicator-thread")
+
+    def _parse_harvester_config(self) -> None:
+        self.harvester_conf_file = os.path.expandvars(self.config.harvester['harvesterconf'])
         if not os.path.isfile(self.harvester_conf_file):
             raise FileNotFoundError("Harvester config file not found")
         self.harvester_conf = configparser.ConfigParser()
         self.harvester_conf.read(self.harvester_conf_file)
         for k in self.harvester_conf['payload_interaction']:
             setattr(self, k, os.path.join(self.harvester_workdir, self.harvester_conf['payload_interaction'][k]))
-        self.communicator_thread = threading.Thread(target=self.run, name="communicator-thread")
+        if not hasattr(self, "jobspecfile"):
+            self.jobspecfile = str()
+        if not hasattr(self, "jobrequestfile"):
+            self.jobrequestfile = str()
+        if not hasattr(self, "eventrangesfile"):
+            self.eventrangesfile = str()
+        if not hasattr(self, "eventrequestfile"):
+            self.eventrequestfile = str()
+        if not hasattr(self, "eventstatusdumpjsonfile"):
+            self.eventstatusdumpjsonfile = str()
 
-    def request_job(self, request):
+    def request_job(self, request: PandaJobRequest) -> None:
 
         # Checks if a job file already exists
         if os.path.isfile(self.jobspecfile):
             with open(self.jobspecfile) as f:
                 job = json.load(f)
-                self.jobQueue.put(job)
+                self.job_queue.put(job)
         else:
             # create request file if necessary
             if not os.path.isfile(self.jobrequestfile):
@@ -56,14 +70,14 @@ class HarvesterFileCommunicator(BaseCommunicator):
         except FileNotFoundError:
             pass
         if job:
-            self.jobQueue.put(job)
+            self.job_queue.put(job)
 
-    def request_event_ranges(self, request):
+    def request_event_ranges(self, request: EventRangeRequest) -> None:
         if not os.path.isfile(self.eventrangesfile) and not os.path.exists(self.eventrequestfile):
-            eventRequestFileTmp = f"{self.eventrequestfile}.tmp"
-            with open(eventRequestFileTmp, 'w') as f:
+            event_request_file_tmp = f"{self.eventrequestfile}.tmp"
+            with open(event_request_file_tmp, 'w') as f:
                 json.dump(request.request, f)
-            shutil.move(eventRequestFileTmp, self.eventrequestfile)
+            shutil.move(event_request_file_tmp, self.eventrequestfile)
 
         while not os.path.isfile(self.eventrangesfile):
             time.sleep(1)
@@ -83,24 +97,24 @@ class HarvesterFileCommunicator(BaseCommunicator):
             pass
 
         self.ranges_requests_count += 1
-        self.eventRangesQueue.put(ranges)
+        self.event_ranges_queue.put(ranges)
 
-    def update_job(self, request):
+    def update_job(self, request: PandaJobUpdate) -> None:
         pass
 
-    def update_events(self, request):
+    def update_events(self, request: EventRangeUpdate) -> None:
 
-        tmp_statusdumpfile = f"{self.eventstatusdumpjsonfile}.tmp"
-        with open(tmp_statusdumpfile, 'w') as f:
+        tmp_status_dump_file = f"{self.eventstatusdumpjsonfile}.tmp"
+        with open(tmp_status_dump_file, 'w') as f:
             json.dump(request.range_update, f)
         while os.path.isfile(self.eventstatusdumpjsonfile):
             time.sleep(0.5)
 
-        shutil.move(tmp_statusdumpfile, self.eventstatusdumpjsonfile)
+        shutil.move(tmp_status_dump_file, self.eventstatusdumpjsonfile)
 
-    def run(self):
+    def run(self) -> None:
         while True:
-            request = self.requestsQueue.get()
+            request = self.requests_queue.get()
             if isinstance(request, PandaJobRequest):
                 self.request_job(request)
             elif isinstance(request, EventRangeRequest):
@@ -112,13 +126,12 @@ class HarvesterFileCommunicator(BaseCommunicator):
             else:  # if any other request is received, stop the thread
                 break
 
-    def start(self):
+    def start(self) -> None:
         if not self.communicator_thread.is_alive():
-            self.ranges_requests_count = 0
             self.communicator_thread.start()
 
-    def stop(self):
+    def stop(self) -> None:
         if self.communicator_thread.is_alive():
-            self.requestsQueue.put(None)
+            self.requests_queue.put(None)
             self.communicator_thread.join()
-            self.communicator_thread = threading.Thread(target=self.run, name="communicator-thread")
+            self.communicator_thread = ExThread(target=self.run, name="communicator-thread")
