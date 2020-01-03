@@ -3,7 +3,7 @@ payload:
   bindir:
   pandaqueue: NERSC_Cori_p2_ES
   logfilename: log.pilotwrapper
-  extrasetup: export LD_LIBRARY_PATH=/global/project/projectdirs/m2616/yampl/lib:$LD_LIBRARY_PATH;export PYTHONPATH=/global/project/projectdirs/m2616/yampl/python-yampl:$PYTHONPATH;
+  extrasetup: source /opt/lcg/gcc/*/x86_64-*/setup.sh; source /opt/lcg/binutils/*/x86_64-*/setup.sh; export LD_LIBRARY_PATH=/global/project/projectdirs/m2616/yampl/lib:$LD_LIBRARY_PATH;export PYTHONPATH=/global/project/projectdirs/m2616/yampl/python-yampl:$PYTHONPATH;
   extrapostpayload:
   hpcresource: cori
   containerengine: shifter
@@ -13,7 +13,7 @@ harvester:
   endpoint: $SCRATCH/raythena/harvester
   communicator: harvesterFileMessenger:HarvesterFileCommunicator
   harvesterconf: /project/projectdirs/m2616/harvester/etc/panda/panda_harvester.cfg
-  min_nevents: 170000
+  min_nevents: 0
 
 ray:
   headip:

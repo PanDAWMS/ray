@@ -92,7 +92,7 @@ class ESDriver(BaseDriver):
         self.nodes = build_nodes_resource_list(self.config)
 
         # As actors request 2 * corepernode, make sure to request enough events to serve all actors
-        self.n_events_per_request = max(self.config.resources['corepernode'] * len(self.nodes) * 2, self.config.harvester['min_nevents'])
+        self.n_events_per_request = self.config.resources['corepernode'] * len(self.nodes) * 2
 
         self.requestsQueue = Queue()
         self.jobQueue = Queue()
@@ -157,7 +157,6 @@ class ESDriver(BaseDriver):
                     job = self.bookKeeper.assign_job_to_actor(actor_id)
                     self.logging_actor.info.remote(self.id, f"Sending {job} to {actor_id}")
                     self[actor_id].receive_job.remote(Messages.REPLY_OK if job else Messages.REPLY_NO_MORE_JOBS, job)
-
                 elif message == Messages.REQUEST_EVENT_RANGES:
 
                     pandaID = self.bookKeeper.actors[actor_id]
@@ -217,7 +216,7 @@ class ESDriver(BaseDriver):
                     self.logging_actor.debug.remote(self.id, f"Job {pandaID} has no more events. Skipping request...")
                     continue
                 n_available_ranges = self.bookKeeper.n_ready(pandaID)
-                if n_available_ranges < self.n_events_per_request:
+                if n_available_ranges < self.config.resources['corepernode'] * 2:
                     job = self.bookKeeper.jobs[pandaID]
                     evnt_request.add_event_request(pandaID, self.n_events_per_request, job['taskID'], job['jobsetID'])
 
