@@ -406,9 +406,9 @@ class ESDriver(BaseDriver):
                     )
                     continue
                 n_available_ranges = self.bookKeeper.n_ready(pandaID)
-                if n_available_ranges < self.config.resources['corepernode'] * 2:
-                    job = self.bookKeeper.jobs[pandaID]
-                    n_events = int(job['corecount']) * len(self.nodes) * 2
+                job = self.bookKeeper.jobs[pandaID]
+                n_events = int(job['coreCount']) * len(self.nodes) * 2
+                if n_available_ranges < n_events:
                     event_request.add_event_request(pandaID,
                                                     n_events,
                                                     job['taskID'],
