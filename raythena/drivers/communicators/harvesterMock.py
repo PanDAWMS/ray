@@ -4,17 +4,26 @@ import random
 import time
 from queue import Queue
 
-from Raythena.drivers.communicators.baseCommunicator import BaseCommunicator
-from Raythena.utils.config import Config
-from Raythena.utils.eventservice import EventRangeRequest, PandaJobRequest, PandaJobUpdate, EventRangeUpdate
-from Raythena.utils.exception import ExThread
+from raythena.drivers.communicators.baseCommunicator import BaseCommunicator
+from raythena.utils.config import Config
+from raythena.utils.eventservice import EventRangeRequest, PandaJobRequest, PandaJobUpdate, EventRangeUpdate
+from raythena.utils.exception import ExThread
 
 
 class HarvesterMock(BaseCommunicator):
+    """
+    This class is mostly used for testing purposes. It provides the driver thread with a
+    sample panda jobspec for Athena/21.0.15 and a predefined number of event ranges.
+    Messages exchanged with this class follows the same format as harvester, it expects the same request format
+    and returns the same response format as harvester would
+    """
 
     def __init__(self, requests_queue: Queue, job_queue: Queue,
                  event_ranges_queue: Queue, config: Config) -> None:
         super().__init__(requests_queue, job_queue, event_ranges_queue, config)
+        """
+        Initialize communicator thread, input files name, job worker_id, number of events to be distributed
+        """
         self.communicator_thread = ExThread(target=self.run,
                                             name="communicator-thread")
         self.event_ranges = None
@@ -39,6 +48,12 @@ class HarvesterMock(BaseCommunicator):
         self.ncores = self.config.resources['corepernode']
 
     def run(self) -> None:
+        """
+        Target of the communicator thread. Wait for new requests from the driver by blocking on the queue.
+
+        Returns:
+            None
+        """
         while True:
             request = self.requests_queue.get()
             if isinstance(request, PandaJobRequest):
@@ -53,14 +68,36 @@ class HarvesterMock(BaseCommunicator):
                 break
 
     def start(self) -> None:
+        """
+        Starts the communicator thread. Can only be used once, a new object will need to bo recreated
+        if the communicator needs to be restarted.
+
+        Returns:
+            None
+        """
         self.communicator_thread.start()
 
     def stop(self) -> None:
+        """
+        Join the communicator thread, blocking until the thread ends.
+
+        Returns:
+            None
+        """
         self.requests_queue.put(None)
         self.communicator_thread.join()
 
     def request_event_ranges(self, request: EventRangeRequest) -> None:
+        """
+        Provides event ranges. Ranges will be provided for each job worker_id in the request. At most self.nevents
+        will be provided in total, also counting previous request and ranges provided to different job ids.
 
+        Args:
+            request:
+
+        Returns:
+            None
+        """
         self.event_ranges = dict()
 
         for pandaID in request:
@@ -78,10 +115,10 @@ class HarvesterMock(BaseCommunicator):
             for i in range(self.served_events + 1,
                            self.served_events + nranges + 1):
                 file_idx = self.served_events // self.nevents_per_file
-                rangeId = f"Range-{i:05}"
+                range_id = f"Range-{i:05}"
                 range_list.append({
                     'lastEvent': i - file_idx * self.nevents_per_file,
-                    'eventRangeID': rangeId,
+                    'eventRangeID': range_id,
                     'startEvent': i - file_idx * self.nevents_per_file,
                     'scope': self.scope,
                     'LFN': self.inFilesAbs[file_idx],
@@ -94,22 +131,54 @@ class HarvesterMock(BaseCommunicator):
         self.event_ranges_queue.put(self.event_ranges)
 
     def update_job(self, job_status: PandaJobUpdate) -> None:
+        """
+        Update job. Not necessary without harvester
+        Args:
+            job_status: the job status update sent by the driver
+
+        Returns:
+            None
+        """
         pass
 
     def update_events(self, evnt_status: EventRangeUpdate) -> None:
+        """
+        Update events. Not necessary without harvester
+        Args:
+            evnt_status: the event status update sent by the driver
+
+        Returns:
+            None
+        """
         pass
 
     def get_panda_queue_name(self) -> str:
+        """
+        Returns pandaqueue name set in the config file.
+
+        Returns:
+            The name of the pandaqueue from which jobs are retrieved.
+        """
         return self.config.payload['pandaqueue']
 
     def request_job(self, job_request: PandaJobRequest) -> None:
-        hash = hashlib.md5()
+        """
+        Default job provided to the driver. The job spec is added to the job_queue so that other threads
+        can retrieve it.
 
-        hash.update(str(time.time()).encode('utf-8'))
-        log_guid = hash.hexdigest()
+        Args:
+            job_request: Ignored. Driver job request which triggered the call to this function
 
-        hash.update(str(time.time()).encode('utf-8'))
-        job_name = hash.hexdigest()
+        Returns:
+            None
+        """
+        md5_hash = hashlib.md5()
+
+        md5_hash.update(str(time.time()).encode('utf-8'))
+        log_guid = md5_hash.hexdigest()
+
+        md5_hash.update(str(time.time()).encode('utf-8'))
+        job_name = md5_hash.hexdigest()
 
         self.job_queue.put({
             str(self.pandaID): {
@@ -184,8 +253,10 @@ class HarvesterMock(BaseCommunicator):
                     'import DetFlags;DetFlags.ID_setOn();DetFlags.Calo_setOff();'
                     'DetFlags.Muon_setOff();DetFlags.Lucid_setOff();DetFlags.Truth_setOff()\' '
                     '--athenaopts=--preloadlib=${ATLASMKLLIBDIR_PRELOAD}/libimf.so '
-                    '--preInclude sim:SimulationJobOptions/preInclude.FrozenShowersFCalOnly.py,SimulationJobOptions/preInclude.BeamPipeKill.py '
-                    '--geometryVersion ATLAS-R2-2016-01-00-00_VALIDATION --physicsList QGSP_BERT --randomSeed 1234 --conditionsTag OFLCOND-MC12-SIM-00 '
+                    '--preInclude sim:SimulationJobOptions/preInclude.FrozenShowersFCalOnly.py,'
+                    'SimulationJobOptions/preInclude.BeamPipeKill.py '
+                    '--geometryVersion ATLAS-R2-2016-01-00-00_VALIDATION --physicsList QGSP_BERT '
+                    '--randomSeed 1234 --conditionsTag OFLCOND-MC12-SIM-00 '
                     '--maxEvents=-1 --inputEvgenFile %s --outputHitsFile HITS_%s.pool.root'
                     % (self.inFiles, job_name)),
                 u'attemptNr':

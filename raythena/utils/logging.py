@@ -2,10 +2,20 @@ import logging
 import os
 import sys
 
-from Raythena.utils.config import Config
+from raythena.utils.config import Config
 
 
 def configure_logger(config: Config, file_logging: bool = True) -> None:
+    """
+    Configure the logging format and handlers.
+
+    Args:
+        config: application config
+        file_logging: if True, write logs to 'config.logging.logfile' in addition to stdout
+
+    Returns:
+        None
+    """
     if config.logging['level'].lower() == 'debug':
         log_level = logging.DEBUG
     else:

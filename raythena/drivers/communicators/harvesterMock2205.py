@@ -4,16 +4,22 @@ import random
 import time
 from queue import Queue
 
-from Raythena.drivers.communicators.harvesterMock import HarvesterMock
-from Raythena.utils.config import Config
-from Raythena.utils.eventservice import PandaJobRequest
-from Raythena.utils.exception import ExThread
+from raythena.drivers.communicators.harvesterMock import HarvesterMock
+from raythena.utils.config import Config
+from raythena.utils.eventservice import PandaJobRequest
+from raythena.utils.exception import ExThread
 
 
 class HarvesterMock2205(HarvesterMock):
+    """
+    Same purposes as HarvesterMock except that a job spec for Athena/22.0.5 is provided
+    """
 
     def __init__(self, requests_queue: Queue, job_queue: Queue,
                  event_ranges_queue: Queue, config: Config) -> None:
+        """
+        Initialize communicator thread, input files name, job worker_id, number of events to be distributed
+        """
         super().__init__(requests_queue, job_queue, event_ranges_queue, config)
         self.communicator_thread = ExThread(target=self.run,
                                             name="communicator-thread")
@@ -39,13 +45,23 @@ class HarvesterMock2205(HarvesterMock):
         self.ncores = self.config.resources['corepernode']
 
     def request_job(self, job_request: PandaJobRequest) -> None:
-        hash = hashlib.md5()
+        """
+        Default job provided to the diver. The job spec is added to the job_queue so that other threads
+        can retrieve it.
 
-        hash.update(str(time.time()).encode('utf-8'))
-        log_guid = hash.hexdigest()
+        Args:
+            job_request: Ignored. Driver job request which triggered the call to this function
 
-        hash.update(str(time.time()).encode('utf-8'))
-        job_name = hash.hexdigest()
+        Returns:
+            None
+        """
+        md5_hash = hashlib.md5()
+
+        md5_hash.update(str(time.time()).encode('utf-8'))
+        log_guid = md5_hash.hexdigest()
+
+        md5_hash.update(str(time.time()).encode('utf-8'))
+        job_name = md5_hash.hexdigest()
 
         self.job_queue.put({
             str(self.pandaID): {
@@ -116,12 +132,15 @@ class HarvesterMock2205(HarvesterMock):
                 u'dispatchDBlockToken':
                     u'NULL',
                 u'jobPars': (
-                    '--multiprocess --eventService=True --skipEvents=0 --firstEvent=1 --preExec \'from AthenaCommon.DetFlags '
+                    '--multiprocess --eventService=True --skipEvents=0 --firstEvent=1 '
+                    '--preExec \'from AthenaCommon.DetFlags '
                     'import DetFlags;DetFlags.ID_setOn();DetFlags.Calo_setOff();'
                     'DetFlags.Muon_setOff();DetFlags.Lucid_setOff();DetFlags.Truth_setOff()\' '
                     '--athenaopts=--preloadlib=${ATLASMKLLIBDIR_PRELOAD}/libimf.so '
-                    '--preInclude sim:SimulationJobOptions/preInclude.FrozenShowersFCalOnly.py,SimulationJobOptions/preInclude.BeamPipeKill.py '
-                    '--geometryVersion default:ATLAS-R2-2016-01-00-01_VALIDATION --physicsList FTFP_BERT_ATL_VALIDATION --randomSeed 1234 '
+                    '--preInclude sim:SimulationJobOptions/preInclude.FrozenShowersFCalOnly.py,'
+                    'SimulationJobOptions/preInclude.BeamPipeKill.py '
+                    '--geometryVersion default:ATLAS-R2-2016-01-00-01_VALIDATION '
+                    '--physicsList FTFP_BERT_ATL_VALIDATION --randomSeed 1234 '
                     '--conditionsTag default:OFLCOND-MC16-SDR-14 '
                     '--maxEvents=-1 --inputEvgenFile %s --outputHitsFile HITS_%s.pool.root'
                     % (self.inFiles, job_name)),

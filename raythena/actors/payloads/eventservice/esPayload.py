@@ -1,25 +1,57 @@
 from abc import abstractmethod
 from typing import Union, Dict
 
-from Raythena.actors.loggingActor import LoggingActor
-from Raythena.actors.payloads.basePayload import BasePayload
-from Raythena.utils.config import Config
-from Raythena.utils.eventservice import EventRange
+from raythena.actors.loggingActor import LoggingActor
+from raythena.actors.payloads.basePayload import BasePayload
+from raythena.utils.config import Config
+from raythena.utils.eventservice import EventRange
 
 
 class ESPayload(BasePayload):
+    """
+    Interface defining additional operations for payload handling event service jobs
+    """
 
-    def __init__(self, id: str, logging_actor: LoggingActor, config: Config):
-        super().__init__(id, logging_actor, config)
+    def __init__(self, worker_id: str, logging_actor: LoggingActor, config: Config):
+        """
+        Setup base payload attributes
+
+        Args:
+            worker_id: payload worker_id
+            logging_actor: remote logger
+            config: application config
+        """
+        super().__init__(worker_id, logging_actor, config)
 
     @abstractmethod
-    def submit_new_ranges(self, ranges: EventRange) -> None:
+    def submit_new_range(self, event_range: EventRange) -> None:
+        """
+        Submit a new event range to the payload. The event range should be saved until is can be processed
+
+        Args:
+            event_range: the event range to process
+
+        Returns:
+            None
+        """
         raise NotImplementedError("Base method not implemented")
 
     @abstractmethod
     def fetch_ranges_update(self) -> Union[None, Dict[str, str]]:
+        """
+        Checks if event ranges update are available
+
+        Returns:
+            Dict holding event range update of processed events, None if no update is available
+        """
         raise NotImplementedError("Base method not implemented")
 
     @abstractmethod
     def should_request_more_ranges(self) -> bool:
+        """
+        Checks if the payload is ready to receive more event ranges
+
+        Returns:
+            True if the worker should send new event ranges to the payload, False otherwise
+        """
         raise NotImplementedError("Base method not implemented")

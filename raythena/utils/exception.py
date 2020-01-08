@@ -3,6 +3,10 @@ from queue import Queue, Empty
 
 
 class ErrorCodes(object):
+    """
+    Defines error codes constants and associated default error message for each error code
+    """
+
     PLUGIN_NOT_FOUND = 10
     ILLEGAL_WORKER_STATE = 20
     STAGEIN_FAILED = 30
@@ -21,31 +25,76 @@ class ErrorCodes(object):
 
     @staticmethod
     def get_error_message(error_code: int) -> str:
+        """
+        Retrieve the error message for a given error code
+
+        Args:
+            error_code: error code to lookup
+
+        Returns:
+            The default error message
+        """
         return ErrorCodes.ERROR_CODES_GENRIC_MESSAGES.get(error_code, "")
 
 
 class ExThread(threading.Thread):
+    """
+    Class wrapping thread execution to allow to catch exception occurring during the thread execution.
+    Note that this class is overriding Thread.run() to catch exception. Thread's target should therefore be specified
+    using the constructor instead of subclassing ExThread as it will override its behaviour
+    """
 
     def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self.__ex_queue = Queue()
+        """
+        Initialize exception queue and pass arguments to the parent constructor
 
-    def run(self):
+        """
+        super().__init__(*args, **kwargs)
+        self._ex_queue = Queue()
+
+    def run(self) -> None:
+        """
+        Wraps the execution of super().run() so that any exception occurring during the execution is caught and added
+        to the exception queue to allow a monitoring thread to handle them.
+
+        Returns:
+            None
+        """
         try:
             super().run()
         except Exception as ex:
-            self.__ex_queue.put(ex)
+            self._ex_queue.put(ex)
 
     def get_ex_queue(self) -> Queue:
-        return self.__ex_queue
+        """
+        Retrieve the queue storing exceptions that occurred in the thread
+
+        Returns:
+           exceptions queue
+        """
+        return self._ex_queue
 
     def exception_occurred(self) -> bool:
-        return not self.__ex_queue.empty()
+        """
+        Checks whether or not an exception occurred during the thread execution
+        Returns:
+            True if an exception occured
+        """
+        return not self._ex_queue.empty()
 
-    def join_with_ex(self):
+    def join_with_ex(self) -> None:
+        """
+        Tries to join the thread and re-raise any exception that occurred during thread execution
+
+        Returns:
+            None
+
+        Raises:
+            Any Exception that occurred during the thread execution
+        """
         try:
             self.join()
-            ex = self.__ex_queue.get_nowait()
+            ex = self._ex_queue.get_nowait()
         except Empty:
             pass
         else:
@@ -54,50 +103,79 @@ class ExThread(threading.Thread):
 
 
 class BaseRaythenaException(Exception):
+    """
+    Base class for raythena exception
+    """
 
-    def __init__(self, id, error_code, message=None):
-        self.id = id
+    def __init__(self, worker_id: str, error_code: int, message: str = None) -> None:
+        """
+        Initialize worker_id, error code and message
+
+        Args:
+            worker_id: worker_id of the node on which the exception occurred
+            error_code: error corresponding to the exception type
+            message: Optional message overriding the default message associated to the error code
+        """
+        self.worker_id = worker_id
         self.error_code = error_code
         self.message = message if message else ErrorCodes.get_error_message(
             error_code)
 
 
 class PluginNotFound(BaseRaythenaException):
+    """
+    Raised when trying to load a plugin that is not found
+    """
 
-    def __init__(self, id, message=None):
-        super().__init__(id, ErrorCodes.PLUGIN_NOT_FOUND, message)
+    def __init__(self, worker_id: str, message: str = None) -> None:
+        super().__init__(worker_id, ErrorCodes.PLUGIN_NOT_FOUND, message)
 
 
 class IllegalWorkerState(BaseRaythenaException):
+    """
+    Raised when the worker state tries to transition to a state he shouldn't be able to from its current state.
+    """
 
-    def __init__(self, id, src_state, dst_state, message=None):
-        super().__init__(id, ErrorCodes.ILLEGAL_WORKER_STATE, message)
+    def __init__(self, worker_id: str, src_state: str, dst_state: str, message: str = None) -> None:
+        super().__init__(worker_id, ErrorCodes.ILLEGAL_WORKER_STATE, message)
         self.src_state = src_state
         self.dst_state = dst_state
 
 
 class StageInFailed(BaseRaythenaException):
+    """
+    Raised when the worker was unable to stage-in data
+    """
 
-    def __init__(self, id, message=None):
-        super().__init__(id, ErrorCodes.STAGEIN_FAILED, message)
+    def __init__(self, worker_id: str, message: str = None) -> None:
+        super().__init__(worker_id, ErrorCodes.STAGEIN_FAILED, message)
 
 
 class StageOutFailed(BaseRaythenaException):
+    """
+    Raised when the worker was unable to stage-out data
+    """
 
-    def __init__(self, id, message=None):
-        super().__init__(id, ErrorCodes.STAGEOUT_FAILED, message)
+    def __init__(self, worker_id: str, message: str = None) -> None:
+        super().__init__(worker_id, ErrorCodes.STAGEOUT_FAILED, message)
 
 
 class FailedPayload(BaseRaythenaException):
+    """
+    Raised when the worker payload failed
+    """
 
-    def __init__(self, id, message=None):
-        super().__init__(id, ErrorCodes.PAYLOAD_FAILED, message)
+    def __init__(self, worker_id: str, message: str = None) -> None:
+        super().__init__(worker_id, ErrorCodes.PAYLOAD_FAILED, message)
 
 
 class UnknownException(BaseRaythenaException):
+    """
+    Raised when no other exception type applies
+    """
 
-    def __init__(self, id, message=None):
-        super().__init__(id, ErrorCodes.UNKNOWN, message)
+    def __init__(self, worker_id: str, message: str = None) -> None:
+        super().__init__(worker_id, ErrorCodes.UNKNOWN, message)
 
 
 if __name__ == "__main__":

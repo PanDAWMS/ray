@@ -6,12 +6,12 @@ from typing import Union, Tuple
 
 import ray
 
-from Raythena.actors.loggingActor import LoggingActor
-from Raythena.utils.config import Config
-from Raythena.utils.eventservice import EventRangeRequest, Messages, EventRangeUpdate, PandaJob
-from Raythena.utils.exception import IllegalWorkerState, StageInFailed
-from Raythena.utils.plugins import PluginsRegistry
-from Raythena.utils.ray import get_node_ip
+from raythena.actors.loggingActor import LoggingActor
+from raythena.utils.config import Config
+from raythena.utils.eventservice import EventRangeRequest, Messages, EventRangeUpdate, PandaJob
+from raythena.utils.exception import IllegalWorkerState, StageInFailed
+from raythena.utils.plugins import PluginsRegistry
+from raythena.utils.ray import get_node_ip
 
 
 @ray.remote(num_cpus=0)
@@ -24,12 +24,12 @@ class ESWorker(object):
     JOB_REQUESTED = 1  # job has been requested to the driver, waiting for result
     READY_FOR_EVENTS = 2  # ready to request new events for the current job
     EVENT_RANGES_REQUESTED = 3  # event ranges have been requested to the driver, waiting for result
-    FINISHING_LOCAL_RANGES = 4  # same as PROCESSING, except that no more event ranges are available, will move to STAGEOUT once local cache is empty
+    FINISHING_LOCAL_RANGES = 4  # do not request additional ranges, will move to STAGE_OUT once local cache is empty
     PROCESSING = 5  # currently processing event ranges
     FINISHING = 6  # Performing cleanup of resources, preparing final server update
     DONE = 7  # Actor has finished processing job
-    STAGEIN = 8  # Staging-in data.
-    STAGEOUT = 9  # Staging-out data
+    STAGE_IN = 8  # Staging-in data.
+    STAGE_OUT = 9  # Staging-out data
 
     STATES_NAME = {
         READY_FOR_JOB: "READY_FOR_JOB",
@@ -40,30 +40,30 @@ class ESWorker(object):
         PROCESSING: "PROCESSING",
         FINISHING: "FINISHING",
         DONE: "DONE",
-        STAGEIN: "STAGEIN",
-        STAGEOUT: "STAGEOUT"
+        STAGE_IN: "STAGE_IN",
+        STAGE_OUT: "STAGE_OUT"
     }
 
     # authorize state transition from x to y if y in TRANSITION[X]
     TRANSITIONS_EVENTSERVICE = {
         READY_FOR_JOB: [JOB_REQUESTED],
-        JOB_REQUESTED: [STAGEIN, DONE],
-        STAGEIN: [READY_FOR_EVENTS],
+        JOB_REQUESTED: [STAGE_IN, DONE],
+        STAGE_IN: [READY_FOR_EVENTS],
         READY_FOR_EVENTS: [EVENT_RANGES_REQUESTED],
         EVENT_RANGES_REQUESTED: [FINISHING_LOCAL_RANGES, PROCESSING],
-        FINISHING_LOCAL_RANGES: [STAGEOUT],
+        FINISHING_LOCAL_RANGES: [STAGE_OUT],
         PROCESSING: [READY_FOR_EVENTS],
-        STAGEOUT: [FINISHING],
+        STAGE_OUT: [FINISHING],
         FINISHING: [DONE],
         DONE: [READY_FOR_JOB]
     }
 
     TRANSITIONS_STANDARD = {
         READY_FOR_JOB: [JOB_REQUESTED],
-        JOB_REQUESTED: [STAGEIN, DONE],
-        STAGEIN: [PROCESSING],
-        PROCESSING: [STAGEOUT],
-        STAGEOUT: [FINISHING],
+        JOB_REQUESTED: [STAGE_IN, DONE],
+        STAGE_IN: [PROCESSING],
+        PROCESSING: [STAGE_OUT],
+        STAGE_OUT: [FINISHING],
         FINISHING: [DONE],
         DONE: [READY_FOR_JOB]
     }
@@ -135,7 +135,7 @@ class ESWorker(object):
                 self.id,
                 f"Illegal transition from {ESWorker.STATES_NAME[self.state]} to {ESWorker.STATES_NAME[dest]}"
             )
-            raise IllegalWorkerState(id=self.id,
+            raise IllegalWorkerState(worker_id=self.id,
                                      src_state=ESWorker.STATES_NAME[self.state],
                                      dst_state=ESWorker.STATES_NAME[dest])
         self.state = dest
@@ -152,7 +152,7 @@ class ESWorker(object):
     def receive_job(self, reply: int, job: PandaJob) -> Tuple[str, int, object]:
         self.job = job
         if reply == Messages.REPLY_OK and self.job:
-            self.transition_state(ESWorker.STAGEIN)
+            self.transition_state(ESWorker.STAGE_IN)
             self.set_transitions()
             self.stagein()
         else:
@@ -174,7 +174,7 @@ class ESWorker(object):
         if reply == Messages.REPLY_NO_MORE_EVENT_RANGES or not eventranges_update:
             # no new ranges... finish processing local cache then terminate actor
             self.transition_state(ESWorker.FINISHING_LOCAL_RANGES)
-            self.payload.submit_new_ranges(None)
+            self.payload.submit_new_range(None)
             return
         self.transition_state(ESWorker.PROCESSING)
         for crange in eventranges_update:
@@ -182,7 +182,7 @@ class ESWorker(object):
                 crange.PFN = os.path.join(
                     os.path.expandvars(self.config.harvester['endpoint']),
                     crange.PFN)
-            self.payload.submit_new_ranges(crange)
+            self.payload.submit_new_range(crange)
         self.logging_actor.debug.remote(
             self.id, f"Received {len(eventranges_update)} eventRanges")
         return self.return_message(Messages.REPLY_OK)
@@ -252,7 +252,7 @@ class ESWorker(object):
                     self.id,
                     f"Payload ended with return code {self.payload.return_code()}"
                 )
-                self.transition_state(ESWorker.STAGEOUT)
+                self.transition_state(ESWorker.STAGE_OUT)
                 self.stageout()
                 return self.return_message(Messages.PROCESS_DONE)
             elif self.is_event_service_job() and (
