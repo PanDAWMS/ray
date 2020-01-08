@@ -3,9 +3,9 @@ import queue
 
 import pytest
 
-from Raythena.drivers.communicators.harvesterFileMessenger import HarvesterFileCommunicator
-from Raythena.drivers.communicators.harvesterMock import HarvesterMock
-from Raythena.drivers.communicators.harvesterMock2205 import HarvesterMock2205
+from raythena.drivers.communicators.harvesterFileMessenger import HarvesterFileCommunicator
+from raythena.drivers.communicators.harvesterMock import HarvesterMock
+from raythena.drivers.communicators.harvesterMock2205 import HarvesterMock2205
 
 
 @pytest.fixture

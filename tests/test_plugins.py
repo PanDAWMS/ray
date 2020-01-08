@@ -1,14 +1,14 @@
 import pytest
 
-from Raythena.utils.exception import PluginNotFound
-from Raythena.utils.plugins import PluginsRegistry
+from raythena.utils.exception import PluginNotFound
+from raythena.utils.plugins import PluginsRegistry
 
 
 class TestPlugins:
 
     def test_package_namespace(self):
-        import Raythena.actors.payloads as payloads
-        import Raythena.actors.payloads.eventservice as payloads_es
+        import raythena.actors.payloads as payloads
+        import raythena.actors.payloads.eventservice as payloads_es
 
         plugins = PluginsRegistry()
 
@@ -19,7 +19,7 @@ class TestPlugins:
         assert payloads_es.__name__ not in plugins.plugins
 
     def test_add_namespace(self):
-        import Raythena.drivers as drivers
+        import raythena.drivers as drivers
         plugins = PluginsRegistry()
         plugins.add_plugin_namespace(drivers)
         assert drivers.__name__ not in plugins.plugins
@@ -35,7 +35,7 @@ class TestPlugins:
         assert drivers.communicators.harvesterFileMessenger.__name__ not in plugins.plugins
 
     def test_get_plugins(self, config):
-        import Raythena.actors.payloads.eventservice as payloads_es
+        import raythena.actors.payloads.eventservice as payloads_es
         plugins = PluginsRegistry()
 
         with pytest.raises(ValueError):

@@ -2,7 +2,7 @@ import socket
 
 import pytest
 
-from Raythena.utils.ray import cluster_size, build_nodes_resource_list, get_node_ip
+from raythena.utils.ray import cluster_size, build_nodes_resource_list, get_node_ip
 
 
 @pytest.mark.usefixtures("requires_ray")

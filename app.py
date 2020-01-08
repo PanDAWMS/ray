@@ -1,13 +1,14 @@
 #!/usr/bin/env python
 import functools
 import signal
+import types
 
 import click
 
-from Raythena.drivers.baseDriver import BaseDriver
-from Raythena.utils.config import Config
-from Raythena.utils.importUtils import import_from_string
-from Raythena.utils.ray import setup_ray, shutdown_ray
+from raythena.drivers.baseDriver import BaseDriver
+from raythena.utils.config import Config
+from raythena.utils.importUtils import import_from_string
+from raythena.utils.ray import setup_ray, shutdown_ray
 
 
 @click.command()
@@ -18,7 +19,7 @@ from Raythena.utils.ray import setup_ray, shutdown_ray
 @click.option(
     '--config',
     required=True,
-    help='Raythena configuration file.'
+    help='raythena configuration file.'
 )
 @click.option(
     '-d', '--debug',
@@ -39,7 +40,7 @@ from Raythena.utils.ray import setup_ray, shutdown_ray
 )
 @click.option(
     '--ray-driver',
-    help='Ray driver to start as <moduleName>:<ClassName>. The module should be placed in Raythena.drivers'
+    help='Ray driver to start as <moduleName>:<ClassName>. The module should be placed in raythena.drivers'
 )
 @click.option(
     '--ray-workdir',
@@ -58,11 +59,18 @@ from Raythena.utils.ray import setup_ray, shutdown_ray
     help='Used to determine how many events should be buffered by ray actors'
 )
 def cli(*args, **kwargs):
+    """
+    Starts the application by initializing the config object, connecting or starting the ray cluster, loading the driver
+    and starting it.
+
+    Returns:
+        None
+    """
     config = Config(kwargs['config'], *args, **kwargs)
 
     setup_ray(config)
     try:
-        driver_class = import_from_string(f"Raythena.drivers.{config.ray['driver']}")
+        driver_class = import_from_string(f"raythena.drivers.{config.ray['driver']}")
         driver = driver_class(config)
 
         signal.signal(signal.SIGINT, functools.partial(cleanup, config, driver))
@@ -79,7 +87,19 @@ def cli(*args, **kwargs):
         shutdown_ray(config)
 
 
-def cleanup(config: Config, driver: BaseDriver, signum: signal.Signals, frame: signal.FrameType) -> None:
+def cleanup(config: Config, driver: BaseDriver, signum: signal.Signals, frame: types.FrameType) -> None:
+    """
+    Signal handler, notify the ray driver to stop
+
+    Args:
+        config: app config
+        driver: driver instance
+        signum: signal received
+        frame: current program frame
+
+    Returns:
+        None
+    """
     driver.stop()
 
 

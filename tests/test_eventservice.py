@@ -1,7 +1,7 @@
 import pytest
 
-from Raythena.utils.eventservice import EventRange, EventRangeQueue, EventRangeRequest, EventRangeUpdate
-from Raythena.utils.eventservice import PandaJob, PandaJobQueue, PandaJobRequest, PandaJobUpdate
+from raythena.utils.eventservice import EventRange, EventRangeQueue, EventRangeRequest, EventRangeUpdate
+from raythena.utils.eventservice import PandaJob, PandaJobQueue, PandaJobRequest, PandaJobUpdate
 
 
 class TestEventRangeRequest:

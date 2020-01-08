@@ -9,6 +9,13 @@ from redis.exceptions import ConnectionError
 
 
 def wait_on_head() -> None:
+    """
+    Repeatedly tries to connect to the ray cluster by using the same environment variables that raythena uses. Exits
+    once it successfully connected to the cluster.
+
+    Returns:
+        None
+    """
     redis_password = os.environ.get("RAYTHENA_RAY_REDIS_PASSWORD", None)
     redis_port = os.environ.get("RAYTHENA_RAY_REDIS_PORT", None)
     ray_ip = os.environ.get("RAYTHENA_RAY_HEAD_IP", None)
@@ -32,6 +39,16 @@ def wait_on_head() -> None:
 
 
 def wait_workers(nwait: int = 1) -> None:
+    """
+    Blocks until the number of nodes in the ray cluster is greater than nwait. ray.init() must be called
+    before calling this function.
+
+    Args:
+        nwait: number of workers (cluster size - 1) in the ray cluster
+
+    Returns:
+        None
+    """
     # wait for all workers to connect
     while len(ray.nodes()) < nwait + 1:
         print(f"{len(ray.nodes()) - 1}/{nwait} workers connected... ")

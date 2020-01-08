@@ -1,4 +1,4 @@
-from Raythena.utils.eventservice import EventRangeRequest, PandaJobRequest
+from raythena.utils.eventservice import EventRangeRequest, PandaJobRequest
 
 
 class TestHarvesterMock:

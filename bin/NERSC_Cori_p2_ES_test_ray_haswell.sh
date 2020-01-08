@@ -73,7 +73,7 @@ for n in $nodes; do
   i=$(($i+1))
 done
 
-python $SOURCEDIR/raythena.py
+python $SOURCEDIR/app.py
 
 ray stop
 

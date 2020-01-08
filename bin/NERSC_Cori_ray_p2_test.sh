@@ -65,7 +65,7 @@ srun -x $SLURMD_NODENAME -N$NWORKERS -n$NWORKERS $BINDIR/ray_start_worker &
 
 $BINDIR/ray_sync --wait-workers --nworkers $NWORKERS
 
-python $SOURCEDIR/raythena.py
+python $SOURCEDIR/app.py
 
 ray stop
 

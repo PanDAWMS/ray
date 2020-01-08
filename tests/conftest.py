@@ -3,8 +3,8 @@ import time
 
 import pytest
 
-from Raythena.utils.config import Config
-from Raythena.utils.ray import setup_ray, shutdown_ray
+from raythena.utils.config import Config
+from raythena.utils.ray import setup_ray, shutdown_ray
 
 
 @pytest.fixture(scope="session")

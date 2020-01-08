@@ -4,10 +4,10 @@ import time
 import pytest
 import requests
 
-from Raythena.actors.loggingActor import LoggingActor
-from Raythena.actors.payloads.eventservice.pilot2http import Pilot2HttpPayload
-from Raythena.utils.eventservice import PandaJob, EventRange
-from Raythena.utils.exception import FailedPayload
+from raythena.actors.loggingActor import LoggingActor
+from raythena.actors.payloads.eventservice.pilot2http import Pilot2HttpPayload
+from raythena.utils.eventservice import PandaJob, EventRange
+from raythena.utils.exception import FailedPayload
 
 
 class MockPopen:
@@ -149,8 +149,8 @@ class TestPilot2Http:
         assert res['StatusCode'] == 500
         assert payload.should_request_more_ranges()
         for r in list(sample_ranges.values())[0]:
-            payload.submit_new_ranges(EventRange.build_from_dict(r))
-        payload.submit_new_ranges(None)
+            payload.submit_new_range(EventRange.build_from_dict(r))
+        payload.submit_new_range(None)
 
         res = requests.post('http://127.0.0.1:8080/server/panda/getEventRanges',
                             data=data).json()

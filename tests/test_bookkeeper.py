@@ -1,7 +1,7 @@
 import pytest
 
-from Raythena.actors.loggingActor import LoggingActor
-from Raythena.drivers.esdriver import BookKeeper
+from raythena.actors.loggingActor import LoggingActor
+from raythena.drivers.esdriver import BookKeeper
 
 
 @pytest.mark.usefixtures("requires_ray")

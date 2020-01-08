@@ -2,7 +2,7 @@ import json
 import os
 import time
 
-from Raythena.utils.eventservice import PandaJobRequest, EventRangeRequest
+from raythena.utils.eventservice import PandaJobRequest, EventRangeRequest
 
 
 class TestHarvesterFileMessenger:
@@ -83,7 +83,7 @@ class TestHarvesterFileMessenger:
                     'startEvent': 0,
                     'scope': "scope_value",
                     'LFN': "/path/to/file",
-                    'GUID': "id"
+                    'GUID': "worker_id"
                 }] * n_events
         with open(harvester_file_communicator.eventrangesfile, 'w') as f:
             json.dump(ranges_res, f)
