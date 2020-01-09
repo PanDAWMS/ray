@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from typing import Union, Dict
+from typing import Union, Dict, List
 
 from raythena.actors.loggingActor import LoggingActor
 from raythena.actors.payloads.basePayload import BasePayload
@@ -24,12 +24,12 @@ class ESPayload(BasePayload):
         super().__init__(worker_id, logging_actor, config)
 
     @abstractmethod
-    def submit_new_range(self, event_range: EventRange) -> None:
+    def submit_new_ranges(self, event_ranges: List[EventRange]) -> None:
         """
-        Submit a new event range to the payload. The event range should be saved until is can be processed
+        Submit a new list of event ranges to the payload. The event ranges should be saved until is can be processed
 
         Args:
-            event_range: the event range to process
+            event_ranges: the event ranges list to process
 
         Returns:
             None

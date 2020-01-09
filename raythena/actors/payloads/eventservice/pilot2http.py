@@ -303,7 +303,7 @@ class Pilot2HttpPayload(ESPayload):
             self.server_thread.join()
             self.logging_actor.info.remote(self.worker_id, f"Communicator stopped")
 
-    def submit_new_range(self, event_range: EventRange) -> None:
+    def submit_new_range(self, event_range: EventRange) -> asyncio.Future:
         """
         Submits new event ranges to the payload thread but adding it to the event ranges queue
 
@@ -313,8 +313,15 @@ class Pilot2HttpPayload(ESPayload):
         Returns:
             None
         """
-        asyncio.run_coroutine_threadsafe(self.ranges_queue.put(event_range),
-                                         self.loop)
+        return asyncio.run_coroutine_threadsafe(self.ranges_queue.put(event_range),
+                                                self.loop)
+
+    def submit_new_ranges(self, event_ranges: List[EventRange]) -> None:
+        futures = list()
+        for r in event_ranges:
+            futures.append(self.submit_new_range(r))
+        for fut in futures:
+            fut.result()
 
     def fetch_job_update(self) -> Union[None, Dict[str, str]]:
         """
@@ -400,7 +407,7 @@ class Pilot2HttpPayload(ESPayload):
         """
         del request
         job = self.current_job if self.current_job else dict()
-        self.logging_actor.debug.remote(self.worker_id, f"Serving job {job}")
+        self.logging_actor.debug.remote(self.worker_id, f"Serving job {job.get_id()}")
         return web.json_response(job, dumps=self.json_encoder)
 
     async def handle_update_job(self, request: web.BaseRequest) -> web.Response:
