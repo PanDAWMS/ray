@@ -1,7 +1,7 @@
 import os
 import time
 from queue import Queue, Empty
-from typing import List, Dict, Union
+from typing import List, Dict, Union, Any
 
 import ray
 
@@ -71,7 +71,7 @@ class BookKeeper(object):
         Retrieve a job from the job queue to be assigned to a worker
 
         Args:
-            actor_id:
+            actor_id: actor to which the job should be assigned to
 
         Returns:
             job worker_id of assigned job, None if no job is available
@@ -302,84 +302,151 @@ class ESDriver(BaseDriver):
             None
         """
         new_messages, self.actors_message_queue = ray.wait(
-            self.actors_message_queue)
+            self.actors_message_queue, num_returns=1)
         total_sent = 0
         while new_messages and self.running:
-            for actor_id, message, data in ray.get(new_messages):
-                if message == Messages.IDLE:
-                    pass
-                if message == Messages.REQUEST_NEW_JOB:
-                    job = self.bookKeeper.assign_job_to_actor(actor_id)
-                    self.logging_actor.info.remote(
-                        self.id, f"Sending {job} to {actor_id}")
-                    self[actor_id].receive_job.remote(
-                        Messages.REPLY_OK
-                        if job else Messages.REPLY_NO_MORE_JOBS, job)
-                elif message == Messages.REQUEST_EVENT_RANGES:
+            for ray_message_id in new_messages:
+                try:
+                    actor_id, message, data = ray.get(ray_message_id)
+                except Exception as e:
+                    self.handle_actor_exception(e)
+                else:
+                    if message == Messages.IDLE:
+                        pass
+                    if message == Messages.REQUEST_NEW_JOB:
+                        self.handle_job_request(actor_id)
+                    elif message == Messages.REQUEST_EVENT_RANGES:
+                        self.handle_request_event_ranges(actor_id, data, total_sent)
+                    elif message == Messages.UPDATE_JOB:
+                        self.handle_update_job(actor_id, data)
+                    elif message == Messages.UPDATE_EVENT_RANGES:
+                        self.handle_update_event_ranges(actor_id, data)
+                    elif message == Messages.PROCESS_DONE:
+                        more_jobs = self.handle_actor_done(actor_id)
 
-                    panda_id = self.bookKeeper.actors[actor_id]
-                    n_ranges = data[panda_id]['nRanges']
-                    evt_range = self.bookKeeper.fetch_event_ranges(
-                        actor_id, n_ranges)
+                        if not more_jobs:
+                            continue
 
-                    # did not fetch enough event and harvester might have more, needs to get more events now
-                    while (len(evt_range) < n_ranges and
-                           not self.bookKeeper.is_flagged_no_more_events(
-                               panda_id)):
-                        self.logging_actor.debug.remote(
-                            self.id,
-                            f"Not enough event ranges. available: {len(evt_range)} requested: {n_ranges}"
-                        )
-                        self.request_event_ranges(block=True)
-                        evt_range += self.bookKeeper.fetch_event_ranges(
-                            actor_id, n_ranges - len(evt_range))
-
-                    if evt_range:
-                        total_sent += len(evt_range)
-                        self.logging_actor.info.remote(
-                            self.id,
-                            f"sending {len(evt_range)} ranges to {actor_id}. Total sent: {total_sent}"
-                        )
-                    else:
-                        self.logging_actor.info.remote(
-                            self.id, f"No more ranges to send to {actor_id}")
-                    self[actor_id].receive_event_ranges.remote(
-                        Messages.REPLY_OK if evt_range else
-                        Messages.REPLY_NO_MORE_EVENT_RANGES, evt_range)
-                elif message == Messages.UPDATE_JOB:
-                    self.logging_actor.info.remote(
-                        self.id, f"{actor_id} sent a job update: {data}")
-                elif message == Messages.UPDATE_EVENT_RANGES:
-                    self.logging_actor.info.remote(
-                        self.id, f"{actor_id} sent a eventranges update")
-                    eventranges_update = self.bookKeeper.process_event_ranges_update(
-                        actor_id, data)
-                    self.requests_queue.put(eventranges_update)
-                elif message == Messages.PROCESS_DONE:
-                    # TODO actor should drain job update, range update queue and send a final update.
-                    # try to assign a new job to the actor
-                    self.logging_actor.info.remote(
-                        self.id,
-                        f"{actor_id} finished processing current job, checking for a new job..."
-                    )
-                    has_jobs = self.bookKeeper.has_jobs_ready()
-                    if has_jobs:
-                        self.logging_actor.info.remote(
-                            self.id, f"More jobs to be processed by {actor_id}")
-                        self[actor_id].mark_new_job.remote()
-                    else:
-                        self.logging_actor.info.remote(
-                            self.id, f" no more job for {actor_id}")
-                        self.terminated.append(actor_id)
-                        self.bookKeeper.process_actor_end(actor_id)
-                        # do not get new messages from this actor
-                        continue
-
-                self.actors_message_queue.append(
-                    self[actor_id].get_message.remote())
+                    self.actors_message_queue.append(
+                        self[actor_id].get_message.remote())
             self.on_tick()
             new_messages, self.actors_message_queue = ray.wait(
                 self.actors_message_queue)
+
+    def handle_actor_done(self, actor_id: str) -> bool:
+        """
+        Handle worker that finished processing a job
+
+        Args:
+            actor_id: actor which finished processing a job
+
+        Returns:
+            True if more jobs should be sent to the actor
+        """
+        # TODO actor should drain job update, range update queue and send a final update.
+        # try to assign a new job to the actor
+        self.logging_actor.info.remote(
+            self.id,
+            f"{actor_id} finished processing current job, checking for a new job..."
+        )
+        has_jobs = self.bookKeeper.has_jobs_ready()
+        if has_jobs:
+            self.logging_actor.info.remote(
+                self.id, f"More jobs to be processed by {actor_id}")
+            self[actor_id].mark_new_job.remote()
+        else:
+            self.logging_actor.info.remote(
+                self.id, f" no more job for {actor_id}")
+            self.terminated.append(actor_id)
+            self.bookKeeper.process_actor_end(actor_id)
+            # do not get new messages from this actor
+        return has_jobs
+
+    def handle_update_event_ranges(self, actor_id: str, data: Any) -> None:
+        """
+        Handle worker update event ranges
+
+        Args:
+            actor_id: worker sending an event update
+            data: event update
+
+        Returns:
+            None
+        """
+        self.logging_actor.info.remote(
+            self.id, f"{actor_id} sent a eventranges update")
+        eventranges_update = self.bookKeeper.process_event_ranges_update(
+            actor_id, data)
+        self.requests_queue.put(eventranges_update)
+
+    def handle_update_job(self, actor_id: str, data: Any) -> None:
+        """
+        Handle worker job update
+
+        Args:
+            actor_id: worker sending the job update
+            data: job update
+
+        Returns:
+            None
+        """
+        self.logging_actor.info.remote(
+            self.id, f"{actor_id} sent a job update: {data}")
+
+    def handle_request_event_ranges(self, actor_id: str, data: Any, total_sent: int) -> None:
+        """
+        Handle event ranges request
+        Args:
+            actor_id: worker sending the event ranges update
+            data: event range update
+            total_sent: number of ranges already sent by driver to all actors
+
+        Returns:
+            None
+        """
+        panda_id = self.bookKeeper.actors[actor_id]
+        n_ranges = data[panda_id]['nRanges']
+        evt_range = self.bookKeeper.fetch_event_ranges(
+            actor_id, n_ranges)
+        # did not fetch enough event and harvester might have more, needs to get more events now
+        while (len(evt_range) < n_ranges and
+               not self.bookKeeper.is_flagged_no_more_events(
+                   panda_id)):
+            self.logging_actor.debug.remote(
+                self.id,
+                f"Not enough event ranges. available: {len(evt_range)} requested: {n_ranges}"
+            )
+            self.request_event_ranges(block=True)
+            evt_range += self.bookKeeper.fetch_event_ranges(
+                actor_id, n_ranges - len(evt_range))
+        if evt_range:
+            total_sent += len(evt_range)
+            self.logging_actor.info.remote(
+                self.id,
+                f"sending {len(evt_range)} ranges to {actor_id}. Total sent: {total_sent}"
+            )
+        else:
+            self.logging_actor.info.remote(
+                self.id, f"No more ranges to send to {actor_id}")
+        self[actor_id].receive_event_ranges.remote(
+            Messages.REPLY_OK if evt_range else
+            Messages.REPLY_NO_MORE_EVENT_RANGES, evt_range)
+
+    def handle_job_request(self, actor_id: str) -> None:
+        """
+        Handle worker job request
+        Args:
+            actor_id: worker requesting a job
+
+        Returns:
+            None
+        """
+        job = self.bookKeeper.assign_job_to_actor(actor_id)
+        self.logging_actor.info.remote(
+            self.id, f"Sending {job} to {actor_id}")
+        self[actor_id].receive_job.remote(
+            Messages.REPLY_OK
+            if job else Messages.REPLY_NO_MORE_JOBS, job)
 
     def request_event_ranges(self, block: bool = False) -> None:
         """
@@ -511,3 +578,15 @@ class ESDriver(BaseDriver):
         self.logging_actor.info.remote(self.id, "Graceful shutdown...")
         self.running = False
         self.cleanup()
+
+    def handle_actor_exception(self, ex: Exception) -> None:
+        """
+        Handle exception that occurred in an actor process
+
+        Args:
+            ex: exception raised in actor process
+
+        Returns:
+            None
+        """
+        pass
