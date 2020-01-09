@@ -186,8 +186,25 @@ class HarvesterFileCommunicator(BaseCommunicator):
             None
         """
         tmp_status_dump_file = f"{self.eventstatusdumpjsonfile}.tmp"
+        if os.path.isfile(self.eventstatusdumpjsonfile):
+            try:
+                shutil.move(self.eventstatusdumpjsonfile, tmp_status_dump_file)
+                with open(tmp_status_dump_file) as f:
+                    current_update = json.load(f)
+            except Exception:
+                pass
+            else:
+                current_update = EventRangeUpdate(current_update)
+                for panda_id in current_update:
+                    if panda_id in request:
+                        request[panda_id] += current_update[panda_id]
+                    else:
+                        request[panda_id] = current_update[panda_id]
+
         with open(tmp_status_dump_file, 'w') as f:
             json.dump(request.range_update, f)
+
+        # eventstatusdumpjsonfile should not exist as it just got removed before
         while os.path.isfile(self.eventstatusdumpjsonfile):
             time.sleep(0.5)
 
