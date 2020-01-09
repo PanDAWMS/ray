@@ -81,7 +81,3 @@ class PluginsRegistry(object):
 
         raise PluginNotFound(worker_id="tests",
                              message=f"Module {plugin_module} not found")
-
-if __name__ == "__main__":
-    p = PluginsRegistry()
-    print(p.plugins)
