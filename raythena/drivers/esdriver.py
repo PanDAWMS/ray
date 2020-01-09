@@ -12,7 +12,7 @@ from raythena.utils.config import Config
 from raythena.utils.eventservice import (EventRangeRequest, PandaJobRequest,
                                          EventRangeUpdate, Messages,
                                          PandaJobQueue, EventRange)
-from raythena.utils.importUtils import import_from_string
+from raythena.utils.plugins import PluginsRegistry
 from raythena.utils.ray import (build_nodes_resource_list, get_node_ip)
 
 EventRangeTypeHint = Dict[str, str]
@@ -225,10 +225,9 @@ class ESDriver(BaseDriver):
             )
             workdir = os.getcwd()
         self.config.ray['workdir'] = workdir
+        registry = PluginsRegistry()
+        self.communicator_class = registry.get_plugin(self.config.harvester['communicator'])
 
-        self.communicator_class = import_from_string(
-            f"raythena.drivers.communicators.{self.config.harvester['communicator']}"
-        )
         self.communicator = self.communicator_class(self.requests_queue,
                                                     self.jobs_queue,
                                                     self.event_ranges_queue,

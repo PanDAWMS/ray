@@ -7,7 +7,7 @@ import click
 
 from raythena.drivers.baseDriver import BaseDriver
 from raythena.utils.config import Config
-from raythena.utils.importUtils import import_from_string
+from raythena.utils.plugins import PluginsRegistry
 from raythena.utils.ray import setup_ray, shutdown_ray
 
 
@@ -70,7 +70,8 @@ def cli(*args, **kwargs):
 
     setup_ray(config)
     try:
-        driver_class = import_from_string(f"raythena.drivers.{config.ray['driver']}")
+        registry = PluginsRegistry()
+        driver_class = registry.get_plugin(config.ray['driver'])
         driver = driver_class(config)
 
         signal.signal(signal.SIGINT, functools.partial(cleanup, config, driver))

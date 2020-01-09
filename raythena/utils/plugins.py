@@ -2,7 +2,9 @@ import importlib
 import pkgutil
 from typing import Callable
 
+import raythena.drivers
 import raythena.actors.payloads
+import raythena.drivers.communicators
 from raythena.utils.exception import PluginNotFound
 
 
@@ -19,7 +21,9 @@ class PluginsRegistry(object):
         """
         self.plugins = dict()
         # adds preconfigured plugins packages
+        self.add_plugin_namespace(raythena.drivers)
         self.add_plugin_namespace(raythena.actors.payloads)
+        self.add_plugin_namespace(raythena.drivers.communicators)
 
     def add_plugin_namespace(self,
                              plugin_package: object,
@@ -77,3 +81,7 @@ class PluginsRegistry(object):
 
         raise PluginNotFound(worker_id="tests",
                              message=f"Module {plugin_module} not found")
+
+if __name__ == "__main__":
+    p = PluginsRegistry()
+    print(p.plugins)
