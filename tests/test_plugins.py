@@ -32,7 +32,6 @@ class TestPlugins:
         assert drivers.__name__ not in plugins.plugins
         assert drivers.esdriver.__name__ in plugins.plugins
         assert drivers.communicators.__name__ not in plugins.plugins
-        assert drivers.communicators.harvesterFileMessenger.__name__ not in plugins.plugins
 
     def test_get_plugins(self, config):
         import raythena.actors.payloads.eventservice as payloads_es
