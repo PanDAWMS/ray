@@ -11,7 +11,7 @@ from raythena.drivers.baseDriver import BaseDriver
 from raythena.utils.config import Config
 from raythena.utils.eventservice import (EventRangeRequest, PandaJobRequest,
                                          EventRangeUpdate, Messages,
-                                         PandaJobQueue, EventRange)
+                                         PandaJobQueue, EventRange, PandaJob)
 from raythena.utils.plugins import PluginsRegistry
 from raythena.utils.ray import (build_nodes_resource_list, get_node_ip)
 
@@ -66,7 +66,7 @@ class BookKeeper(object):
         job_id, _ = self.jobs.next_job_id_to_process()
         return job_id is not None
 
-    def assign_job_to_actor(self, actor_id: str) -> Union[str, None]:
+    def assign_job_to_actor(self, actor_id: str) -> Union[PandaJob, None]:
         """
         Retrieve a job from the job queue to be assigned to a worker
 
@@ -310,9 +310,10 @@ class ESDriver(BaseDriver):
                 except Exception as e:
                     self.handle_actor_exception(e)
                 else:
-                    if message == Messages.IDLE:
-                        pass
-                    if message == Messages.REQUEST_NEW_JOB:
+                    if message == Messages.IDLE or message == Messages.REPLY_OK:
+                        self.actors_message_queue.append(
+                            self[actor_id].get_message.remote())
+                    elif message == Messages.REQUEST_NEW_JOB:
                         self.handle_job_request(actor_id)
                     elif message == Messages.REQUEST_EVENT_RANGES:
                         self.handle_request_event_ranges(actor_id, data, total_sent)
@@ -321,13 +322,7 @@ class ESDriver(BaseDriver):
                     elif message == Messages.UPDATE_EVENT_RANGES:
                         self.handle_update_event_ranges(actor_id, data)
                     elif message == Messages.PROCESS_DONE:
-                        more_jobs = self.handle_actor_done(actor_id)
-
-                        if not more_jobs:
-                            continue
-
-                    self.actors_message_queue.append(
-                        self[actor_id].get_message.remote())
+                        self.handle_actor_done(actor_id)
             self.on_tick()
             new_messages, self.actors_message_queue = ray.wait(
                 self.actors_message_queue)
@@ -352,7 +347,7 @@ class ESDriver(BaseDriver):
         if has_jobs:
             self.logging_actor.info.remote(
                 self.id, f"More jobs to be processed by {actor_id}")
-            self[actor_id].mark_new_job.remote()
+            self.actors_message_queue.append(self[actor_id].mark_new_job.remote())
         else:
             self.logging_actor.info.remote(
                 self.id, f" no more job for {actor_id}")
@@ -377,6 +372,8 @@ class ESDriver(BaseDriver):
         eventranges_update = self.bookKeeper.process_event_ranges_update(
             actor_id, data)
         self.requests_queue.put(eventranges_update)
+        self.actors_message_queue.append(
+            self[actor_id].get_message.remote())
 
     def handle_update_job(self, actor_id: str, data: Any) -> None:
         """
@@ -390,7 +387,9 @@ class ESDriver(BaseDriver):
             None
         """
         self.logging_actor.info.remote(
-            self.id, f"{actor_id} sent a job update: {data}")
+            self.id, f"{actor_id} sent a job update")
+        self.actors_message_queue.append(
+            self[actor_id].get_message.remote())
 
     def handle_request_event_ranges(self, actor_id: str, data: Any, total_sent: int) -> None:
         """
@@ -427,9 +426,9 @@ class ESDriver(BaseDriver):
         else:
             self.logging_actor.info.remote(
                 self.id, f"No more ranges to send to {actor_id}")
-        self[actor_id].receive_event_ranges.remote(
+        self.actors_message_queue.append(self[actor_id].receive_event_ranges.remote(
             Messages.REPLY_OK if evt_range else
-            Messages.REPLY_NO_MORE_EVENT_RANGES, evt_range)
+            Messages.REPLY_NO_MORE_EVENT_RANGES, evt_range))
 
     def handle_job_request(self, actor_id: str) -> None:
         """
@@ -441,11 +440,14 @@ class ESDriver(BaseDriver):
             None
         """
         job = self.bookKeeper.assign_job_to_actor(actor_id)
-        self.logging_actor.info.remote(
-            self.id, f"Sending {job} to {actor_id}")
-        self[actor_id].receive_job.remote(
+        if job:
+            self.logging_actor.info.remote(
+                self.id, f"Sending job {job.get_id()} to {actor_id}")
+        else:
+            self.logging_actor.info.remote(self.id, f"No jobs available for {actor_id}")
+        self.actors_message_queue.append(self[actor_id].receive_job.remote(
             Messages.REPLY_OK
-            if job else Messages.REPLY_NO_MORE_JOBS, job)
+            if job else Messages.REPLY_NO_MORE_JOBS, job))
 
     def request_event_ranges(self, block: bool = False) -> None:
         """

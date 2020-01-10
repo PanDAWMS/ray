@@ -226,19 +226,20 @@ class ESWorker(object):
 
         return self.return_message(Messages.REPLY_OK)
 
-    def mark_new_job(self) -> None:
+    def mark_new_job(self) -> Tuple[str, int, object]:
         """
         Indicate that the worker should prepare to receive new jobs from the driver, should be called after the worker
         notifies that it reached the state 'DONE' if the actor should be re-used fo processing another job
 
         Returns:
-            None
+            Job request message
         """
         self.transition_state(ESWorker.READY_FOR_JOB)
+        return self.return_message(Messages.REQUEST_NEW_JOB)
 
     def receive_event_ranges(
             self, reply: int,
-            event_ranges: List[EventRange]) -> Union[None, Tuple[str, int, object]]:
+            event_ranges: List[EventRange]) -> Tuple[str, int, object]:
         """
         Sends event ranges to the worker. Update the PFN of event ranges to an absolute path if
         it is an relative path
@@ -254,16 +255,17 @@ class ESWorker(object):
             # no new ranges... finish processing local cache then terminate actor
             self.transition_state(ESWorker.FINISHING_LOCAL_RANGES)
             self.payload.submit_new_range(None)
-            return
-        self.transition_state(ESWorker.PROCESSING)
+            return self.return_message(Messages.REPLY_OK)
         for crange in event_ranges:
             if not os.path.isabs(crange.PFN):
                 crange.PFN = os.path.join(
                     os.path.expandvars(self.config.harvester['endpoint']),
                     crange.PFN)
-            self.payload.submit_new_range(crange)
+        self.payload.submit_new_ranges(event_ranges)
         self.logging_actor.debug.remote(
             self.id, f"Received {len(event_ranges)} eventRanges")
+
+        self.transition_state(ESWorker.PROCESSING)
         return self.return_message(Messages.REPLY_OK)
 
     def return_message(self,
@@ -406,4 +408,4 @@ class ESWorker(object):
 
                 time.sleep(1)  # Nothing to do, sleeping...
 
-        return self.return_message(Messages.IDLE)
+        return self.return_message(Messages.PROCESS_DONE)
