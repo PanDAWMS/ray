@@ -2,6 +2,7 @@
 
 REDIS_PASSWORD=${1:-$RAYTHENA_RAY_REDIS_PASSWORD}
 REDIS_PORT=${2:-$RAYTHENA_RAY_REDIS_PORT}
+TMP_DIR=${3:-$RAY_TMP_DIR}
 
 function usage() {
     echo "Usage: $0 REDIS_PASSWORD REDIS_PORT [args]..."
@@ -10,8 +11,8 @@ function usage() {
     echo '  [args] contains extra arguments provided to ray start'
 }
 
-if [[ $# -ge 2 ]]; then
-    shift 2
+if [[ $# -ge 3 ]]; then
+    shift 3
 else
     shift $#
 fi
@@ -22,4 +23,8 @@ if [[ -z "$REDIS_PORT" ]] || [[ -z "$REDIS_PASSWORD" ]]; then
     exit 1
 fi
 
-ray start --block --head --redis-port=$REDIS_PORT --redis-password=$REDIS_PASSWORD --num-cpus 1 "$@"
+TMP_DIR="$TMP_DIR"/"$SLURMD_NODENAME"
+echo ray tmp dir: "$TMP_DIR"
+mkdir -p "$TMP_DIR"
+
+ray start --block --head --temp-dir "$TMP_DIR" --redis-port="$REDIS_PORT" --redis-password="$REDIS_PASSWORD" --num-cpus 1 "$@"

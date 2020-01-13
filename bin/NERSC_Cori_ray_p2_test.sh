@@ -22,10 +22,10 @@ export HARVESTER_WORKER_ID={workerID}
 export HARVESTER_ACCESS_POINT={accessPoint}
 export HARVESTER_NNODE={nNode}
 
-#for testing without harvester, needs evnt files present in the workdir
-#export HARVESTER_ACCESS_POINT=/global/cscratch1/sd/esseivaj/raythena/workdir
-#export HARVESTER_WORKDIR=$HARVESTER_ACCESS_POINT
-#export HARVESTER_NNODE=$SLURM_NNODES
+# for testing without harvester, needs evnt files present in the workdir
+# export HARVESTER_ACCESS_POINT=/global/cscratch1/sd/esseivaj/raythena/workdir
+# export HARVESTER_WORKDIR=$HARVESTER_ACCESS_POINT
+# export HARVESTER_NNODE=$SLURM_NNODES
 
 export HARVESTER_VENV=/global/project/projectdirs/m2616/harvester/bin
 
@@ -42,31 +42,42 @@ export CONFDIR=$SOURCEDIR/conf
 export RAYTHENA_HARVESTER_ENDPOINT=$HARVESTER_ACCESS_POINT
 export RAYTHENA_RAY_WORKDIR=$HARVESTER_ACCESS_POINT
 export RAYTHENA_PAYLOAD_BINDIR=$HARVESTER_ACCESS_POINT
-export RAYTHENA_RAY_REDIS_PASSWORD=$(uuidgen -r)
+RAYTHENA_RAY_REDIS_PASSWORD=$(uuidgen -r)
+export RAYTHENA_RAY_REDIS_PASSWORD
 export RAYTHENA_RAY_REDIS_PORT=6379
 export RAYTHENA_CONFIG=$CONFDIR/cori.yaml
 export RAYTHENA_DEBUG=1
-export RAYTHENA_RAY_HEAD_IP=$(hostname -i)
+RAYTHENA_RAY_HEAD_IP=$(hostname -i)
+export RAYTHENA_RAY_HEAD_IP
 export RAYTHENA_PANDA_QUEUE=$PANDA_QUEUE
-export NWORKERS=$(($HARVESTER_NNODE - 1))
+export NWORKERS=$((HARVESTER_NNODE - 1))
 export RAYTHENA_CORE_PER_NODE=$SLURM_CPUS_PER_TASK
 
 cp $pilot_wrapper_bin $RAYTHENA_RAY_WORKDIR
 tar xzf $pilot_tar_file -C$RAYTHENA_RAY_WORKDIR
 
+export RAY_TMP_DIR=/tmp/raytmp/$SLURM_JOB_ID
+
+if [[ ! -d $RAY_TMP_DIR ]]; then
+  mkdir -p "$RAY_TMP_DIR"
+fi
 
 # setup ray
 source $HARVESTER_VENV/activate
-srun -N1 -n1 -w $SLURMD_NODENAME $BINDIR/ray_start_head &
+srun -N1 -n1 -w "$SLURMD_NODENAME" $BINDIR/ray_start_head &
 
 $BINDIR/ray_sync
 
-srun -x $SLURMD_NODENAME -N$NWORKERS -n$NWORKERS $BINDIR/ray_start_worker &
+srun -x "$SLURMD_NODENAME" -N$NWORKERS -n$NWORKERS $BINDIR/ray_start_worker &
 
 $BINDIR/ray_sync --wait-workers --nworkers $NWORKERS
 
 python $SOURCEDIR/app.py
 
 ray stop
+
+if [[ -f core ]]; then
+  rm core
+fi
 
 wait
