@@ -35,7 +35,6 @@ def wait_on_head() -> None:
                      redis_password=redis_password)
         except (ConnectionError, ValueError):
             time.sleep(1)
-            print("ray not yet initialized...")
 
 
 def wait_workers(nwait: int = 1) -> None:
@@ -53,6 +52,7 @@ def wait_workers(nwait: int = 1) -> None:
     while len(ray.nodes()) < nwait + 1:
         print(f"{len(ray.nodes()) - 1}/{nwait} workers connected... ")
         time.sleep(1)
+    print(f"{len(ray.nodes()) - 1}/{nwait} workers connected... ")
 
 
 if __name__ == "__main__":
