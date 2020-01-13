@@ -125,7 +125,7 @@ class BookKeeper(object):
         if not isinstance(event_ranges_update, EventRangeUpdate):
             event_ranges_update = EventRangeUpdate.build_from_dict(
                 panda_id, event_ranges_update)
-        self.logging_actor.info.remote(
+        self.logging_actor.debug.remote(
             "BookKeeper", f"Built rangeUpdate: {event_ranges_update}")
         self.jobs.process_event_ranges_update(event_ranges_update)
         job_ranges = self.jobs.get_event_ranges(panda_id)
