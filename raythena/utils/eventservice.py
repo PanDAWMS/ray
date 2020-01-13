@@ -1,5 +1,5 @@
 import json
-from typing import Union, Tuple, Dict, List
+from typing import Union, Tuple, Dict, List, Iterator
 
 
 # Messages sent by ray actor to the driver
@@ -75,7 +75,7 @@ class PandaJobQueue(object):
         if jobs:
             self.add_jobs(jobs)
 
-    def __getitem__(self, k):
+    def __getitem__(self, k: str) -> 'PandaJob':
         return self.jobs[k]
 
     def __setitem__(self, k: str, v: 'PandaJob') -> None:
@@ -84,7 +84,7 @@ class PandaJobQueue(object):
         else:
             raise Exception(f"{v} is not of type {PandaJob}")
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[str]:
         return iter(self.jobs)
 
     def __len__(self) -> int:
@@ -265,7 +265,7 @@ class EventRangeQueue(object):
     def no_more_ranges(self, v: bool) -> None:
         self._no_more_ranges = v
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[str]:
         return iter(self.event_ranges_by_id)
 
     def __len__(self) -> int:
@@ -561,13 +561,13 @@ class EventRangeUpdate(object):
     def __len__(self) -> int:
         return len(self.range_update)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[str]:
         return iter(self.range_update)
 
     def __str__(self) -> str:
         return json.dumps(self.range_update)
 
-    def __getitem__(self, k: str) -> list:
+    def __getitem__(self, k: str) -> List[Dict]:
         return self.range_update[k]
 
     def __setitem__(self, k: str, v: list) -> None:
@@ -699,7 +699,7 @@ class EventRangeRequest(object):
     def __len__(self) -> int:
         return len(self.request)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[str]:
         return iter(self.request)
 
     def __getitem__(self, k: str) -> dict:
@@ -821,7 +821,7 @@ class PandaJob(object):
         """
         return self.event_ranges_queue.nranges_available()
 
-    def get_next_ranges(self, nranges) -> List['EventRange']:
+    def get_next_ranges(self, nranges: int) -> List['EventRange']:
         """
         See Also:
             EventRangeQueue.get_next_ranges()
@@ -852,13 +852,13 @@ class PandaJob(object):
     def __getitem__(self, k: str) -> str:
         return self.job[k]
 
-    def __setitem__(self, k: str, v: str) -> str:
+    def __setitem__(self, k: str, v: str) -> None:
         self.job[k] = v
 
     def __len__(self) -> int:
         return len(self.job)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[str]:
         return iter(self.job)
 
     def __contains__(self, k: str) -> bool:
@@ -885,10 +885,10 @@ class EventRange(object):
     FAILED: the event range failed during processing
     """
 
-    READY = 0
-    ASSIGNED = 1
-    DONE = 2
-    FAILED = 3
+    READY = "available"
+    ASSIGNED = "running"
+    DONE = "finished"
+    FAILED = "failed"
     STATES = [READY, ASSIGNED, DONE, FAILED]
 
     def __init__(self, event_range_id: str, start_event: int, last_event: int,
