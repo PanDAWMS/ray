@@ -28,8 +28,9 @@ class BookKeeper(object):
         self.jobs = PandaJobQueue()
         self.logging_actor = logging_actor
         self.config = config
-        self.actors = dict()
-        self.rangesID_by_actor = dict()
+        self.actors: Dict[str, Union[str, None]] = dict()
+        self.rangesID_by_actor: Dict[str, List[str]] = dict()
+        self.finished_range_by_input_file: Dict[str, List[Dict]] = dict()
 
     def add_jobs(self, jobs: Dict[str, PandaJobTypeHint]) -> None:
         """
@@ -127,10 +128,32 @@ class BookKeeper(object):
         self.logging_actor.info.remote(
             "BookKeeper", f"Built rangeUpdate: {event_ranges_update}")
         self.jobs.process_event_ranges_update(event_ranges_update)
+        job_ranges = self.jobs.get_event_ranges(panda_id)
+
         for r in event_ranges_update[panda_id]:
-            if 'eventRangeID' in r and r['eventRangeID'] in self.rangesID_by_actor[
-                    actor_id] and r['eventStatus'] != "running":
-                self.rangesID_by_actor[actor_id].remove(r['eventRangeID'])
+            if 'eventRangeID' in r and r['eventRangeID'] in self.rangesID_by_actor[actor_id]:
+                range_id = r['eventRangeID']
+                if r['eventStatus'] != EventRange.ASSIGNED:
+                    self.rangesID_by_actor[actor_id].remove(range_id)
+                if r['eventStatus'] == EventRange.DONE:
+                    event_range = job_ranges[range_id]
+                    file_basename = os.path.basename(event_range.PFN)
+                    if file_basename not in self.finished_range_by_input_file:
+                        self.finished_range_by_input_file[file_basename] = list()
+                    self.finished_range_by_input_file[file_basename].append(r)
+
+        log_message = str()
+        for input_file, ranges in self.finished_range_by_input_file.items():
+            log_message = f"\n{input_file}: {len(ranges)} event ranges processed{log_message}"
+        self.logging_actor.debug.remote("BookKeeper", log_message)
+        self.logging_actor.info.remote("BookKeeper",
+                                       (
+                                           f"Event ranges status for job { panda_id}:\n"
+                                           f"  Ready: {job_ranges.nranges_available()}\n"
+                                           f"  Assigned: {job_ranges.nranges_assigned()}\n"
+                                           f"  Failed: {job_ranges.nranges_failed()}\n"
+                                           f"  Finished: {job_ranges.nranges_done()}\n"
+                                       ))
         return event_ranges_update
 
     def process_actor_end(self, actor_id: str) -> None:
@@ -241,7 +264,7 @@ class ESDriver(BaseDriver):
         self.running = True
         self.n_eventsrequest = 0
 
-    def __str__(self):
+    def __str__(self) -> str:
         """
         String representation of driver attributes
 
@@ -250,7 +273,7 @@ class ESDriver(BaseDriver):
         """
         return self.__dict__.__str__()
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: str) -> ESWorker:
         """
         Retrieve actor by worker_id
 
@@ -316,7 +339,7 @@ class ESDriver(BaseDriver):
                     elif message == Messages.REQUEST_NEW_JOB:
                         self.handle_job_request(actor_id)
                     elif message == Messages.REQUEST_EVENT_RANGES:
-                        self.handle_request_event_ranges(actor_id, data, total_sent)
+                        total_sent = self.handle_request_event_ranges(actor_id, data, total_sent)
                     elif message == Messages.UPDATE_JOB:
                         self.handle_update_job(actor_id, data)
                     elif message == Messages.UPDATE_EVENT_RANGES:
@@ -391,16 +414,16 @@ class ESDriver(BaseDriver):
         self.actors_message_queue.append(
             self[actor_id].get_message.remote())
 
-    def handle_request_event_ranges(self, actor_id: str, data: Any, total_sent: int) -> None:
+    def handle_request_event_ranges(self, actor_id: str, data: Any, total_sent: int) -> int:
         """
         Handle event ranges request
         Args:
             actor_id: worker sending the event ranges update
             data: event range update
-            total_sent: number of ranges already sent by driver to all actors
+            total_sent: number of ranges already sent by the driver to all actors
 
         Returns:
-            None
+            Update number of ranges sent to actors
         """
         panda_id = self.bookKeeper.actors[actor_id]
         n_ranges = data[panda_id]['nRanges']
@@ -429,6 +452,7 @@ class ESDriver(BaseDriver):
         self.actors_message_queue.append(self[actor_id].receive_event_ranges.remote(
             Messages.REPLY_OK if evt_range else
             Messages.REPLY_NO_MORE_EVENT_RANGES, evt_range))
+        return total_sent
 
     def handle_job_request(self, actor_id: str) -> None:
         """
