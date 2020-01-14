@@ -242,6 +242,34 @@ class Pilot2HttpPayload(ESPayload):
             container_args = ''
         return f"{container} {container_args} /bin/bash {cmd_script} > {payload_log} 2> {payload_log}.stderr"
 
+    def stagein(self) -> None:
+        """
+        Stage-in agis schedconfig, queuedata and ddmendpoints info from harvester cacher
+
+        Returns:
+            None
+        """
+        cwd = os.getcwd()
+        harvester_home = self.config.harvester.get("home", '')
+
+        ddm_endpoints_file = os.path.join(harvester_home, "agis_ddmendpoints.json")
+        if os.path.isfile(ddm_endpoints_file):
+            os.symlink(ddm_endpoints_file, os.path.join(cwd, "agis_ddmendpoints.json"))
+
+        schedconf_file = os.path.join(harvester_home, "agis_schedconf.json")
+        if os.path.isfile(schedconf_file):
+            os.symlink(schedconf_file, os.path.join(cwd, "agis_schedconf.json"))
+            os.symlink(schedconf_file, os.path.join(cwd, "queuedata.json"))
+
+    def stageout(self) -> None:
+        """
+        Pass, stage-out if performed on-the-fly by the worker after each event ranges update
+
+        Returns:
+            None
+        """
+        pass
+
     def is_complete(self) -> bool:
         """
         Checks if the payload subprocess ended.

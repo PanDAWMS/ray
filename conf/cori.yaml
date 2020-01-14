@@ -10,6 +10,7 @@ payload:
   containerextraargs:
 
 harvester:
+  home: /project/projectdirs/m2616/harvester
   endpoint: $SCRATCH/raythena/harvester
   communicator: harvesterFileMessenger:HarvesterFileCommunicator
   harvesterconf: /project/projectdirs/m2616/harvester/etc/panda/panda_harvester.cfg

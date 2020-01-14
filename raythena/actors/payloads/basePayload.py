@@ -41,6 +41,26 @@ class BasePayload(ABC):
         raise NotImplementedError("Base method not implemented")
 
     @abstractmethod
+    def stagein(self) -> None:
+        """
+        Called after the worker performed stage-int of input files. Allows implementation of payload-specific stage-in
+
+        Returns:
+            None
+        """
+        raise NotImplementedError("Base method not implemented")
+
+    @abstractmethod
+    def stageout(self) -> None:
+        """
+        Called after the worker performed stage-out of output files. Allows implementation of payload-specific stage-out
+
+        Returns:
+            None
+        """
+        raise NotImplementedError("Base method not implemented")
+
+    @abstractmethod
     def stop(self) -> None:
         """
         Notify the payload that it should stop processing the current job

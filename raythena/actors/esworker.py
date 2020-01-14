@@ -143,6 +143,7 @@ class ESWorker(object):
                                            basename)
                 os.symlink(in_abs, staged_file)
 
+        self.payload.stagein()
         self.payload.start(self.job)
         self.transition_state(ESWorker.READY_FOR_EVENTS if self.
                               is_event_service_job() else ESWorker.PROCESSING)
@@ -156,6 +157,7 @@ class ESWorker(object):
         """
         self.logging_actor.info.remote(self.id, "Performing stageout")
         # TODO move payload out file to harvester dir, drain jobupdate and rangeupdate from payload
+        self.payload.stageout()
         self.transition_state(ESWorker.FINISHING)
         self.terminate_actor()
 
