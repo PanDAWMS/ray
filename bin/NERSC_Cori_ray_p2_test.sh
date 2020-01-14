@@ -64,13 +64,34 @@ fi
 
 # setup ray
 source $HARVESTER_VENV/activate
-srun -N1 -n1 -w "$SLURMD_NODENAME" $BINDIR/ray_start_head &
 
-$BINDIR/ray_sync
+srun -N1 -n1 -w "$SLURMD_NODENAME" $BINDIR/ray_start_head &
+pid=$!
+retsync=1
+while [[ $retsync != 0 ]]; do
+  $BINDIR/ray_sync
+  retsync=$?
+  running=$(kill -0 "$pid")
+  if [[ $retsync != 0 ]] && [[ $running != 0 ]]; then
+    echo restarting head node init
+    srun -N1 -n1 -w "$SLURMD_NODENAME" $BINDIR/ray_start_head &
+    pid=$!
+  fi
+done
 
 srun -x "$SLURMD_NODENAME" -N$NWORKERS -n$NWORKERS $BINDIR/ray_start_worker &
-
-$BINDIR/ray_sync --wait-workers --nworkers $NWORKERS
+pid=$!
+retsync=1
+while [[ $retsync != 0 ]]; do
+  $BINDIR/ray_sync --wait-workers --nworkers $NWORKERS
+  retsync=$?
+  running=$(kill -0 "$pid")
+  if [[ $retsync != 0 ]] && [[ $running != 0 ]]; then
+    echo restarting workers setup
+    srun -x "$SLURMD_NODENAME" -N$NWORKERS -n$NWORKERS $BINDIR/ray_start_worker &
+    pid=$!
+  fi
+done
 
 python $SOURCEDIR/app.py
 
