@@ -17,8 +17,8 @@ else
     shift $#
 fi
 
-if [[ -z "$REDIS_PORT" ]] || [[ -z "$REDIS_PASSWORD" ]]; then
-    echo 'Please specify redis port and redis password'
+if [[ -z "$REDIS_PORT" ]] || [[ -z "$REDIS_PASSWORD" ]] || [[ -z "$TMP_DIR" ]]; then
+    echo 'Please specify ray tmp dir, redis port and redis password'
     usage
     exit 1
 fi

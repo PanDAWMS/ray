@@ -18,8 +18,8 @@ else
     shift $#
 fi
 
-if [[ -z "$HEAD_IP" ]] || [[ -z "$REDIS_PORT" ]]; then
-    echo 'Please specify  ray head ip, redis password and redis port'
+if [[ -z "$HEAD_IP" ]] || [[ -z "$REDIS_PORT" ]] || [[ -z "$TMP_DIR" ]]; then
+    echo 'Please specify ray tmp dir, ray head ip, redis password and redis port'
     usage
     exit 1
 fi
