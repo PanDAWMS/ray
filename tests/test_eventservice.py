@@ -73,7 +73,6 @@ class TestEventRangeQueue:
 
     def test_new(self, nevents, sample_job, sample_ranges):
         ranges_queue = EventRangeQueue()
-        assert not ranges_queue.no_more_ranges
         assert len(ranges_queue) == 0
         ranges = list(sample_ranges.values())[0]
         ranges_queue = EventRangeQueue.build_from_list(ranges)
@@ -246,13 +245,13 @@ class TestPandaJobQueue:
         for pandaID in pandajob_queue:
             ranges = pandajob_queue.get_event_ranges(pandaID)
             assert len(ranges) == len(sample_ranges[pandaID])
-            assert not ranges.no_more_ranges
+            assert not pandajob_queue[pandaID].no_more_ranges
             sample_ranges[pandaID] = []
 
         pandajob_queue.process_event_ranges_reply(sample_ranges)
         for pandaID in pandajob_queue:
             ranges = pandajob_queue.get_event_ranges(pandaID)
-            assert ranges.no_more_ranges
+            assert pandajob_queue[pandaID].no_more_ranges
 
         sample_ranges["key"] = None
         pandajob_queue.process_event_ranges_reply(sample_ranges)
@@ -275,7 +274,7 @@ class TestPandaJobQueue:
         ranges_queue = pandajob_queue.get_event_ranges(job['PandaID'])
         _ = job.get_next_ranges(nevents)
         pandajob_queue.process_event_ranges_update(ranges_update)
-        assert not ranges_queue.no_more_ranges
+        assert not job.no_more_ranges
         assert ranges_queue.nranges_done() == nevents
         assert ranges_queue.nranges_remaining(
         ) == ranges_queue.nranges_available() == 0

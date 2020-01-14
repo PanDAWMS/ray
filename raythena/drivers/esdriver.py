@@ -208,7 +208,7 @@ class BookKeeper(object):
         Returns:
             True if more event ranges requests should be sent to harvester for the specified job, False otherwise
         """
-        return self.jobs.get_event_ranges(panda_id).no_more_ranges
+        return self.jobs[panda_id].no_more_ranges
 
 
 class ESDriver(BaseDriver):

@@ -1,4 +1,6 @@
 import json
+import os
+
 from typing import Union, Tuple, Dict, List, Iterator
 
 
@@ -109,8 +111,8 @@ class PandaJobQueue(object):
 
     def next_job_id_to_process(self) -> Tuple[Union[str, None], int]:
         """
-        Retrieve the job worker_id and number of events available for the next job to process. Event service jobs with the most
-        events available are chosen first, followed by non event-service jobs.
+        Retrieve the job worker_id and number of events available for the next job to process.
+        Event service jobs with the most events available are chosen first, followed by non event-service jobs.
 
         Returns:
             Tuple of (job worker_id, nb event ranges) or (None, 0)
@@ -185,8 +187,8 @@ class PandaJobQueue(object):
 
     def process_event_ranges_reply(self, reply: Dict[str, List[Dict]]) -> None:
         """
-        Process an event ranges reply from harvester by adding ranges to each corresponding job already present in the queue
-        If an empty event list is received for a job, assume that no more events will be provided for this job
+        Process an event ranges reply from harvester by adding ranges to each corresponding job already present in the
+        queue. If an empty event list is received for a job, assume that no more events will be provided for this job
 
         Args:
             reply: new events received by harvester
@@ -198,7 +200,7 @@ class PandaJobQueue(object):
             if pandaID not in self.jobs:
                 continue
             if not ranges:
-                self.get_event_ranges(pandaID).no_more_ranges = True
+                self[pandaID].no_more_ranges = True
             else:
                 ranges_obj = list()
                 for range_dict in ranges:
@@ -245,25 +247,8 @@ class EventRangeQueue(object):
         """
         Init the queue
         """
-        self.event_ranges_by_id = dict()
-        self.rangesID_by_state = dict()
-        self._no_more_ranges = False
-        for state in EventRange.STATES:
-            self.rangesID_by_state[state] = list()
-
-    @property
-    def no_more_ranges(self) -> bool:
-        """
-        Indicates whether harvester can potentially sends more event ranges to this queue
-
-        Returns:
-            True if harvester can still have more ranges to provide for this queue
-        """
-        return self._no_more_ranges
-
-    @no_more_ranges.setter
-    def no_more_ranges(self, v: bool) -> None:
-        self._no_more_ranges = v
+        self.event_ranges_by_id: Dict[str, EventRange] = dict()
+        self.rangesID_by_file: Dict[str, Dict[str, List[str]]] = dict()
 
     def __iter__(self) -> Iterator[str]:
         return iter(self.event_ranges_by_id)
@@ -277,7 +262,12 @@ class EventRangeQueue(object):
     def __setitem__(self, k: str, v: 'EventRange') -> None:
         if not isinstance(v, EventRange):
             raise Exception(f"{v} should be of type {EventRange}")
-        self.event_ranges_by_id[k] = v
+        if k != v.eventRangeID:
+            raise Exception(f"Specified key '{k}' should be equals to the event range id '{v.eventRangeID}' ")
+        if k in self.event_ranges_by_id:
+            self.rangesID_by_file[self._get_file_from_id(k)][v.status].remove(k)
+            self.event_ranges_by_id.pop(k)
+        self.append(v)
 
     def __contains__(self, k: str) -> bool:
         return k in self.event_ranges_by_id
@@ -298,7 +288,10 @@ class EventRangeQueue(object):
             ranges_queue.append(EventRange.build_from_dict(r))
         return ranges_queue
 
-    def update_range_state(self, range_id: str, new_state: int) -> None:
+    def _get_file_from_id(self, range_id: str) -> str:
+        return os.path.basename(self.event_ranges_by_id[range_id].PFN)
+
+    def update_range_state(self, range_id: str, new_state: str) -> 'EventRange':
         """
         Update the status of an event range
         Args:
@@ -306,16 +299,19 @@ class EventRangeQueue(object):
             new_state: new event range state
 
         Returns:
-            None
+            the updated event range
         """
         if range_id not in self.event_ranges_by_id:
             raise Exception(
                 f"Trying to update non-existing eventrange {range_id}")
 
-        r = self.event_ranges_by_id[range_id]
-        self.rangesID_by_state[r.status].remove(range_id)
-        r.status = new_state
-        self.rangesID_by_state[r.status].append(range_id)
+        event_range = self.event_ranges_by_id[range_id]
+        file_name = self._get_file_from_id(range_id)
+
+        self.rangesID_by_file[file_name][event_range.status].remove(range_id)
+        event_range.status = new_state
+        self.rangesID_by_file[file_name][event_range.status].append(range_id)
+        return event_range
 
     def update_ranges(self, ranges_update: List[Dict]) -> None:
         """
@@ -333,7 +329,7 @@ class EventRangeQueue(object):
             range_id = r['eventRangeID']
             range_status = r['eventStatus']
             if (range_status == "finished" or range_status == "failed" or range_status == "running") \
-                    and range_id not in self.rangesID_by_state[EventRange.ASSIGNED]:
+                    and range_id not in self.rangesID_by_file[self._get_file_from_id(range_id)][EventRange.ASSIGNED]:
                 raise Exception(
                     f"Unexpected state: tried to update unassigned {range_id} to {range_status}"
                 )
@@ -341,6 +337,12 @@ class EventRangeQueue(object):
                 self.update_range_state(range_id, EventRange.DONE)
             else:
                 self.update_range_state(range_id, EventRange.FAILED)
+
+    def _get_ranges_count(self, state: str) -> int:
+        count = 0
+        for ranges in self.rangesID_by_file.values():
+            count += len(ranges[state])
+        return count
 
     def nranges_remaining(self) -> int:
         """
@@ -359,7 +361,7 @@ class EventRangeQueue(object):
         Returns:
             Number of event ranges that can still be assigned to workers
         """
-        return len(self.rangesID_by_state[EventRange.READY])
+        return self._get_ranges_count(EventRange.READY)
 
     def nranges_assigned(self) -> int:
         """
@@ -368,7 +370,7 @@ class EventRangeQueue(object):
         Returns:
             Number of event ranges currently assigned to a worker
         """
-        return len(self.rangesID_by_state[EventRange.ASSIGNED])
+        return self._get_ranges_count(EventRange.ASSIGNED)
 
     def nranges_failed(self) -> int:
         """
@@ -377,7 +379,7 @@ class EventRangeQueue(object):
         Returns:
             Number of event ranges which failed
         """
-        return len(self.rangesID_by_state[EventRange.FAILED])
+        return self._get_ranges_count(EventRange.FAILED)
 
     def nranges_done(self) -> int:
         """
@@ -386,7 +388,7 @@ class EventRangeQueue(object):
         Returns:
             Number of event ranges which finished successfully
         """
-        return len(self.rangesID_by_state[EventRange.DONE])
+        return self._get_ranges_count(EventRange.DONE)
 
     def append(self, event_range: Union[dict, 'EventRange']) -> None:
         """
@@ -401,7 +403,15 @@ class EventRangeQueue(object):
         if isinstance(event_range, dict):
             event_range = EventRange.build_from_dict(event_range)
         self.event_ranges_by_id[event_range.eventRangeID] = event_range
-        self.rangesID_by_state[event_range.status].append(
+        file_name = self._get_file_from_id(event_range.eventRangeID)
+
+        if file_name not in self.rangesID_by_file:
+            files_ranges_states = dict()
+            self.rangesID_by_file[file_name] = files_ranges_states
+            for state in EventRange.STATES:
+                files_ranges_states[state] = list()
+
+        self.rangesID_by_file[file_name][event_range.status].append(
             event_range.eventRangeID)
 
     def concat(self, ranges: List[Union[dict, 'EventRange']]) -> None:
@@ -417,6 +427,12 @@ class EventRangeQueue(object):
         for r in ranges:
             self.append(r)
 
+    def _find_file_with_enough_ranges_ready(self, nranges: int) -> Union[None, str]:
+        for file_name, ranges in self.rangesID_by_file.items():
+            if len(ranges[EventRange.READY]) >= nranges:
+                return file_name
+        return None
+
     def get_next_ranges(self, nranges: int) -> List['EventRange']:
         """
         Dequeue event ranges. Event ranges which were dequeued are updated to the 'ASSIGNED' status
@@ -430,14 +446,21 @@ class EventRangeQueue(object):
             The list of event ranges assigned
         """
         res = list()
-        nranges = min(nranges, len(self.rangesID_by_state[EventRange.READY]))
-        for i in range(nranges):
-            rangeID = self.rangesID_by_state[EventRange.READY].pop()
-            r = self.event_ranges_by_id[rangeID]
-            r.status = EventRange.ASSIGNED
-            self.rangesID_by_state[EventRange.ASSIGNED].append(rangeID)
-            res.append(r)
+        nranges = min(nranges, self.nranges_available())
 
+        file_name = self._find_file_with_enough_ranges_ready(nranges)
+        if file_name:
+            ids = self.rangesID_by_file[file_name][EventRange.READY][:nranges]
+            for range_id in ids:
+                res.append(self.update_range_state(range_id, EventRange.ASSIGNED))
+            return res
+
+        for ranges in self.rangesID_by_file.values():
+            ids = ranges[EventRange.READY][:min(nranges, len(ranges[EventRange.READY]))]
+            for range_id in ids:
+                res.append(self.update_range_state(range_id, EventRange.ASSIGNED))
+                if len(res) == nranges:
+                    return res
         return res
 
 
@@ -813,6 +836,21 @@ class PandaJob(object):
         if "PandaID" in self:
             self["PandaID"] = str(self["PandaID"])
         self.event_ranges_queue = EventRangeQueue()
+        self._no_more_ranges = False
+
+    @property
+    def no_more_ranges(self) -> bool:
+        """
+        Indicates whether harvester can potentially sends more event ranges to this job
+
+        Returns:
+            True if harvester can still have more ranges to provide for this job
+        """
+        return self._no_more_ranges
+
+    @no_more_ranges.setter
+    def no_more_ranges(self, v: bool) -> None:
+        self._no_more_ranges = v
 
     def nranges_available(self) -> int:
         """

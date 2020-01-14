@@ -61,8 +61,14 @@ def pandaids(njobs):
 
 
 @pytest.fixture
-def sample_ranges(nevents, pandaids):
+def nfiles():
+    return 3
+
+
+@pytest.fixture
+def sample_ranges(nevents, pandaids, nfiles):
     res = {}
+    files = [f"/path/to/file_{i}" for i in range(nfiles)]
     for pandaID in pandaids:
         range_list = list()
         res[pandaID] = range_list
@@ -72,7 +78,7 @@ def sample_ranges(nevents, pandaids):
                 'eventRangeID': f"Range-{i:05}",
                 'startEvent': i,
                 'scope': '13Mev',
-                'LFN': "EVNT-2.pool.root.1",
+                'LFN': files[i % nfiles],
                 'GUID': '0'
             })
     return res
