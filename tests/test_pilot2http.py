@@ -148,9 +148,11 @@ class TestPilot2Http:
             'http://127.0.0.1:8080/server/panda/getEventRanges').json()
         assert res['StatusCode'] == 500
         assert payload.should_request_more_ranges()
+        ranges = list()
         for r in list(sample_ranges.values())[0]:
-            payload.submit_new_range(EventRange.build_from_dict(r))
-        payload.submit_new_range(None)
+            ranges.append(EventRange.build_from_dict(r))
+        payload.submit_new_ranges(ranges)
+        payload.submit_new_ranges(None)
 
         res = requests.post('http://127.0.0.1:8080/server/panda/getEventRanges',
                             data=data).json()

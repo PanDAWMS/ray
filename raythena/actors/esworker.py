@@ -2,7 +2,7 @@ import json
 import os
 import shutil
 import time
-from typing import Union, Tuple, List
+from typing import Union, Tuple, List, Dict
 
 import ray
 
@@ -12,6 +12,8 @@ from raythena.utils.eventservice import EventRangeRequest, Messages, EventRangeU
 from raythena.utils.exception import IllegalWorkerState, StageInFailed
 from raythena.utils.plugins import PluginsRegistry
 from raythena.utils.ray import get_node_ip
+from raythena.actors.payloads.basePayload import BasePayload
+from raythena.actors.payloads.eventservice.esPayload import ESPayload
 
 
 @ray.remote(num_cpus=0)
@@ -104,8 +106,8 @@ class ESWorker(object):
         self.plugin_registry = PluginsRegistry()
         payload = self.config.payload['plugin']
         self.payload_class = self.plugin_registry.get_plugin(payload)
-        self.payload = self.payload_class(self.id, self.logging_actor,
-                                          self.config)
+        self.payload: Union[BasePayload, ESPayload] = self.payload_class(self.id, self.logging_actor,
+                                                                         self.config)
         self.logging_actor.info.remote(self.id, "Ray worker started")
 
     def stagein(self) -> None:
@@ -256,7 +258,7 @@ class ESWorker(object):
         if reply == Messages.REPLY_NO_MORE_EVENT_RANGES or not event_ranges:
             # no new ranges... finish processing local cache then terminate actor
             self.transition_state(ESWorker.FINISHING_LOCAL_RANGES)
-            self.payload.submit_new_range(None)
+            self.payload.submit_new_ranges(None)
             return self.return_message(Messages.REPLY_OK)
         for crange in event_ranges:
             if not os.path.isabs(crange.PFN):
@@ -326,7 +328,7 @@ class ESWorker(object):
 
     def move_ranges_file(
             self,
-            ranges_update: EventRangeUpdate) -> Union[EventRangeUpdate, None]:
+            ranges_update: Dict[str, str]) -> Union[EventRangeUpdate, None]:
         """
         Move the event ranges files reported in the event ranges update to the harvester endpoint common to
         all workers for stage-out
@@ -401,9 +403,6 @@ class ESWorker(object):
 
                 ranges_update = self.payload.fetch_ranges_update()
                 if ranges_update:
-                    self.logging_actor.info.remote(
-                        self.id,
-                        f"Fetched rangesupdate from payload: {ranges_update}")
                     ranges_update = self.move_ranges_file(ranges_update)
                     return self.return_message(Messages.UPDATE_EVENT_RANGES,
                                                ranges_update)

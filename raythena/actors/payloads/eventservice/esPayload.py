@@ -24,7 +24,7 @@ class ESPayload(BasePayload):
         super().__init__(worker_id, logging_actor, config)
 
     @abstractmethod
-    def submit_new_ranges(self, event_ranges: List[EventRange]) -> None:
+    def submit_new_ranges(self, event_ranges: Union[None, List[EventRange]]) -> None:
         """
         Submit a new list of event ranges to the payload. The event ranges should be saved until is can be processed
 

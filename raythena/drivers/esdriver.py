@@ -8,6 +8,7 @@ import ray
 from raythena.actors.esworker import ESWorker
 from raythena.actors.loggingActor import LoggingActor
 from raythena.drivers.baseDriver import BaseDriver
+from raythena.drivers.communicators.baseCommunicator import BaseCommunicator
 from raythena.utils.config import Config
 from raythena.utils.eventservice import (EventRangeRequest, PandaJobRequest,
                                          EventRangeUpdate, Messages,
@@ -232,7 +233,7 @@ class ESDriver(BaseDriver):
         """
         super().__init__(config)
         self.id = f"Driver_node:{get_node_ip()}"
-        self.logging_actor = LoggingActor.remote(self.config)
+        self.logging_actor: LoggingActor = LoggingActor.remote(self.config)
 
         self.nodes = build_nodes_resource_list(self.config)
 
@@ -251,10 +252,10 @@ class ESDriver(BaseDriver):
         registry = PluginsRegistry()
         self.communicator_class = registry.get_plugin(self.config.harvester['communicator'])
 
-        self.communicator = self.communicator_class(self.requests_queue,
-                                                    self.jobs_queue,
-                                                    self.event_ranges_queue,
-                                                    config)
+        self.communicator: BaseCommunicator = self.communicator_class(self.requests_queue,
+                                                                      self.jobs_queue,
+                                                                      self.event_ranges_queue,
+                                                                      config)
         self.communicator.start()
         self.requests_queue.put(PandaJobRequest())
         self.actors = dict()
