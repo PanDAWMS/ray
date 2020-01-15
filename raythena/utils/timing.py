@@ -1,8 +1,6 @@
-import time
+
 
 class Timing:
-
-
 
     def __init__(self):
         self._timings = dict()
