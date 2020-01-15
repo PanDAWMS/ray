@@ -3,3 +3,4 @@
 *.pyc
 core
 .vscode
+.idea
