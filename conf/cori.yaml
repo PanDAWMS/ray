@@ -10,8 +10,8 @@ payload:
   containerextraargs:
 
 harvester:
-  home: /global/common/software/atlas/harvester
-  endpoint: $SCRATCH/harvester
+  cacher: $SCRATCH/harvester
+  endpoint: $SCRATCH/harvester/var/lib/workdir/panda
   communicator: harvesterFileMessenger:HarvesterFileCommunicator
   harvesterconf: /global/common/software/atlas/harvester/etc/panda/panda_harvester.cfg
   min_nevents: 0
