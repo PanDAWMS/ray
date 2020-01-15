@@ -11,7 +11,7 @@ payload:
 
 harvester:
   home: /global/common/software/atlas/harvester
-  endpoint: $SCRATCH/raythena/harvester
+  endpoint: $SCRATCH/harvester
   communicator: harvesterFileMessenger:HarvesterFileCommunicator
   harvesterconf: /global/common/software/atlas/harvester/etc/panda/panda_harvester.cfg
   min_nevents: 0

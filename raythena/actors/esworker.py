@@ -339,7 +339,7 @@ class ESWorker(object):
         Returns:
             event ranges update referencing moved output files
         """
-        harvester_endpoint = self.config.harvester.get("endpoint", "")
+        harvester_endpoint = os.path.expandvars(self.config.harvester.get("endpoint", ""))
         if not os.path.isdir(harvester_endpoint):
             return
         ranges = json.loads(ranges_update['eventRanges'][0])

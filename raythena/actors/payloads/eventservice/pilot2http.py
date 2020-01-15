@@ -250,7 +250,7 @@ class Pilot2HttpPayload(ESPayload):
             None
         """
         cwd = os.getcwd()
-        harvester_home = self.config.harvester.get("home", '')
+        harvester_home = os.path.expandvars(self.config.harvester.get("accesspoint", ''))
 
         ddm_endpoints_file = os.path.join(harvester_home, "agis_ddmendpoints.json")
         if os.path.isfile(ddm_endpoints_file):
