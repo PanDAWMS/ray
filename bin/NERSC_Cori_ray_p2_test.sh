@@ -27,15 +27,15 @@ export HARVESTER_NNODE={nNode}
 # export HARVESTER_WORKDIR=$HARVESTER_ACCESS_POINT
 # export HARVESTER_NNODE=$SLURM_NNODES
 
-export HARVESTER_VENV=/global/project/projectdirs/m2616/harvester/bin
+export HARVESTER_HOME=/global/common/software/atlas/harvester
 
 export PANDA_QUEUE=NERSC_Cori_p2_ES_Test
 export container_setup=/usr/atlas/release_setup.sh
 export HARVESTER_CONTAINER_RELEASE_SETUP_FILE=$container_setup
-export pilot_wrapper_bin=/project/projectdirs/atlas/esseivaj/raythena/software/runpilot2-wrapper.sh
-export pilot_tar_file=/project/projectdirs/atlas/esseivaj/raythena/software/pilot2.tar.gz
+export pilot_wrapper_bin=/global/common/software/atlas/raythena/runpilot2-wrapper.sh
+export pilot_tar_file=/global/common/software/atlas/raythena/pilot2.tar.gz
 
-export SOURCEDIR=/project/projectdirs/atlas/esseivaj/raythena/software/raythena
+export SOURCEDIR=/global/common/software/atlas/raythena/ray
 export BINDIR=$SOURCEDIR/bin
 export CONFDIR=$SOURCEDIR/conf
 
@@ -63,7 +63,7 @@ if [[ ! -d $RAY_TMP_DIR ]]; then
 fi
 
 # setup ray
-source $HARVESTER_VENV/activate
+source activate $HARVESTER_HOME
 
 srun -N1 -n1 -w "$SLURMD_NODENAME" $BINDIR/ray_start_head &
 pid=$!
