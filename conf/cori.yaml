@@ -3,7 +3,7 @@ payload:
   bindir:
   pandaqueue: NERSC_Cori_p2_ES
   logfilename: log.pilotwrapper
-  extrasetup: source /opt/lcg/gcc/*/x86_64-*/setup.sh; source /opt/lcg/binutils/*/x86_64-*/setup.sh; export LD_LIBRARY_PATH=/global/common/software/atlas/harvester/yampl/lib:$LD_LIBRARY_PATH;export PYTHONPATH=/global/common/software/atlas/harvester/yampl/python-yampl:$PYTHONPATH;
+  extrasetup: source /opt/lcg/gcc/*/x86_64-*/setup.sh; source /opt/lcg/binutils/*/x86_64-*/setup.sh; export PATH=/opt/lcg/LCG_87/Python/2.7.10/x86_64-slc6-gcc62-opt/bin:$PATH; export LD_LIBRARY_PATH=/global/common/software/atlas/harvester/yampl/lib:$LD_LIBRARY_PATH; export PYTHONPATH=/global/common/software/atlas/harvester/yampl/python-yampl:$PYTHONPATH;
   extrapostpayload:
   hpcresource: cori
   containerengine: shifter
@@ -12,7 +12,7 @@ payload:
 harvester:
   cacher: $SCRATCH/harvester
   endpoint: $SCRATCH/harvester/var/lib/workdir/panda
-  communicator: harvesterFileMessenger:HarvesterFileCommunicator
+  communicator: harvesterFileMessenger:HarvesterFileCommunicatorq
   harvesterconf: /global/common/software/atlas/harvester/etc/panda/panda_harvester.cfg
   min_nevents: 0
 
