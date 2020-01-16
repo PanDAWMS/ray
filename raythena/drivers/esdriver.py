@@ -236,7 +236,7 @@ class ESDriver(BaseDriver):
         self.id = f"Driver_node:{get_node_ip()}"
         self.logging_actor: LoggingActor = LoggingActor.remote(self.config)
 
-        self.nodes = build_nodes_resource_list(self.config)
+        self.nodes = build_nodes_resource_list(self.config, run_actor_on_head=True)
 
         self.requests_queue = Queue()
         self.jobs_queue = Queue()
