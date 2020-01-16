@@ -12,6 +12,7 @@ from raythena.utils.eventservice import EventRangeRequest, Messages, EventRangeU
 from raythena.utils.exception import IllegalWorkerState, StageInFailed
 from raythena.utils.plugins import PluginsRegistry
 from raythena.utils.ray import get_node_ip
+from raythena.utils.timing import CPUMonitor
 from raythena.actors.payloads.basePayload import BasePayload
 from raythena.actors.payloads.eventservice.esPayload import ESPayload
 
@@ -99,6 +100,7 @@ class ESWorker(object):
         self.state = ESWorker.READY_FOR_JOB
         self.payload_job_dir = None
         self.payload_actor_process_dir = None
+        self.cpu_monitor = None
         self.workdir = os.path.expandvars(
             self.config.ray.get('workdir', os.getcwd()))
         if not os.path.isdir(self.workdir):
@@ -134,7 +136,8 @@ class ESWorker(object):
             os.chdir(self.payload_actor_process_dir)
         except Exception:
             raise StageInFailed(self.id)
-
+        self.cpu_monitor = CPUMonitor(os.path.join(self.payload_actor_process_dir, "cpu_monitor.json"))
+        self.cpu_monitor.start()
         input_files = self.job['inFiles'].split(",")
         for input_file in input_files:
             in_abs = input_file if os.path.isabs(input_file) else os.path.join(
@@ -308,6 +311,7 @@ class ESWorker(object):
         """
         self.logging_actor.info.remote(self.id, f"stopping actor")
         self.payload.stop()
+        self.cpu_monitor.stop()
         self.transition_state(ESWorker.DONE)
 
     def should_request_ranges(self) -> bool:

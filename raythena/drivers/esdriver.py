@@ -15,6 +15,7 @@ from raythena.utils.eventservice import (EventRangeRequest, PandaJobRequest,
                                          PandaJobQueue, EventRange, PandaJob)
 from raythena.utils.plugins import PluginsRegistry
 from raythena.utils.ray import (build_nodes_resource_list, get_node_ip)
+from raythena.utils.timing import CPUMonitor
 
 EventRangeTypeHint = Dict[str, str]
 PandaJobTypeHint = Dict[str, str]
@@ -249,6 +250,10 @@ class ESDriver(BaseDriver):
             )
             workdir = os.getcwd()
         self.config.ray['workdir'] = workdir
+
+        self.cpu_monitor = CPUMonitor(os.path.join(workdir, "cpu_monitor_driver.json"))
+        self.cpu_monitor.start()
+
         registry = PluginsRegistry()
         self.communicator_class = registry.get_plugin(self.config.harvester['communicator'])
 
@@ -591,6 +596,7 @@ class ESDriver(BaseDriver):
                 self.id, f"Error while handling actors: {e}. stopping...")
 
         self.communicator.stop()
+        self.cpu_monitor.stop()
 
         time.sleep(5)
 
