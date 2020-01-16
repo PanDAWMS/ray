@@ -12,7 +12,7 @@ payload:
 harvester:
   cacher: $SCRATCH/harvester
   endpoint: $SCRATCH/harvester/var/lib/workdir/panda
-  communicator: harvesterFileMessenger:HarvesterFileCommunicatorq
+  communicator: harvesterFileMessenger:HarvesterFileCommunicator
   harvesterconf: /global/common/software/atlas/harvester/etc/panda/panda_harvester.cfg
   min_nevents: 0
 
