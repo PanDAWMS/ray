@@ -88,7 +88,7 @@ while [[ $retsync -ne 0 ]]; do
   retsync=$?
   kill -0 "$pid"
   status=$?
-  if [[ $retsync -ne 0 ]] && [[ $running -ne 0 ]]; then
+  if [[ $retsync -ne 0 ]] && [[ $status -ne 0 ]]; then
     echo restarting workers setup
     srun -x "$SLURMD_NODENAME" -N$NWORKERS -n$NWORKERS $BINDIR/ray_start_worker &
     pid=$!
