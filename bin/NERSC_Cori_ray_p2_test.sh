@@ -68,11 +68,12 @@ source activate $HARVESTER_HOME
 srun -N1 -n1 -w "$SLURMD_NODENAME" $BINDIR/ray_start_head &
 pid=$!
 retsync=1
-while [[ $retsync != 0 ]]; do
+while [[ $retsync -ne 0 ]]; do
   $BINDIR/ray_sync
   retsync=$?
-  running=$(kill -0 "$pid")
-  if [[ $retsync != 0 ]] && [[ $running != 0 ]]; then
+  kill -0 "$pid"
+  status=$?
+  if [[ $retsync -ne 0 ]] && [[ $status -ne 0 ]]; then
     echo restarting head node init
     srun -N1 -n1 -w "$SLURMD_NODENAME" $BINDIR/ray_start_head &
     pid=$!
@@ -82,11 +83,12 @@ done
 srun -x "$SLURMD_NODENAME" -N$NWORKERS -n$NWORKERS $BINDIR/ray_start_worker &
 pid=$!
 retsync=1
-while [[ $retsync != 0 ]]; do
+while [[ $retsync -ne 0 ]]; do
   $BINDIR/ray_sync --wait-workers --nworkers $NWORKERS
   retsync=$?
-  running=$(kill -0 "$pid")
-  if [[ $retsync != 0 ]] && [[ $running != 0 ]]; then
+  kill -0 "$pid"
+  status=$?
+  if [[ $retsync -ne 0 ]] && [[ $running -ne 0 ]]; then
     echo restarting workers setup
     srun -x "$SLURMD_NODENAME" -N$NWORKERS -n$NWORKERS $BINDIR/ray_start_worker &
     pid=$!
