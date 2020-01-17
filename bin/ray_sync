@@ -40,6 +40,23 @@ def wait_on_head(max_tries: int = 20) -> None:
                 exit(1)
 
 
+def count_nodes():
+    """
+
+    Count alive and dead nodes in the ray cluster
+    Returns:
+        tuple with the number of (alive, dead) nodes in the cluster
+    """
+    alive = 0
+    dead = 0
+    for node in ray.nodes():
+        if node['alive']:
+            alive += 1
+        else:
+            dead += 1
+    return alive, dead
+
+
 def wait_workers(nwait: int = 1) -> None:
     """
     Blocks until the number of nodes in the ray cluster is greater than nwait. ray.init() must be called
@@ -52,15 +69,18 @@ def wait_workers(nwait: int = 1) -> None:
         None
     """
     # wait for all workers to connect
-    max_tries = 30 * nwait
+    max_tries = max(30 * nwait, 5 * 60)
     tries = 0
-    while len(ray.nodes()) < nwait + 1:
-        print(f"{len(ray.nodes()) - 1}/{nwait} workers connected... ")
+    alive = 0
+    while alive < nwait + 1:
+        alive, dead = count_nodes()
+        print(f"{alive - 1}/{nwait} workers connected ({dead} workers marked as dead)... ")
         time.sleep(1)
         tries += 1
         if tries >= max_tries:
             exit(1)
-    print(f"{len(ray.nodes()) - 1}/{nwait} workers connected... ")
+    alive, dead = count_nodes()
+    print(f"{alive - 1}/{nwait} workers connected ({dead} workers marked as dead)... ")
 
 
 if __name__ == "__main__":
