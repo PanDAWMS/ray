@@ -12,10 +12,10 @@
 #SBATCH --module=cvmfs
 #SBATCH -A m2616
 #SBATCH -L SCRATCH,project
-#SBATCH -C haswell
-#SBATCH --cpus-per-task 32
-#DPB #SBATCH -C knl,quad,cache
-#DPB #SBATCH --cpus-per-task 136
+#DPB SBATCH -C haswell
+#DPB SBATCH --cpus-per-task 32
+#SBATCH -C knl,quad,cache
+#SBATCH --cpus-per-task 136
 #SBATCH -N {nNode}
 
 export HARVESTER_WORKER_ID={workerID}
@@ -68,12 +68,17 @@ source activate $HARVESTER_HOME
 srun -N1 -n1 -w "$SLURMD_NODENAME" $BINDIR/ray_start_head &
 pid=$!
 retsync=1
+try=1
 while [[ $retsync -ne 0 ]]; do
   $BINDIR/ray_sync
   retsync=$?
   kill -0 "$pid"
   status=$?
   if [[ $retsync -ne 0 ]] && [[ $status -ne 0 ]]; then
+    try=$((try+1))
+    if [[ $try -gt 5 ]]; then
+      exit 1
+    fi
     echo restarting head node init
     srun -N1 -n1 -w "$SLURMD_NODENAME" $BINDIR/ray_start_head &
     pid=$!
@@ -83,12 +88,17 @@ done
 srun -x "$SLURMD_NODENAME" -N$NWORKERS -n$NWORKERS $BINDIR/ray_start_worker &
 pid=$!
 retsync=1
+try=1
 while [[ $retsync -ne 0 ]]; do
   $BINDIR/ray_sync --wait-workers --nworkers $NWORKERS
   retsync=$?
   kill -0 "$pid"
   status=$?
   if [[ $retsync -ne 0 ]] && [[ $status -ne 0 ]]; then
+    try=$((try+1))
+    if [[ $try -gt 5 ]]; then
+      exit 1
+    fi
     echo restarting workers setup
     srun -x "$SLURMD_NODENAME" -N$NWORKERS -n$NWORKERS $BINDIR/ray_start_worker &
     pid=$!
