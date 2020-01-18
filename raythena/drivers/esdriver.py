@@ -580,10 +580,6 @@ class ESDriver(BaseDriver):
         self.logging_actor.debug.remote(self.id,
                                         f"Received reply to the job request")
         self.bookKeeper.add_jobs(jobs)
-        for pandaID in self.bookKeeper.jobs:
-            cjob = self.bookKeeper.jobs[pandaID]
-            os.makedirs(
-                os.path.join(self.config.ray['workdir'], cjob['PandaID']))
 
         # sends an initial event range request
         self.request_event_ranges(block=True)
@@ -594,6 +590,11 @@ class ESDriver(BaseDriver):
                 self.id, f"Couldn't fetch a job with event ranges, stopping...")
             time.sleep(5)
             return
+
+        for pandaID in self.bookKeeper.jobs:
+            cjob = self.bookKeeper.jobs[pandaID]
+            os.makedirs(
+                os.path.join(self.config.ray['workdir'], cjob['PandaID']))
 
         self.create_actors()
 
