@@ -226,10 +226,10 @@ class ESWorker(object):
             self.transition_state(ESWorker.STAGE_IN)
             self.set_transitions()
             self.logging_actor.debug.remote(
-                self.worker_id, f"Received response to job request, starting stage-in")
+                self.id, f"Received response to job request, starting stage-in")
             self.stagein()
             self.logging_actor.debug.remote(
-                self.worker_id, f"finished job stage-in")
+                self.id, f"finished job stage-in")
         else:
             self.transition_state(ESWorker.DONE)
             self.logging_actor.error.remote(
@@ -377,7 +377,7 @@ class ESWorker(object):
                 # ready to get a new job
                 self.transition_state(ESWorker.JOB_REQUESTED)
                 self.logging_actor.debug.remote(
-                    self.worker_id, f"Sending job request to the driver")
+                    self.id, f"Sending job request to the driver")
                 return self.return_message(Messages.REQUEST_NEW_JOB)
             elif self.payload.is_complete():
                 # payload process ended... Start stageout
@@ -399,7 +399,7 @@ class ESWorker(object):
                                       self.job['taskID'], self.job['jobsetID'])
                 self.transition_state(ESWorker.EVENT_RANGES_REQUESTED)
                 self.logging_actor.debug.remote(
-                    self.worker_id, f"Sending event ranges request to the driver")
+                    self.id, f"Sending event ranges request to the driver")
                 return self.return_message(Messages.REQUEST_EVENT_RANGES, req)
             elif self.state == ESWorker.DONE:
                 return self.return_message(Messages.PROCESS_DONE)

@@ -15,7 +15,9 @@ class HarvesterMock(BaseCommunicator):
     This class is mostly used for testing purposes. It provides the driver thread with a
     sample panda jobspec for Athena/21.0.15 and a predefined number of event ranges.
     Messages exchanged with this class follows the same format as harvester, it expects the same request format
-    and returns the same response format as harvester would
+    and returns the same response format as harvester would.
+
+    Input files specified in the inFiles attribute should exist in the ray workdir before starting ray
     """
 
     def __init__(self, requests_queue: Queue, job_queue: Queue,
