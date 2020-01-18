@@ -225,7 +225,11 @@ class ESWorker(object):
         if reply == Messages.REPLY_OK and self.job:
             self.transition_state(ESWorker.STAGE_IN)
             self.set_transitions()
+            self.logging_actor.debug.remote(
+                self.worker_id, f"Received response to job request, starting stage-in")
             self.stagein()
+            self.logging_actor.debug.remote(
+                self.worker_id, f"finished job stage-in")
         else:
             self.transition_state(ESWorker.DONE)
             self.logging_actor.error.remote(
@@ -270,7 +274,7 @@ class ESWorker(object):
                     crange.PFN)
         self.payload.submit_new_ranges(event_ranges)
         self.logging_actor.debug.remote(
-            self.id, f"Received {len(event_ranges)} eventRanges")
+            self.id, f"Received response to event ranges request. ({len(event_ranges)} event ranges)")
 
         self.transition_state(ESWorker.PROCESSING)
         return self.return_message(Messages.REPLY_OK)
@@ -330,7 +334,7 @@ class ESWorker(object):
             self.transition_state(ESWorker.READY_FOR_EVENTS)
         return res
 
-    def move_ranges_file(
+    def stageout_event_service_files(
             self,
             ranges_update: Dict[str, str]) -> Union[EventRangeUpdate, None]:
         """
@@ -356,8 +360,6 @@ class ESWorker(object):
                     os.path.basename(cfile) if os.path.isabs(cfile) else cfile)
                 range_update["path"] = dst
                 if os.path.isfile(cfile) and not os.path.isfile(dst):
-                    self.logging_actor.debug.remote(self.id,
-                                                    f"Moving {cfile} to {dst}")
                     shutil.move(cfile, dst)
         return ranges
 
@@ -374,6 +376,8 @@ class ESWorker(object):
             if self.state == ESWorker.READY_FOR_JOB:
                 # ready to get a new job
                 self.transition_state(ESWorker.JOB_REQUESTED)
+                self.logging_actor.debug.remote(
+                    self.worker_id, f"Sending job request to the driver")
                 return self.return_message(Messages.REQUEST_NEW_JOB)
             elif self.payload.is_complete():
                 # payload process ended... Start stageout
@@ -394,6 +398,8 @@ class ESWorker(object):
                                       self.config.resources['corepernode'] * 2,
                                       self.job['taskID'], self.job['jobsetID'])
                 self.transition_state(ESWorker.EVENT_RANGES_REQUESTED)
+                self.logging_actor.debug.remote(
+                    self.worker_id, f"Sending event ranges request to the driver")
                 return self.return_message(Messages.REQUEST_EVENT_RANGES, req)
             elif self.state == ESWorker.DONE:
                 return self.return_message(Messages.PROCESS_DONE)
@@ -407,7 +413,11 @@ class ESWorker(object):
 
                 ranges_update = self.payload.fetch_ranges_update()
                 if ranges_update:
-                    ranges_update = self.move_ranges_file(ranges_update)
+                    self.logging_actor.debug.remote(self.id,
+                                                    f"Started stage-out of event service files to harvester workdir")
+                    ranges_update = self.stageout_event_service_files(ranges_update)
+                    self.logging_actor.debug.remote(self.id,
+                                                    f"Finished stage-out of event service files")
                     return self.return_message(Messages.UPDATE_EVENT_RANGES,
                                                ranges_update)
 

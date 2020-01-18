@@ -402,7 +402,7 @@ class Pilot2HttpPayload(ESPayload):
             response from the handler
         """
         self.logging_actor.debug.remote(
-            self.worker_id, f"Routing {request.method} {request.path}")
+            self.worker_id, f"Started handling {request.method} {request.path}")
         try:
             return await self.router.route(request.path, request=request)
         except Exception:
@@ -454,6 +454,8 @@ class Pilot2HttpPayload(ESPayload):
         body = await Pilot2HttpPayload.parse_qs_body(request)
         await self.job_update.put(body)
         res = {"StatusCode": 0}
+        self.logging_actor.debug.remote(
+            self.worker_id, f"Finished handling {request.method} {request.path}")
         return web.json_response(res, dumps=self.json_encoder)
 
     async def handle_get_event_ranges(self,
@@ -488,7 +490,8 @@ class Pilot2HttpPayload(ESPayload):
                     ranges.append(crange)
         res = {"StatusCode": status, "eventRanges": ranges}
         self.logging_actor.info.remote(
-            self.worker_id, f"sending {len(res['eventRanges'])} ranges to pilot")
+            self.worker_id,
+            f"Finished handling {request.method} {request.path}. {len(res['eventRanges'])} ranges sent to pilot")
         return web.json_response(res, dumps=self.json_encoder)
 
     async def handle_update_event_ranges(
@@ -505,6 +508,8 @@ class Pilot2HttpPayload(ESPayload):
         body = await Pilot2HttpPayload.parse_qs_body(request)
         await self.ranges_update.put(body)
         res = {"StatusCode": 0}
+        self.logging_actor.debug.remote(
+            self.worker_id, f"Finished handling {request.method} {request.path}")
         return web.json_response(res, dumps=self.json_encoder)
 
     async def handle_update_jobs_in_bulk(

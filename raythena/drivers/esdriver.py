@@ -150,7 +150,7 @@ class BookKeeper(object):
         self.logging_actor.debug.remote("BookKeeper", log_message)
         self.logging_actor.info.remote("BookKeeper",
                                        (
-                                           f"Event ranges status for job { panda_id}:\n"
+                                           f"\nEvent ranges status for job { panda_id}:\n"
                                            f"  Ready: {job_ranges.nranges_available()}\n"
                                            f"  Assigned: {job_ranges.nranges_assigned()}\n"
                                            f"  Failed: {job_ranges.nranges_failed()}\n"
@@ -263,6 +263,8 @@ class ESDriver(BaseDriver):
                                                                       config)
         self.communicator.start()
         self.requests_queue.put(PandaJobRequest())
+        self.logging_actor.debug.remote(self.id,
+                                        f"Sent job request to harvester")
         self.actors = dict()
         self.actors_message_queue = list()
         self.bookKeeper = BookKeeper(self.logging_actor, config)
@@ -333,6 +335,8 @@ class ESDriver(BaseDriver):
             self.actors_message_queue, num_returns=1)
         total_sent = 0
         while new_messages and self.running:
+            self.logging_actor.debug.remote(
+                self.id, f"Start handling messages batch of {len(new_messages)} actors")
             for ray_message_id in new_messages:
                 try:
                     actor_id, message, data = ray.get(ray_message_id)
@@ -352,7 +356,11 @@ class ESDriver(BaseDriver):
                         self.handle_update_event_ranges(actor_id, data)
                     elif message == Messages.PROCESS_DONE:
                         self.handle_actor_done(actor_id)
+            self.logging_actor.debug.remote(
+                self.id, f"Finished handling messages batch")
             self.on_tick()
+            self.logging_actor.debug.remote(
+                self.id, f"Waiting on new messages from actors")
             new_messages, self.actors_message_queue = ray.wait(
                 self.actors_message_queue)
 
@@ -514,7 +522,7 @@ class ESDriver(BaseDriver):
 
             if len(event_request) > 0:
                 self.logging_actor.debug.remote(
-                    self.id, f"Sending request {event_request}")
+                    self.id, f"Sending event ranges request to harvester")
                 self.requests_queue.put(event_request)
                 self.n_eventsrequest += 1
 
@@ -522,7 +530,7 @@ class ESDriver(BaseDriver):
             try:
                 ranges = self.event_ranges_queue.get(block)
                 self.logging_actor.debug.remote(self.id,
-                                                f"Fetched eventrange response")
+                                                f"received reply to  event ranges request")
                 self.bookKeeper.add_event_ranges(ranges)
                 self.n_eventsrequest -= 1
             except Empty:
@@ -569,7 +577,8 @@ class ESDriver(BaseDriver):
             self.logging_actor.critical.remote(
                 self.id, "No jobs provided by communicator, stopping...")
             return
-
+        self.logging_actor.debug.remote(self.id,
+                                        f"Received reply to the job request")
         self.bookKeeper.add_jobs(jobs)
         for pandaID in self.bookKeeper.jobs:
             cjob = self.bookKeeper.jobs[pandaID]
