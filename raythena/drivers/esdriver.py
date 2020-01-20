@@ -478,6 +478,10 @@ class ESDriver(BaseDriver):
             None
         """
         job = self.bookKeeper.assign_job_to_actor(actor_id)
+        if not job:
+            self.request_event_ranges(block=True)
+            job = self.bookKeeper.assign_job_to_actor(actor_id)
+
         if job:
             self.logging_actor.info.remote(
                 self.id, f"Sending job {job.get_id()} to {actor_id}")
