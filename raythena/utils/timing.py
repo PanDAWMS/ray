@@ -17,7 +17,7 @@ class CPUMonitor:
         self.log_file = log_file
         self.stop_event = Event()
         self.monitor_thread = ExThread(target=self.monitor_cpu, name="cpu_monitor")
-        self.write_interval = 1 * 60
+        self.write_interval = 10 * 60
         self.time_step = 1
 
     def start(self) -> None:
