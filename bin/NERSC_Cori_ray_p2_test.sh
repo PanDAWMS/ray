@@ -9,7 +9,7 @@
 #DPB #SBATCH --time-min=02:00:00
 #DPB #SBATCH --time 4:00:00
 #SBATCH --image=custom:atlas_athena_21.0.15_DBRelease-31.8.1:latest
-#SBATCH --module=cvmfs
+#DPB #SBATCH --module=cvmfs
 #SBATCH -A m2616
 #SBATCH -L SCRATCH,project
 #DPB SBATCH -C haswell
