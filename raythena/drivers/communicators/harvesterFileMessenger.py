@@ -151,6 +151,8 @@ class HarvesterFileCommunicator(BaseCommunicator):
                         f"{self.eventrangesfile}-{self.ranges_requests_count}")
             except Exception:
                 time.sleep(5)
+                if os.path.exists(f"{self.eventrangesfile}-{self.ranges_requests_count}"):
+                    self.ranges_requests_count += 1
 
         try:
             os.remove(self.eventrequestfile)
