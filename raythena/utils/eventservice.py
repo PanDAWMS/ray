@@ -328,15 +328,12 @@ class EventRangeQueue(object):
         for r in ranges_update:
             range_id = r['eventRangeID']
             range_status = r['eventStatus']
-            if (range_status == "finished" or range_status == "failed" or range_status == "running") \
-                    and range_id not in self.rangesID_by_file[self._get_file_from_id(range_id)][EventRange.ASSIGNED]:
+            if range_id not in self.event_ranges_by_id or \
+                    range_id in self.rangesID_by_file[self._get_file_from_id(range_id)][EventRange.READY]:
                 raise Exception(
                     f"Unexpected state: tried to update unassigned {range_id} to {range_status}"
                 )
-            if range_status == "finished":
-                self.update_range_state(range_id, EventRange.DONE)
-            else:
-                self.update_range_state(range_id, EventRange.FAILED)
+            self.update_range_state(range_id, range_status)
 
     def _get_ranges_count(self, state: str) -> int:
         count = 0
@@ -927,7 +924,8 @@ class EventRange(object):
     ASSIGNED = "running"
     DONE = "finished"
     FAILED = "failed"
-    STATES = [READY, ASSIGNED, DONE, FAILED]
+    FATAL = "fatal"
+    STATES = [READY, ASSIGNED, DONE, FAILED, FATAL]
 
     def __init__(self, event_range_id: str, start_event: int, last_event: int,
                  pfn: str, guid: str, scope: str) -> None:

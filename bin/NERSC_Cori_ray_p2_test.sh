@@ -23,7 +23,7 @@ export HARVESTER_ACCESS_POINT={accessPoint}
 export HARVESTER_NNODE={nNode}
 
 # for testing without harvester, needs evnt files present in the workdir
-# export HARVESTER_ACCESS_POINT=/global/cscratch1/sd/esseivaj/raythena/workdir
+# export HARVESTER_ACCESS_POINT=/global/cscratch1/sd/$USER/raythena/workdir
 # export HARVESTER_WORKDIR=$HARVESTER_ACCESS_POINT
 # export HARVESTER_NNODE=$SLURM_NNODES
 
