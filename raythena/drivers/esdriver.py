@@ -135,9 +135,8 @@ class BookKeeper(object):
         for r in event_ranges_update[panda_id]:
             if 'eventRangeID' in r and r['eventRangeID'] in self.rangesID_by_actor[actor_id]:
                 range_id = r['eventRangeID']
-                if r['eventStatus'] != EventRange.ASSIGNED:
-                    self.rangesID_by_actor[actor_id].remove(range_id)
                 if r['eventStatus'] == EventRange.DONE:
+                    self.rangesID_by_actor[actor_id].remove(range_id)
                     event_range = job_ranges[range_id]
                     file_basename = os.path.basename(event_range.PFN)
                     if file_basename not in self.finished_range_by_input_file:
