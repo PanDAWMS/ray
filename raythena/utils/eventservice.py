@@ -315,9 +315,9 @@ class EventRangeQueue(object):
 
     def update_ranges(self, ranges_update: List[Dict]) -> None:
         """
-        Process a range update sent by the payload by updating the range status to the one corresponding. It is only
-        possible to update event ranges which are in the "ASSIGNED" state, trying to update an unassigned, finished
-        or failed range will raise an exception
+        Process a range update sent by the payload by updating the range status to the new status. It is only
+        possible to update event ranges which are in the assigned, or failed state, trying to update an unassigned or
+         finished range will raise an exception
 
         Args:
             ranges_update: update sent by the payload
@@ -331,7 +331,6 @@ class EventRangeQueue(object):
             if range_id not in self.event_ranges_by_id or \
                     range_id in self.rangesID_by_file[self._get_file_from_id(range_id)][EventRange.READY]:
                 raise Exception(
-                    f"Unexpected state: tried to update unassigned {range_id} to {range_status}"
                 )
             self.update_range_state(range_id, range_status)
 
