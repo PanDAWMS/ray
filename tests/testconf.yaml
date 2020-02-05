@@ -13,7 +13,6 @@ harvester:
   endpoint: .
   communicator: harvesterMock:HarvesterMock
   harvesterconf: tests/panda_harvester_test.cfg
-  min_nevents: 170000
 
 ray:
   headip:

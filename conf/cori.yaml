@@ -14,7 +14,6 @@ harvester:
   endpoint: $SCRATCH/harvester/var/lib/workdir/panda
   communicator: harvesterFileMessenger:HarvesterFileCommunicator
   harvesterconf: /global/common/software/atlas/harvester/etc/panda/panda_harvester.cfg
-  min_nevents: 0
 
 ray:
   headip:

@@ -30,8 +30,7 @@ class Config(object):
         'harvester': {
             'endpoint': str,
             'communicator': str,
-            'harvesterconf': str,
-            'min_nevents': int
+            'harvesterconf': str
         },
         'ray': {
             'workdir': str,

@@ -15,7 +15,6 @@ harvester:
   endpoint: $SCRATCH/raythena/harvester
   communicator: harvesterMock2205:HarvesterMock2205
   harvesterconf: $SCRATCH/raythena/harvester/panda_harvester.cfg
-  min_nevents: 170000
 
 ray:
   headip:
