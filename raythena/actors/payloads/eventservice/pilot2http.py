@@ -2,6 +2,7 @@ import asyncio
 import functools
 import json
 import os
+import time
 import shlex
 import stat
 from asyncio import Queue, QueueEmpty, Event
@@ -138,7 +139,7 @@ class Pilot2HttpPayload(ESPayload):
         ) if self.config.payload.get('containerengine',
                                      None) else self._build_pilot_command()
         self.logging_actor.info.remote(self.worker_id,
-                                       f"Final payload command: {command}")
+                                       f"Final payload command: {command}", time.asctime())
         # using PIPE will cause the subprocess to hang because
         # we're not reading data using communicate() and the pipe buffer becomes full as pilot2
         # generates a lot of data to the stdout pipe
@@ -150,7 +151,7 @@ class Pilot2HttpPayload(ESPayload):
                                    shell=True,
                                    close_fds=True)
         self.logging_actor.info.remote(
-            self.worker_id, f"Pilot payload started with PID {self.pilot_process.pid}")
+            self.worker_id, f"Pilot payload started with PID {self.pilot_process.pid}", time.asctime())
 
     def _build_pilot_command(self) -> str:
         """
@@ -240,7 +241,8 @@ class Pilot2HttpPayload(ESPayload):
             container_args = shlex.quote(container_args)
         else:
             container_args = ''
-        return f"{container} {container_args} /bin/bash {cmd_script} > {payload_log} 2> {payload_log}.stderr"
+        return (f"{container} {container_args} /bin/bash {cmd_script} "
+                f"> {payload_log} 2> {payload_log}.stderr")
 
     def stagein(self) -> None:
         """
@@ -325,11 +327,11 @@ class Pilot2HttpPayload(ESPayload):
                 self.pilot_process.terminate()
                 pexit = self.pilot_process.wait()
             self.logging_actor.debug.remote(self.worker_id,
-                                            f"Payload return code: {pexit}")
+                                            f"Payload return code: {pexit}", time.asctime())
             asyncio.run_coroutine_threadsafe(self.notify_stop_server_task(),
                                              self.loop)
             self.server_thread.join()
-            self.logging_actor.info.remote(self.worker_id, f"Communicator stopped")
+            self.logging_actor.info.remote(self.worker_id, f"Communicator stopped", time.asctime())
 
     def submit_new_range(self, event_range: Union[None, EventRange]) -> asyncio.Future:
         """
@@ -402,7 +404,7 @@ class Pilot2HttpPayload(ESPayload):
             response from the handler
         """
         self.logging_actor.debug.remote(
-            self.worker_id, f"Started handling {request.method} {request.path}")
+            self.worker_id, f"Started handling {request.method} {request.path}", time.asctime())
         try:
             return await self.router.route(request.path, request=request)
         except Exception:
@@ -438,7 +440,7 @@ class Pilot2HttpPayload(ESPayload):
         """
         del request
         job = self.current_job if self.current_job else dict()
-        self.logging_actor.debug.remote(self.worker_id, f"Serving job {job.get_id()}")
+        self.logging_actor.debug.remote(self.worker_id, f"Serving job {job.get_id()}", time.asctime())
         return web.json_response(job, dumps=self.json_encoder)
 
     async def handle_update_job(self, request: web.BaseRequest) -> web.Response:
@@ -455,7 +457,7 @@ class Pilot2HttpPayload(ESPayload):
         await self.job_update.put(body)
         res = {"StatusCode": 0}
         self.logging_actor.debug.remote(
-            self.worker_id, f"Finished handling {request.method} {request.path}")
+            self.worker_id, f"Finished handling {request.method} {request.path}", time.asctime())
         return web.json_response(res, dumps=self.json_encoder)
 
     async def handle_get_event_ranges(self,
@@ -472,7 +474,7 @@ class Pilot2HttpPayload(ESPayload):
             json holding the event ranges
         """
         body = await Pilot2HttpPayload.parse_qs_body(request)
-        self.logging_actor.debug.remote(self.worker_id, f"Body: {body}")
+        self.logging_actor.debug.remote(self.worker_id, f"Body: {body}", time.asctime())
         status = 0
         panda_id = body['pandaID'][0]
         ranges = list()
@@ -491,7 +493,7 @@ class Pilot2HttpPayload(ESPayload):
         res = {"StatusCode": status, "eventRanges": ranges}
         self.logging_actor.info.remote(
             self.worker_id,
-            f"Finished handling {request.method} {request.path}. {len(res['eventRanges'])} ranges sent to pilot")
+            f"Finished handling {request.method} {request.path}. {len(res['eventRanges'])} ranges sent to pilot", time.asctime())
         return web.json_response(res, dumps=self.json_encoder)
 
     async def handle_update_event_ranges(
@@ -509,7 +511,7 @@ class Pilot2HttpPayload(ESPayload):
         await self.ranges_update.put(body)
         res = {"StatusCode": 0}
         self.logging_actor.debug.remote(
-            self.worker_id, f"Finished handling {request.method} {request.path}")
+            self.worker_id, f"Finished handling {request.method} {request.path}", time.asctime())
         return web.json_response(res, dumps=self.json_encoder)
 
     async def handle_update_jobs_in_bulk(
@@ -573,7 +575,7 @@ class Pilot2HttpPayload(ESPayload):
         await self.site.start()
         self.logging_actor.debug.remote(
             self.worker_id,
-            f"======= Serving on http://{self.host}:{self.port}/ ======")
+            f"======= Serving on http://{self.host}:{self.port}/ ======", time.asctime())
         return self.site
 
     async def notify_stop_server_task(self) -> None:
@@ -598,7 +600,7 @@ class Pilot2HttpPayload(ESPayload):
         if self.site:
             self.logging_actor.debug.remote(
                 self.worker_id,
-                f"======= Stopped http://{self.host}:{self.port}/ ======")
+                f"======= Stopped http://{self.host}:{self.port}/ ======", time.asctime())
             await self.site.stop()
 
     def run(self) -> None:
