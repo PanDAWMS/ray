@@ -33,7 +33,7 @@ def configure_logger(config: Config, file_logging: bool = True) -> None:
         handlers.append(fh)
 
     logging.basicConfig(
-        format="{asctime} | {levelname} | {name} | {funcName} | {message}",
+        format="{levelname} | {message}",
         style='{',
         level=logging.getLevelName(log_level),
         handlers=handlers)
