@@ -420,7 +420,7 @@ class ESWorker(object):
                                                     f"Started stage-out of event service files to harvester workdir", time.asctime())
                     ranges_update = self.stageout_event_service_files(ranges_update)
                     self.logging_actor.debug.remote(self.id,
-                                                    f"Finished stage-out of event service files", time.asctime(), time.asctime())
+                                                    f"Finished stage-out of event service files", time.asctime())
                     return self.return_message(Messages.UPDATE_EVENT_RANGES,
                                                ranges_update)
 
