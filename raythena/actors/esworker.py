@@ -99,6 +99,7 @@ class ESWorker(object):
         self.node_ip = get_node_ip()
         self.state = ESWorker.READY_FOR_JOB
         self.payload_job_dir = None
+        self.payload_actor_output_dir = None
         self.payload_actor_process_dir = None
         self.cpu_monitor = None
         self.workdir = os.path.expandvars(
@@ -130,9 +131,10 @@ class ESWorker(object):
             self.payload_job_dir = self.workdir
 
         subdir = f"{self.id}_{os.getpid()}"
-        self.payload_actor_process_dir = os.path.join(self.payload_job_dir,
-                                                      subdir)
+        self.payload_actor_output_dir = os.path.join(self.payload_job_dir, f"esOutput_{subdir}")
+        self.payload_actor_process_dir = os.path.join(self.payload_job_dir, subdir)
         try:
+            os.mkdir(self.payload_actor_output_dir)
             os.mkdir(self.payload_actor_process_dir)
             os.chdir(self.payload_actor_process_dir)
         except Exception:
@@ -358,7 +360,7 @@ class ESWorker(object):
             cfile = range_update.get("path", None)
             if cfile:
                 dst = os.path.join(
-                    harvester_endpoint,
+                    self.payload_actor_output_dir,
                     os.path.basename(cfile) if os.path.isabs(cfile) else cfile)
                 range_update["path"] = dst
                 if os.path.isfile(cfile) and not os.path.isfile(dst):
