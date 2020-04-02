@@ -9,6 +9,8 @@ setup(
     scripts=[
         'bin/ray_start_head',
         'bin/ray_start_worker',
+        'bin/ray_sync',
+        'example/standalone_ray_test.py',
         'app.py'
     ],
     data_files=[
