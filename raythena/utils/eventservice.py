@@ -612,36 +612,49 @@ class EventRangeUpdate(object):
 
         if isinstance(
                 range_update, dict
-        ) and "zipFile" not in range_update and "eventRangeID" not in range_update:
+        ) and "zipFile" not in range_update and "esOutput" not in range_update \
+                and "eventRangeID" not in range_update:
             range_update = json.loads(range_update['eventRanges'][0])
 
         for range_elt in range_update:
-            file_info = range_elt.get('zipFile', None)
+            if "zipFile" in range_elt and range_elt["zipFile"]:
+                range_update_type = "zipFile"
+                file_info = range_elt.get('zipFile', None)
+            elif "esOutput" in range_elt and range_elt["esOutput"]:
+                range_update_type = "esOutput"
+                file_info = range_elt.get('esOutput', None)
             ranges_info = range_elt.get('eventRanges', None)
             file_data = dict()
 
             if file_info:
-                if file_info['lfn'].find('.root.Range') > -1:
+                if range_update_type == "esOutput":
                     ftype = "es_output"
                 else:
                     ftype = "zip_output"
-                file_data['path'] = file_info['lfn']
+                    file_data['path'] = file_info['lfn']
+                    file_data['chksum'] = file_info['adler32']
+                    file_data['fsize'] = file_info['fsize']
                 file_data['type'] = ftype
-                file_data['chksum'] = file_info['adler32']
-                file_data['fsize'] = file_info['fsize']
-                file_data['guid'] = None
 
             if ranges_info:
                 for rangeInfo in ranges_info:
                     elt = dict()
                     elt['eventRangeID'] = rangeInfo['eventRangeID']
                     elt['eventStatus'] = rangeInfo['eventStatus']
+                    if range_update_type == "esOutput":
+                        elt['path'] = rangeInfo['pfn']
+                        elt['chksum'] = rangeInfo['adler32']
+                        elt['fsize'] = rangeInfo['fsize']
                     elt.update(file_data)
                     update_dict[panda_id].append(elt)
             else:
                 elt = dict()
                 elt['eventRangeID'] = range_elt['eventRangeID']
                 elt['eventStatus'] = range_elt['eventStatus']
+                if range_update_type == "esOutput":
+                    elt['path'] = range_elt['pfn']
+                    elt['chksum'] = range_elt['adler32']
+                    elt['fsize'] = range_elt['fsize']
                 elt.update(file_data)
                 update_dict[panda_id].append(elt)
 
