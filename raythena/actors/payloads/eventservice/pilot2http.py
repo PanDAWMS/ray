@@ -174,23 +174,38 @@ class Pilot2HttpPayload(ESPayload):
         if extra_setup:
             cmd += f"{extra_setup}{';' if not extra_setup.endswith(';') else ''}"
 
+        pilot_src = f"{shlex.quote(self.config.ray['workdir'])}/pilot2"
+
+        if not os.path.isdir(pilot_src):
+            raise FailedPayload(self.worker_id)
+
+        cmd += f"ln -s {pilot_src} {os.path.join(os.getcwd(), 'pilot2')};"
         prod_source_label = shlex.quote(self.current_job['prodSourceLabel'])
 
-        pilot_bin = os.path.expandvars(
-            os.path.join(self.config.payload.get('bindir', ''), "pilot.py"))
-        queue_escaped = shlex.quote(self.config.payload.get('pandaqueue', ''))
-        payload_log = shlex.quote(
-            self.config.payload.get('logfilename', 'wrapper'))
-        # use exec to replace the shell process with python. Allows to send signal to the python process if needed
-        cmd += f"python {shlex.quote(pilot_bin)} -q {queue_escaped} -r {queue_escaped} -s {queue_escaped} " \
-               f"-i PR -j {prod_source_label} --pilot-user=ATLAS -t -w generic --url=http://{self.host} " \
-               f"-p {self.port} --allow-same-user=False --resource-type MCORE > {payload_log} 2> {payload_log}.stderr;"
+        pilotwrapper_bin = os.path.expandvars(
+            os.path.join(self.config.payload['bindir'], "runpilot2-wrapper.sh"))
+
+        if not os.path.isfile(pilotwrapper_bin):
+            raise FailedPayload(self.worker_id)
+
+        queue_escaped = shlex.quote(self.config.payload['pandaqueue'])
+        cmd += f"{shlex.quote(pilotwrapper_bin)}  --piloturl local -q {queue_escaped} -r {queue_escaped} " \
+               f" -s {queue_escaped} -i PR -j {prod_source_label} --container --mute --pilot-user=atlas -t " \
+               f"-d --cleanup=False -w generic --url=http://{self.host} -p {self.port} --allow-same-user=False --resource-type MCORE " \
+               f"--hpc-resource {shlex.quote(self.config.payload['hpcresource'])};"
 
         extra_script = self.config.payload.get('extrapostpayload', '')
         if extra_script:
             cmd += f"{extra_script}{';' if not extra_script.endswith(';') else ''}"
-
-        return cmd
+        cmd_script = os.path.join(os.getcwd(), "payload.sh")
+        with open(cmd_script, 'w') as f:
+            f.write(cmd)
+        st = os.stat(cmd_script)
+        os.chmod(cmd_script, st.st_mode | stat.S_IEXEC)
+        payload_log = shlex.quote(
+            self.config.payload.get('logfilename', 'wrapper'))
+        return (f"/bin/bash {cmd_script} "
+                f"> {payload_log} 2> {payload_log}.stderr")
 
     def _build_pilot_container_command(self) -> str:
         """

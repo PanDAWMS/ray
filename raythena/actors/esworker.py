@@ -9,7 +9,7 @@ import ray
 from raythena.actors.loggingActor import LoggingActor
 from raythena.utils.config import Config
 from raythena.utils.eventservice import EventRangeRequest, Messages, EventRangeUpdate, PandaJob, EventRange
-from raythena.utils.exception import IllegalWorkerState, StageInFailed
+from raythena.utils.exception import IllegalWorkerState, StageInFailed, StageOutFailed
 from raythena.utils.plugins import PluginsRegistry
 from raythena.utils.ray import get_node_ip
 from raythena.utils.timing import CPUMonitor
@@ -99,6 +99,7 @@ class ESWorker(object):
         self.node_ip = get_node_ip()
         self.state = ESWorker.READY_FOR_JOB
         self.payload_job_dir = None
+        self.payload_actor_output_dir = None
         self.payload_actor_process_dir = None
         self.cpu_monitor = None
         self.workdir = os.path.expandvars(
@@ -130,9 +131,10 @@ class ESWorker(object):
             self.payload_job_dir = self.workdir
 
         subdir = f"{self.id}_{os.getpid()}"
-        self.payload_actor_process_dir = os.path.join(self.payload_job_dir,
-                                                      subdir)
+        self.payload_actor_output_dir = os.path.join(self.payload_job_dir, f"esOutput_{subdir}")
+        self.payload_actor_process_dir = os.path.join(self.payload_job_dir, subdir)
         try:
+            os.mkdir(self.payload_actor_output_dir)
             os.mkdir(self.payload_actor_process_dir)
             os.chdir(self.payload_actor_process_dir)
         except Exception:
@@ -355,12 +357,16 @@ class ESWorker(object):
         ranges = json.loads(ranges_update['eventRanges'][0])
         ranges = EventRangeUpdate.build_from_dict(self.job.get_id(), ranges)
         for range_update in ranges[self.job.get_id()]:
-            cfile = range_update.get("path", None)
+            if "path" in range_update and range_update["path"]:
+                cfile_key = "path"
+            else:
+                raise StageOutFailed(self.id)
+            cfile = range_update.get(cfile_key, None)
             if cfile:
                 dst = os.path.join(
-                    harvester_endpoint,
+                    self.payload_actor_output_dir,
                     os.path.basename(cfile) if os.path.isabs(cfile) else cfile)
-                range_update["path"] = dst
+                range_update[cfile_key] = dst
                 if os.path.isfile(cfile) and not os.path.isfile(dst):
                     shutil.move(cfile, dst)
         return ranges

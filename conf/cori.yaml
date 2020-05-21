@@ -3,11 +3,13 @@ payload:
   bindir:
   pandaqueue: NERSC_Cori_p2_ES
   logfilename: log.pilotwrapper
-  extrasetup: source /opt/lcg/gcc/*/x86_64-*/setup.sh; source /opt/lcg/binutils/*/x86_64-*/setup.sh; export PATH=/opt/lcg/LCG_87/Python/2.7.10/x86_64-slc6-gcc62-opt/bin:$PATH; export LD_LIBRARY_PATH=/global/common/software/atlas/harvester/yampl/lib:$LD_LIBRARY_PATH; export PYTHONPATH=/global/common/software/atlas/harvester/yampl/python-yampl:$PYTHONPATH;
+  extrasetup: export ALRB_CONT_SWTYPE=shifter; export LD_LIBRARY_PATH=/global/common/software/atlas/harvester/yampl/lib:$LD_LIBRARY_PATH; export PYTHONPATH=/global/common/software/atlas/harvester/yampl/python-yampl:$PYTHONPATH;
   extrapostpayload:
   hpcresource: cori
-  containerengine: shifter
+  containerengine:
   containerextraargs:
+  condabindir: /global/common/cori_cle7/software/python/3.7-anaconda-2019.10/bin/
+  virtualenv: /global/common/software/atlas/pilot-py2.7
 
 harvester:
   cacher: $SCRATCH/harvester
