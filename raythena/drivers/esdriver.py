@@ -263,7 +263,7 @@ class ESDriver(BaseDriver):
         self.communicator.start()
         self.requests_queue.put(PandaJobRequest())
         self.logging_actor.debug.remote(self.id,
-                                        f"Sent job request to harvester", time.asctime())
+                                        "Sent job request to harvester", time.asctime())
         self.actors = dict()
         self.actors_message_queue = list()
         self.bookKeeper = BookKeeper(self.logging_actor, config)
@@ -356,10 +356,10 @@ class ESDriver(BaseDriver):
                     elif message == Messages.PROCESS_DONE:
                         self.handle_actor_done(actor_id)
             self.logging_actor.debug.remote(
-                self.id, f"Finished handling messages batch", time.asctime())
+                self.id, "Finished handling messages batch", time.asctime())
             self.on_tick()
             self.logging_actor.debug.remote(
-                self.id, f"Waiting on new messages from actors", time.asctime())
+                self.id, "Waiting on new messages from actors", time.asctime())
             new_messages, self.actors_message_queue = ray.wait(
                 self.actors_message_queue)
 
@@ -526,7 +526,7 @@ class ESDriver(BaseDriver):
 
             if len(event_request) > 0:
                 self.logging_actor.debug.remote(
-                    self.id, f"Sending event ranges request to harvester", time.asctime())
+                    self.id, "Sending event ranges request to harvester", time.asctime())
                 self.requests_queue.put(event_request)
                 self.n_eventsrequest += 1
 
@@ -534,7 +534,7 @@ class ESDriver(BaseDriver):
             try:
                 ranges = self.event_ranges_queue.get(block)
                 self.logging_actor.debug.remote(self.id,
-                                                f"received reply to event ranges request", time.asctime())
+                                                "received reply to event ranges request", time.asctime())
                 self.bookKeeper.add_event_ranges(ranges)
                 self.n_eventsrequest -= 1
             except Empty:
@@ -582,7 +582,7 @@ class ESDriver(BaseDriver):
                 self.id, "No jobs provided by communicator, stopping...", time.asctime())
             return
         self.logging_actor.debug.remote(self.id,
-                                        f"Received reply to the job request", time.asctime())
+                                        "Received reply to the job request", time.asctime())
         self.bookKeeper.add_jobs(jobs)
 
         # sends an initial event range request
@@ -591,7 +591,7 @@ class ESDriver(BaseDriver):
             self.cpu_monitor.stop()
             self.communicator.stop()
             self.logging_actor.critical.remote(
-                self.id, f"Couldn't fetch a job with event ranges, stopping...", time.asctime())
+                self.id, "Couldn't fetch a job with event ranges, stopping...", time.asctime())
             time.sleep(5)
             return
 

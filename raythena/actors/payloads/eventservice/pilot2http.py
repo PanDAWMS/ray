@@ -346,7 +346,7 @@ class Pilot2HttpPayload(ESPayload):
             asyncio.run_coroutine_threadsafe(self.notify_stop_server_task(),
                                              self.loop)
             self.server_thread.join()
-            self.logging_actor.info.remote(self.worker_id, f"Communicator stopped", time.asctime())
+            self.logging_actor.info.remote(self.worker_id, "Communicator stopped", time.asctime())
 
     def submit_new_range(self, event_range: Union[None, EventRange]) -> asyncio.Future:
         """
