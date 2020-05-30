@@ -121,7 +121,6 @@ class ESWorker(object):
         Returns:
             Dict
         """
-        return job
 
         self.logging_actor.info.remote(self.id, "modify_job", time.asctime())
         if "jobPars" not in job:
