@@ -623,6 +623,9 @@ class EventRangeUpdate(object):
             elif "esOutput" in range_elt and range_elt["esOutput"]:
                 range_update_type = "esOutput"
                 file_info = range_elt.get('esOutput', None)
+            else:
+                range_update_type = None
+                file_info = None
             ranges_info = range_elt.get('eventRanges', None)
             file_data = dict()
 

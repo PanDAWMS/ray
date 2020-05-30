@@ -48,7 +48,7 @@ class TestEventRangeUpdate:
         assert len(ranges) == nevents
         assert len(ranges_update) == 1
         for r in ranges:
-            assert "eventRangeID" in r and "eventStatus" in r and "path" in r and "type" in r and "chksum" in r and "fsize" in r and "guid" in r
+            assert "eventRangeID" in r and "eventStatus" in r and "path" in r and "type" in r and "chksum" in r and "fsize" in r
 
         ranges_update = EventRangeUpdate.build_from_dict(
             pandaID, sample_failed_rangeupdate)
@@ -57,7 +57,7 @@ class TestEventRangeUpdate:
         assert len(ranges) == nevents
         for r in ranges:
             assert "eventRangeID" in r and "eventStatus" in r and \
-                   "path" not in r and "type" not in r and "chksum" not in r and "fsize" not in r and "guid" not in r
+                   "path" not in r and "type" not in r and "chksum" not in r and "fsize" not in r
 
         with pytest.raises(Exception):
             ranges_update.range_update[pandaID] = None
