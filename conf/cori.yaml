@@ -29,5 +29,5 @@ resources:
   workerpernode: 1
 
 logging:
-  level: info
+  level: debug
   logfile: raythena.log
