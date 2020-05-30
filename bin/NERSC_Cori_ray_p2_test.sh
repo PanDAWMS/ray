@@ -30,7 +30,7 @@ export HARVESTER_NNODE={nNode}
 export HARVESTER_HOME=/global/common/software/atlas/harvester
 
 export PANDA_QUEUE=NERSC_Cori_p2_ES_Test
-export container_setup=/usr/atlas/release_setup.sh
+export container_setup=/release_setup.sh
 export HARVESTER_CONTAINER_RELEASE_SETUP_FILE=$container_setup
 export pilot_wrapper_bin=/global/common/software/atlas/raythena/runpilot2-wrapper.sh
 export pilot_tar_file=/global/common/software/atlas/raythena/pilot2.tar.gz
