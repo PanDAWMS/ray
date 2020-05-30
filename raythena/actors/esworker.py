@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import shutil
 import time
 from typing import Union, Tuple, List, Dict
@@ -113,6 +114,30 @@ class ESWorker(object):
                                                                          self.config)
         self.logging_actor.info.remote(self.id, "Ray worker started", time.asctime())
 
+    def modify_job(self, job: Dict) -> Dict:
+        """
+        Modify the job dict before sending it to the payload.
+
+        Returns:
+            Dict
+        """
+        return job
+
+        self.logging_actor.info.remote(self.id, f"modify_job", time.asctime())
+        if "jobPars" not in job:
+            return job
+        cmd = job["jobPars"]
+        inputEVNTFile = re.findall("\-\-inputEVNTFile=([\w\.\,]*) \-", cmd)
+        if len(inputEVNTFile) != 1:
+            return job
+        inFiles = [os.path.join(os.path.expandvars(self.config.harvester['endpoint']), x) for x in inputEVNTFile[0].split(",")]
+        inFiles = ",".join(inFiles)
+        self.logging_actor.info.remote(self.id, f"inFiles: {inFiles}", time.asctime())
+        cmd = re.sub("\-\-inputEVNTFile=([\w\.\,]*) \-", f"--inputEVNTFile={inFiles} -", cmd)
+        self.logging_actor.info.remote(self.id, f"cmd: {cmd}", time.asctime())
+        job["jobPars"] = cmd
+        return job
+
     def stagein(self) -> None:
         """
         Perform a generic stage-in, creating a unique worker directory and cwd to it,
@@ -152,7 +177,7 @@ class ESWorker(object):
                 os.symlink(in_abs, staged_file)
 
         self.payload.stagein()
-        self.payload.start(self.job)
+        self.payload.start(self.modify_job(self.job))
         self.transition_state(ESWorker.READY_FOR_EVENTS if self.
                               is_event_service_job() else ESWorker.PROCESSING)
 
