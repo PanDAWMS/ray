@@ -34,6 +34,7 @@ export container_setup=/release_setup.sh
 export HARVESTER_CONTAINER_RELEASE_SETUP_FILE=$container_setup
 export pilot_wrapper_bin=/global/common/software/atlas/raythena/runpilot2-wrapper.sh
 export pilot_tar_file=/global/common/software/atlas/raythena/pilot2.tar.gz
+export HARVESTER_PILOT_CONFIG=/global/common/software/atlas/raythena/default.cfg
 
 export SOURCEDIR=/global/common/software/atlas/raythena/ray
 export BINDIR=$SOURCEDIR/bin
