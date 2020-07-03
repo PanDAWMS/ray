@@ -19,6 +19,3 @@ srun -x $SLURMD_NODENAME -N`expr $SLURM_JOB_NUM_NODES - 1` -n`expr $SLURM_JOB_NU
 
 # wait for worker nodes to connect to the main node
 ray_sync --wait-workers --nworkers `expr $SLURM_JOB_NUM_NODES - 1`
-
-# run the standalone ray test
-standalone_ray_test.py

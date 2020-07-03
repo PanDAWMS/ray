@@ -17,17 +17,36 @@ pip install -e ray
 
 ## Stand-Alone Ray Example
 
-Test ray compatibility with slurm via the stand-alone [example](https://github.com/PanDAWMS/ray/blob/master/example/standalone_ray_test_cori.sh)
+Test ray compatibility with slurm via the stand-alone example for slurm:
 
-For example, on NERSC's Cori
 ```
 salloc -N 3 -C haswell -q interactive -t 01:00:00
-source ray/example/standalone_ray_test_cori.sh
+source setup_ray_cluster_slurm.sh
 ```
-Output shows that all three requested nodes are connected to the Ray cluster
+
+This will setup the Ray cluster with all requested nodes. Script needs to be sourced because it sets up some environment variables. Next step is to run a Ray script:
+
 ```
-{'10.128.0.24', '10.128.0.26', '10.128.0.25'}
+standalone_ray_test_hello_world.py
 ```
+
+Script will look for all nodes in the Ray cluster and start a ping-pong test. The output is expected to look like this:
+```
+Found 3 nodes in the Ray Cluster:
+	['payload_slot@10.128.0.28', 'payload_slot@10.128.0.30', 'payload_slot@10.128.0.29']
+Setting up 3 Actors...
+(pid=3722, ip=10.128.0.30) Initial message from Actor_10.128.0.30
+(pid=25088, ip=10.128.0.29) Initial message from Actor_10.128.0.29
+(pid=62534) Initial message from Actor_10.128.0.28
+(pid=62534) ping
+(pid=3722, ip=10.128.0.30) ping
+(pid=25088, ip=10.128.0.29) ping
+Received back message pong
+Received back message pong
+Received back message pong
+```
+
+This test verifies that all nodes were connected to to the Ray Cluster and that communication between the nodes is successful.
 
 ## Raythena Configuration
 

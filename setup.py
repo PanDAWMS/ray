@@ -10,8 +10,9 @@ setup(
         'bin/ray_start_head',
         'bin/ray_start_worker',
         'bin/ray_sync',
-        'example/standalone_ray_test.py',
-        'app.py'
+        'app.py',
+        'example/setup_ray_cluster_slurm.sh',
+        'example/standalone_ray_test_hello_world.py',
     ],
     data_files=[
         ('conf', ['conf/cori.yaml', 'conf/incontainer.yaml'])
