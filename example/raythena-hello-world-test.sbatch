@@ -68,3 +68,19 @@ ray_sync --wait-workers --nworkers `expr $SLURM_JOB_NUM_NODES - 1`
 # execute command to show ray works
 
 ${RAYTHENA_DIR}/example/standalone_ray_test_hello_world.py 
+
+# exit code
+RAY_EXIT_CODE=$?
+
+# stop ray
+ray stop
+
+# exit
+if [ $RAY_EXIT_CODE -eq 0 ]
+then
+  echo "The script ran ok"
+  exit 0
+else
+  echo "The script failed" >&2
+  exit $RAY_EXIT_CODE
+fi
