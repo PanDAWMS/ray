@@ -51,22 +51,26 @@ echo
 env | sort | grep SLURM
 echo
 
+
+export RAY_TMP_DIR=/tmp/raytmp/$SLURM_JOB_ID
+
+if [[ ! -d $RAY_TMP_DIR ]]; then
+  mkdir -p "$RAY_TMP_DIR"
+fi
+
 # start ray head node
-srun -N1 -n1 -w $node1 \
-    ray start --head --redis-port=$RAYTHENA_RAY_REDIS_PORT --redis-password=$RAYTHENA_RAY_REDIS_PASSWORD --num-cpus=$RAYTHENA_RAY_NWORKERS --block &
+srun -N1 -n1 -w "$node1" ${RAYTHENA_DIR}/bin/ray_start_head &
 
 # wait for head node to start ray
-ray_sync
+${RAYTHENA_DIR}/bin/ray_sync
 
 # start ray on all other nodes
-srun -x $SLURMD_NODENAME -N`expr $SLURM_JOB_NUM_NODES - 1` -n`expr $SLURM_JOB_NUM_NODES - 1` \
-    ray start --address $RAYTHENA_RAY_HEAD_IP:$RAYTHENA_RAY_REDIS_PORT --redis-password $RAYTHENA_RAY_REDIS_PASSWORD --num-cpus=$RAYTHENA_RAY_NWORKERS --block &
+srun -x $SLURMD_NODENAME -N`expr $SLURM_JOB_NUM_NODES - 1` -n`expr $SLURM_JOB_NUM_NODES - 1` ${RAYTHENA_DIR}/bin/ray_start_worker &
 
 # wait for worker nodes to connect to the main node
-ray_sync --wait-workers --nworkers `expr $SLURM_JOB_NUM_NODES - 1`
+${RAYTHENA_DIR}/bin/ray_sync --wait-workers --nworkers `expr $SLURM_JOB_NUM_NODES - 1`
 
 # execute command to show ray works
-
 ${RAYTHENA_DIR}/example/standalone_ray_test_hello_world.py 
 
 # exit code
@@ -74,6 +78,11 @@ RAY_EXIT_CODE=$?
 
 # stop ray
 ray stop
+
+RAY_STOP_CODE=$?
+
+echo "ray hello world exit code: ${RAY_EXIT_CODE}"
+echo "ray exit code: ${RAY_STOP_CODE}"
 
 # exit
 if [ $RAY_EXIT_CODE -eq 0 ]
