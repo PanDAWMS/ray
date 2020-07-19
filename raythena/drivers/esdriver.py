@@ -517,7 +517,9 @@ class ESDriver(BaseDriver):
                     continue
                 n_available_ranges = self.bookKeeper.n_ready(pandaID)
                 job = self.bookKeeper.jobs[pandaID]
-                n_events = int(job['coreCount']) * len(self.nodes) * 2
+                # each pilot will request for 'coreCount * 2' event ranges
+                # and we use an additional safety factor of 2
+                n_events = int(job['coreCount']) * len(self.nodes) * 2 * 2
                 if n_available_ranges < n_events:
                     event_request.add_event_request(pandaID,
                                                     n_events,
@@ -526,7 +528,7 @@ class ESDriver(BaseDriver):
 
             if len(event_request) > 0:
                 self.logging_actor.debug.remote(
-                    self.id, "Sending event ranges request to harvester", time.asctime())
+                    self.id, f"Sending event ranges request to harvester for {n_events} events", time.asctime())
                 self.requests_queue.put(event_request)
                 self.n_eventsrequest += 1
 
@@ -534,7 +536,9 @@ class ESDriver(BaseDriver):
             try:
                 ranges = self.event_ranges_queue.get(block)
                 self.logging_actor.debug.remote(self.id,
-                                                "received reply to event ranges request", time.asctime())
+                                                f"received reply to event ranges request with ranges", time.asctime())
+                for pandaID, ranges_list in ranges.items():
+                    self.logging_actor.debug.remote(self.id, f"got ranges for pandaID {pandaID}: {len(ranges_list)}", time.asctime())
                 self.bookKeeper.add_event_ranges(ranges)
                 self.n_eventsrequest -= 1
             except Empty:
@@ -582,7 +586,7 @@ class ESDriver(BaseDriver):
                 self.id, "No jobs provided by communicator, stopping...", time.asctime())
             return
         self.logging_actor.debug.remote(self.id,
-                                        "Received reply to the job request", time.asctime())
+                                        f"Received reply to the job request:\n{jobs}", time.asctime())
         self.bookKeeper.add_jobs(jobs)
 
         # sends an initial event range request
