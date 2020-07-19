@@ -536,7 +536,7 @@ class ESDriver(BaseDriver):
             try:
                 ranges = self.event_ranges_queue.get(block)
                 self.logging_actor.debug.remote(self.id,
-                                                f"received reply to event ranges request with ranges", time.asctime())
+                                                "received reply to event ranges request with ranges", time.asctime())
                 for pandaID, ranges_list in ranges.items():
                     self.logging_actor.debug.remote(self.id, f"got ranges for pandaID {pandaID}: {len(ranges_list)}", time.asctime())
                 self.bookKeeper.add_event_ranges(ranges)
