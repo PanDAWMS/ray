@@ -640,4 +640,5 @@ class ESDriver(BaseDriver):
         Returns:
             None
         """
+        self.logging_actor.info.remote(self.id, f"Caught exception in actor {ex}", time.asctime())
         pass

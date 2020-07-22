@@ -381,7 +381,14 @@ class ESWorker(object):
             return
         ranges = json.loads(ranges_update['eventRanges'][0])
         ranges = EventRangeUpdate.build_from_dict(self.job.get_id(), ranges)
+        self.logging_actor.info.remote(self.id, f"stageout_event_service_files: {ranges[self.job.get_id()]}", time.asctime())
+        # stage-out finished event ranges
         for range_update in ranges[self.job.get_id()]:
+            if "eventStatus" not in range_update:
+                raise StageOutFailed(self.id)
+            if range_update["eventStatus"] == "failed":
+                self.logging_actor.info.remote(self.id, "event range failed, will not stage-out", time.asctime())
+                continue
             if "path" in range_update and range_update["path"]:
                 cfile_key = "path"
             else:
