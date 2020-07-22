@@ -103,6 +103,7 @@ class ESWorker(object):
         self.payload_actor_output_dir = None
         self.payload_actor_process_dir = None
         self.cpu_monitor = None
+        self.first_event_range_request = True
         self.workdir = os.path.expandvars(
             self.config.ray.get('workdir', os.getcwd()))
         if not os.path.isdir(self.workdir):
@@ -427,8 +428,18 @@ class ESWorker(object):
                     self.state == ESWorker.READY_FOR_EVENTS or
                     self.should_request_ranges()):
                 req = EventRangeRequest()
+                if not self.first_event_range_request:
+                    n_events = self.config.resources['corepernode'] * 2
+                else:
+                    # initially request only for 'NCPU' events because
+                    # Harvester gives 'NCPU * nodes' initially. This is fewer
+                    # than what pilot expects (2 * 'NCPU').
+                    n_events = self.config.resources['corepernode']
+                    self.logging_actor.debug.remote(self.id,
+                                                    f"First event range request. Requesting {n_events} event ranges.", time.asctime())
+                    self.first_event_range_request = True
                 req.add_event_request(self.job['PandaID'],
-                                      self.config.resources['corepernode'] * 2,
+                                      n_events,
                                       self.job['taskID'], self.job['jobsetID'])
                 self.transition_state(ESWorker.EVENT_RANGES_REQUESTED)
                 self.logging_actor.debug.remote(
