@@ -444,7 +444,7 @@ class ESWorker(object):
                     n_events = self.config.resources['corepernode']
                     self.logging_actor.debug.remote(self.id,
                                                     f"First event range request. Requesting {n_events} event ranges.", time.asctime())
-                    self.first_event_range_request = True
+                    self.first_event_range_request = False
                 req.add_event_request(self.job['PandaID'],
                                       n_events,
                                       self.job['taskID'], self.job['jobsetID'])
