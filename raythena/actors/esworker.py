@@ -161,7 +161,7 @@ class ESWorker(object):
         try:
             if not os.path.isdir(self.payload_actor_output_dir):
                 os.mkdir(self.payload_actor_output_dir)
-        except:
+        except Exception:
             self.logging_actor.warn.remote(
                 self.id,
                 "Exception when creating the payload_actor_output_dir",
