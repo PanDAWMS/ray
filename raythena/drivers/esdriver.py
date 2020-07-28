@@ -241,6 +241,9 @@ class ESDriver(BaseDriver):
         self.jobs_queue = Queue()
         self.event_ranges_queue = Queue()
 
+        self.logging_actor.debug.remote(self.id,
+                                        f"Driver initialized, running Ray {ray.__version__}", time.asctime())
+
         workdir = os.path.expandvars(self.config.ray.get('workdir'))
         if not workdir or not os.path.exists(workdir):
             self.logging_actor.warn.remote(
