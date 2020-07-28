@@ -156,7 +156,7 @@ class ESWorker(object):
             self.payload_job_dir = self.workdir
 
         subdir = f"{self.id}_{os.getpid()}"
-        self.payload_actor_output_dir = os.path.join(self.payload_job_dir, f"esOutput")
+        self.payload_actor_output_dir = os.path.join(self.payload_job_dir, "esOutput")
         self.payload_actor_process_dir = os.path.join(self.payload_job_dir, subdir)
         try:
             if not os.path.isdir(self.payload_actor_output_dir):
