@@ -164,7 +164,7 @@ class ESWorker(object):
         except:
             self.logging_actor.warn.remote(
                 self.id,
-                f"Exception when creating the payload_actor_output_dir",
+                "Exception when creating the payload_actor_output_dir",
                 time.asctime()
             )
         try:
