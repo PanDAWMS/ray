@@ -156,10 +156,18 @@ class ESWorker(object):
             self.payload_job_dir = self.workdir
 
         subdir = f"{self.id}_{os.getpid()}"
-        self.payload_actor_output_dir = os.path.join(self.payload_job_dir, f"esOutput_{subdir}")
+        self.payload_actor_output_dir = os.path.join(self.payload_job_dir, f"esOutput")
         self.payload_actor_process_dir = os.path.join(self.payload_job_dir, subdir)
         try:
-            os.mkdir(self.payload_actor_output_dir)
+            if not os.path.isdir(self.payload_actor_output_dir):
+                os.mkdir(self.payload_actor_output_dir)
+        except:
+            self.logging_actor.warn.remote(
+                self.id,
+                f"Exception when creating the payload_actor_output_dir",
+                time.asctime()
+            )
+        try:
             os.mkdir(self.payload_actor_process_dir)
             os.chdir(self.payload_actor_process_dir)
         except Exception:
