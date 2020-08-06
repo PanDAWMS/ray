@@ -273,6 +273,7 @@ class ESDriver(BaseDriver):
         self.terminated = list()
         self.running = True
         self.n_eventsrequest = 0
+        self.shutdown_timer = None
 
     def __str__(self) -> str:
         """
@@ -510,6 +511,9 @@ class ESDriver(BaseDriver):
         """
         if self.n_eventsrequest == 0:
 
+            # check if jobs have any events left
+            job_has_events = {pandaID: True for pandaID in self.bookKeeper.jobs}
+
             event_request = EventRangeRequest()
             for pandaID in self.bookKeeper.jobs:
                 if self.bookKeeper.is_flagged_no_more_events(pandaID):
@@ -517,6 +521,7 @@ class ESDriver(BaseDriver):
                         self.id,
                         f"Job {pandaID} has no more events. Skipping request...", time.asctime()
                     )
+                    job_has_events[pandaID] = False
                     continue
                 n_available_ranges = self.bookKeeper.n_ready(pandaID)
                 job = self.bookKeeper.jobs[pandaID]
@@ -529,6 +534,17 @@ class ESDriver(BaseDriver):
                                                     job['taskID'],
                                                     job['jobsetID'])
 
+            if all(not x for x in job_has_events.values()):
+                if not self.shutdown_timer:
+                    self.shutdown_timer = time.time()
+                elif (time.time() - self.shutdown_timer) > self.config.ray["shutdowntime"]:
+                    self.logging_actor.debug.remote(
+                        self.id,
+                        f"All jobs ({[pandaID for pandaID in self.bookKeeper.jobs]}) ran out of events "
+                        f"and shutdown time of {self.config.ray['shutdowntime']} reached. Shutting down.", time.asctime()
+                    )
+                    self.stop()
+
             if len(event_request) > 0:
                 self.logging_actor.debug.remote(
                     self.id, f"Sending event ranges request to harvester for {n_events} events", time.asctime())
@@ -539,7 +555,7 @@ class ESDriver(BaseDriver):
             try:
                 ranges = self.event_ranges_queue.get(block)
                 self.logging_actor.debug.remote(self.id,
-                                                "received reply to event ranges request with ranges", time.asctime())
+                                                "received reply from harvester", time.asctime())
                 for pandaID, ranges_list in ranges.items():
                     self.logging_actor.debug.remote(self.id, f"got ranges for pandaID {pandaID}: {len(ranges_list)}", time.asctime())
                 self.bookKeeper.add_event_ranges(ranges)

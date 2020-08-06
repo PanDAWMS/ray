@@ -25,19 +25,20 @@ class Config(object):
             "hpcresource": str,
             "extrapostpayload": str,
             "containerengine": str,
-            "containerextraargs": str
+            "containerextraargs": str,
         },
         'harvester': {
             'endpoint': str,
             'communicator': str,
-            'harvesterconf': str
+            'harvesterconf': str,
         },
         'ray': {
             'workdir': str,
             'headip': str,
             'redisport': int,
             'redispassword': str,
-            'driver': str
+            'driver': str,
+            'shutdowntime': int,
         },
         'resources': {
             'corepernode': int,
@@ -45,7 +46,7 @@ class Config(object):
         },
         'logging': {
             'level': str,
-            'logfile': str
+            'logfile': str,
         }
     }
 

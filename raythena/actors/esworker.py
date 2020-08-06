@@ -446,9 +446,8 @@ class ESWorker(object):
                 if not self.first_event_range_request:
                     n_events = self.config.resources['corepernode'] * 2
                 else:
-                    # initially request only for 'NCPU' events because
-                    # Harvester gives 'NCPU * nodes' initially. This is fewer
-                    # than what pilot expects (2 * 'NCPU').
+                    # First time request only for 'NCPU' events because
+                    # Harvester gives 'NCPU * nodes' initially.
                     n_events = self.config.resources['corepernode']
                     self.logging_actor.debug.remote(self.id,
                                                     f"First event range request. Requesting {n_events} event ranges.", time.asctime())
