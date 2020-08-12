@@ -137,12 +137,12 @@ class HarvesterFileCommunicator(BaseCommunicator):
             with open(event_request_file_tmp, 'w') as f:
                 json.dump(request.request, f)
             shutil.move(event_request_file_tmp, self.eventrequestfile)
-            print (f"request_event_ranges: created new {self.eventrequestfile} file")
+            print(f"request_event_ranges: created new {self.eventrequestfile} file")
 
         while not os.path.isfile(self.eventrangesfile):
             time.sleep(1)
 
-        print (f"request_event_ranges: found a {self.eventrangesfile} file")
+        print(f"request_event_ranges: found a {self.eventrangesfile} file")
         while os.path.isfile(self.eventrangesfile):
             try:
                 with open(self.eventrangesfile, 'r') as f:
