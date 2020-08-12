@@ -131,7 +131,7 @@ class ESWorker(object):
         if len(inputEVNTFile) != 1:
             return job
         inFiles = [os.path.join(os.path.expandvars(self.config.harvester['endpoint']), x) for x in inputEVNTFile[0].split(",")]
-        inFiles = ",".join(inFiles)
+        inFiles = ",".join(inFiles[0:1])
         self.logging_actor.info.remote(self.id, f"inFiles: {inFiles}", time.asctime())
         cmd = re.sub(r"\-\-inputEVNTFile=([\w\.\,]*) \-", f"--inputEVNTFile={inFiles} -", cmd)
         self.logging_actor.info.remote(self.id, f"cmd: {cmd}", time.asctime())
