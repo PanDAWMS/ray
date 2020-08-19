@@ -18,7 +18,7 @@ setup(
         ('conf', ['conf/cori.yaml', 'conf/incontainer.yaml'])
     ],
     install_requires=[
-        'ray',
+        'ray==0.8.7',
         'psutil',
         'uvloop',
         'aiohttp',
