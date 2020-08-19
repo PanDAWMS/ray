@@ -394,11 +394,6 @@ class ESDriver(BaseDriver):
                 self.id, f" no more job for {actor_id}", time.asctime())
             self.terminated.append(actor_id)
             self.bookKeeper.process_actor_end(actor_id)
-            self.logging_actor.debug.remote(
-                self.id,
-                "No more events to process and one of the Actors exited. Shutting down.", time.asctime()
-            )
-            self.stop()
             # do not get new messages from this actor
         return has_jobs
 
@@ -475,6 +470,12 @@ class ESDriver(BaseDriver):
         self.actors_message_queue.append(self[actor_id].receive_event_ranges.remote(
             Messages.REPLY_OK if evt_range else
             Messages.REPLY_NO_MORE_EVENT_RANGES, evt_range))
+        if not evt_range:
+            self.logging_actor.debug.remote(
+                self.id,
+                "No more events to process and one of the Workers finished processing. Shutting down.", time.asctime()
+            )
+            self.stop()
         return total_sent
 
     def handle_job_request(self, actor_id: str) -> None:
