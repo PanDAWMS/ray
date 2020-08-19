@@ -396,7 +396,7 @@ class ESDriver(BaseDriver):
             self.bookKeeper.process_actor_end(actor_id)
             self.logging_actor.debug.remote(
                 self.id,
-                f"No more events to process and one of the Actors exited. Shutting down.", time.asctime()
+                "No more events to process and one of the Actors exited. Shutting down.", time.asctime()
             )
             self.stop()
             # do not get new messages from this actor
