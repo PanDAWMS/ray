@@ -1,5 +1,6 @@
 from typing import List
 
+import json
 import ray
 
 from raythena.utils.config import Config
@@ -77,7 +78,7 @@ def setup_ray(config: Config) -> None:
         ray_url = f"{config.ray['headip']}:{config.ray['redisport']}"
         ray.init(address=ray_url, redis_password=config.ray['redispassword'])
     else:
-        ray.init()
+        ray.init(_internal_config=json.dumps({"num_heartbeats_timeout": 60000}))
 
 
 def shutdown_ray(config: Config) -> None:
