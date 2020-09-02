@@ -274,6 +274,7 @@ class ESDriver(BaseDriver):
         self.running = True
         self.n_eventsrequest = 0
         self.shutdown_timer = None
+        self.first_event_range_request = True
 
     def __str__(self) -> str:
         """
@@ -470,12 +471,6 @@ class ESDriver(BaseDriver):
         self.actors_message_queue.append(self[actor_id].receive_event_ranges.remote(
             Messages.REPLY_OK if evt_range else
             Messages.REPLY_NO_MORE_EVENT_RANGES, evt_range))
-        if not evt_range:
-            self.logging_actor.debug.remote(
-                self.id,
-                "No more events to process and one of the Workers finished processing. Shutting down.", time.asctime()
-            )
-            self.stop()
         return total_sent
 
     def handle_job_request(self, actor_id: str) -> None:
@@ -562,8 +557,15 @@ class ESDriver(BaseDriver):
                 ranges = self.event_ranges_queue.get(block)
                 self.logging_actor.debug.remote(self.id,
                                                 "received reply from harvester", time.asctime())
+                n_received_events = 0
                 for pandaID, ranges_list in ranges.items():
+                    n_received_events += len(ranges_list)
                     self.logging_actor.debug.remote(self.id, f"got ranges for pandaID {pandaID}: {len(ranges_list)}", time.asctime())
+                if self.first_event_range_request:
+                    self.first_event_range_request = False
+                    if (n_received_events < int(job['coreCount']) * len(self.nodes)):
+                        self.logging_actor.error.remote(self.id, "Got too few events initially. Exiting...", time.asctime())
+                        self.stop()
                 self.bookKeeper.add_event_ranges(ranges)
                 self.n_eventsrequest -= 1
             except Empty:
