@@ -273,7 +273,6 @@ class ESDriver(BaseDriver):
         self.terminated = list()
         self.running = True
         self.n_eventsrequest = 0
-        self.shutdown_timer = None
         self.first_event_range_request = True
 
     def __str__(self) -> str:
@@ -367,6 +366,9 @@ class ESDriver(BaseDriver):
                 self.id, "Waiting on new messages from actors", time.asctime())
             new_messages, self.actors_message_queue = ray.wait(
                 self.actors_message_queue)
+
+        self.logging_actor.debug.remote(
+            self.id, "Finished handling the Actors. Raythena will shutdown now.", time.asctime())
 
     def handle_actor_done(self, actor_id: str) -> bool:
         """
@@ -511,10 +513,6 @@ class ESDriver(BaseDriver):
             None
         """
         if self.n_eventsrequest == 0:
-
-            # check if jobs have any events left
-            job_has_events = {pandaID: True for pandaID in self.bookKeeper.jobs}
-
             event_request = EventRangeRequest()
             for pandaID in self.bookKeeper.jobs:
                 if self.bookKeeper.is_flagged_no_more_events(pandaID):
@@ -522,7 +520,6 @@ class ESDriver(BaseDriver):
                         self.id,
                         f"Job {pandaID} has no more events. Skipping request...", time.asctime()
                     )
-                    job_has_events[pandaID] = False
                     continue
                 n_available_ranges = self.bookKeeper.n_ready(pandaID)
                 job = self.bookKeeper.jobs[pandaID]
@@ -534,17 +531,6 @@ class ESDriver(BaseDriver):
                                                     n_events,
                                                     job['taskID'],
                                                     job['jobsetID'])
-
-            if all(not x for x in job_has_events.values()):
-                if not self.shutdown_timer:
-                    self.shutdown_timer = time.time()
-                elif (time.time() - self.shutdown_timer) > self.config.ray["shutdowntime"]:
-                    self.logging_actor.debug.remote(
-                        self.id,
-                        f"All jobs ({[pandaID for pandaID in self.bookKeeper.jobs]}) ran out of events "
-                        f"and shutdown time of {self.config.ray['shutdowntime']} reached. Shutting down.", time.asctime()
-                    )
-                    self.stop()
 
             if len(event_request) > 0:
                 self.logging_actor.debug.remote(
@@ -644,7 +630,13 @@ class ESDriver(BaseDriver):
         self.communicator.stop()
         self.cpu_monitor.stop()
 
+        self.logging_actor.debug.remote(
+            self.id, "Communicator and cpu_monitor stopped.", time.asctime())
+
         time.sleep(5)
+
+        self.logging_actor.debug.remote(
+            self.id, "Exitting the Driver...", time.asctime())
 
     def stop(self) -> None:
         """

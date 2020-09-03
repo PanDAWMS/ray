@@ -23,7 +23,6 @@ ray:
   redispassword:
   driver: esdriver:ESDriver
   workdir: $SCRATCH/raythena/workdir
-  shutdowntime: 3600
 
 resources:
   corepernode: 32

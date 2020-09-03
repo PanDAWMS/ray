@@ -20,7 +20,6 @@ ray:
   redispassword:
   driver: esdriver:ESDriver
   workdir: .
-  shutdowntime: 3600
 
 resources:
   corepernode: 8

@@ -38,7 +38,6 @@ class Config(object):
             'redisport': int,
             'redispassword': str,
             'driver': str,
-            'shutdowntime': int,
         },
         'resources': {
             'corepernode': int,
