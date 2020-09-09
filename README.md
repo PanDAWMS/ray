@@ -48,6 +48,10 @@ Received back message pong
 
 This test verifies that all nodes were connected to to the Ray Cluster and that communication between the nodes is successful.
 
+## Ray Batch Example
+
+Instead of running an example on interactive nodes, it is also possible to run the example in batch mode with the [raythena-hello-world-test.sbatch](https://github.com/PanDAWMS/ray/blob/master/example/raythena-hello-world-test.sbatch) script. The script assumes that the virtual environment used by harvester has been setup and that the `$HARVESTER_DIR` variable exists.
+
 ## Raythena Configuration
 
 Raythena requires a site-specific configuration. If using in combination with Harvester, this specifies the location of Harvester configuration and configures the panda queue. Further, it specifies a virtual environment in which Pilot is launched. Example for NERSC's Cori [cori.yaml](https://github.com/PanDAWMS/ray/blob/master/conf/cori.yaml).
