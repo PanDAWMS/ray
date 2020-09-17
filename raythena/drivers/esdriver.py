@@ -274,6 +274,7 @@ class ESDriver(BaseDriver):
         self.running = True
         self.n_eventsrequest = 0
         self.first_event_range_request = True
+        self.no_more_events = False
 
     def __str__(self) -> str:
         """
@@ -470,6 +471,7 @@ class ESDriver(BaseDriver):
         else:
             self.logging_actor.info.remote(
                 self.id, f"No more ranges to send to {actor_id}", time.asctime())
+            self.no_more_events = True
         self.actors_message_queue.append(self[actor_id].receive_event_ranges.remote(
             Messages.REPLY_OK if evt_range else
             Messages.REPLY_NO_MORE_EVENT_RANGES, evt_range))
@@ -566,6 +568,9 @@ class ESDriver(BaseDriver):
         Returns:
             None
         """
+        if self.no_more_events:
+            self.logging_actor.info.remote(self.id, "no more events available and some workers are already idle. Shutting down...", time.asctime())
+            self.stop()
         self.request_event_ranges()
 
     def cleanup(self) -> None:
