@@ -155,10 +155,19 @@ class ESWorker(object):
             )
             self.payload_job_dir = self.workdir
 
-        subdir = f"{self.id}_{os.getpid()}"
-        self.payload_actor_output_dir = os.path.join(self.payload_job_dir, "esOutput")
+        subdir = f"{self.id}"
         self.payload_actor_process_dir = os.path.join(self.payload_job_dir, subdir)
+        self.payload_actor_output_dir = os.path.join(self.payload_job_dir, subdir, "esOutput")
         try:
+            os.mkdir(self.payload_actor_process_dir)
+            os.chdir(self.payload_actor_process_dir)
+        except Exception:
+            raise StageInFailed(self.id)
+        try:
+            self.logging_actor.debug.remote(self.id,
+                f"Creating output dir {self.payload_actor_output_dir}",
+                time.asctime()
+            )
             if not os.path.isdir(self.payload_actor_output_dir):
                 os.mkdir(self.payload_actor_output_dir)
         except Exception:
@@ -167,11 +176,6 @@ class ESWorker(object):
                 "Exception when creating the payload_actor_output_dir",
                 time.asctime()
             )
-        try:
-            os.mkdir(self.payload_actor_process_dir)
-            os.chdir(self.payload_actor_process_dir)
-        except Exception:
-            raise StageInFailed(self.id)
         self.cpu_monitor = CPUMonitor(os.path.join(self.payload_actor_process_dir, "cpu_monitor.json"))
         self.cpu_monitor.start()
         input_files = self.job['inFiles'].split(",")

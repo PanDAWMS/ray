@@ -315,9 +315,9 @@ class ESDriver(BaseDriver):
             None
         """
 
-        for node_constraint in self.nodes:
+        for i, node_constraint in enumerate(self.nodes):
             _, _, nodeip = node_constraint.partition('@')
-            actor_id = f"Actor_{nodeip}"
+            actor_id = f"Actor_{i}"
             actor_args = {
                 'actor_id': actor_id,
                 'config': self.config,
@@ -327,6 +327,8 @@ class ESDriver(BaseDriver):
                 node_constraint: 1
             }).remote(**actor_args)
             self.actors[actor_id] = actor
+            self.logging_actor.debug.remote(
+                self.id, f"Created actor {actor_id} with ip address {nodeip}", time.asctime())
 
     def handle_actors(self) -> None:
         """
