@@ -11,8 +11,8 @@ from raythena.drivers.baseDriver import BaseDriver
 from raythena.drivers.communicators.baseCommunicator import BaseCommunicator
 from raythena.utils.config import Config
 from raythena.utils.eventservice import (EventRangeRequest, PandaJobRequest,
-                                         EventRangeUpdate, Messages,
-                                         PandaJobQueue, EventRange, PandaJob)
+                                         EventRangeUpdate, Messages, PandaJobQueue,
+                                         EventRange, PandaJob, JobReport)
 from raythena.utils.plugins import PluginsRegistry
 from raythena.utils.ray import (build_nodes_resource_list, get_node_ip)
 from raythena.utils.timing import CPUMonitor
@@ -631,6 +631,8 @@ class ESDriver(BaseDriver):
         except Exception as e:
             self.logging_actor.error.remote(
                 self.id, f"Error while handling actors: {e}. stopping...", time.asctime())
+
+        self.requests_queue.put(JobReport())
 
         self.communicator.stop()
         self.cpu_monitor.stop()

@@ -7,7 +7,7 @@ from queue import Queue
 
 from raythena.drivers.communicators.baseCommunicator import BaseCommunicator
 from raythena.utils.config import Config
-from raythena.utils.eventservice import EventRangeRequest, PandaJobRequest, PandaJobUpdate, EventRangeUpdate
+from raythena.utils.eventservice import EventRangeRequest, PandaJobRequest, PandaJobUpdate, EventRangeUpdate, JobReport
 from raythena.utils.exception import ExThread
 
 
@@ -75,6 +75,8 @@ class HarvesterFileCommunicator(BaseCommunicator):
             self.eventrequestfile = str()
         if not hasattr(self, "eventstatusdumpjsonfile"):
             self.eventstatusdumpjsonfile = str()
+        if not hasattr(self, "jobreportfile"):
+            self.jobreportfile = str()
 
     def request_job(self, request: PandaJobRequest) -> None:
         """
@@ -214,6 +216,21 @@ class HarvesterFileCommunicator(BaseCommunicator):
 
         shutil.move(tmp_status_dump_file, self.eventstatusdumpjsonfile)
 
+    def create_job_report(self, request: JobReport) -> None:
+        """
+        Create a job report after the job has finished.
+
+        Args:
+            request: the job report to send to harvester
+
+        Returns:
+            None
+        """
+        job_report_file = f"{self.jobreportfile}"
+
+        with open(job_report_file, 'w') as f:
+            json.dump(request.to_dict(), f)
+
     def run(self) -> None:
         """
         Target of the communicator thread. Wait for new requests from the driver by blocking on the queue.
@@ -231,6 +248,8 @@ class HarvesterFileCommunicator(BaseCommunicator):
                 self.update_job(request)
             elif isinstance(request, EventRangeUpdate):
                 self.update_events(request)
+            elif isinstance(request, JobReport):
+                self.create_job_report(request)
             else:  # if any other request is received, stop the thread
                 break
 

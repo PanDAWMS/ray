@@ -1040,3 +1040,29 @@ class EventRange(object):
             event_ranges_dict['lastEvent'],
             event_ranges_dict.get('PFN', event_ranges_dict.get('LFN', None)),
             event_ranges_dict['GUID'], event_ranges_dict['scope'])
+
+class JobReport(object):
+    """
+    Wrapper for a job report.
+    Raythena creates a job report after the job has finished:
+    {
+        "exitCode": 0,
+        "exitMsg": _,
+        "exitMsgExtra": _,
+    }
+
+    """
+
+    def __init__(self,
+                 exitCode: int = 0,
+                 exitMsg: str = None,
+                 exitMsgExtra: str = None) -> None:
+        self.exitCode = exitCode
+        self.exitMsg = exitMsg
+        self.exitMsgExtra = exitMsgExtra
+
+    def __str__(self) -> str:
+        return str(self.__dict__)
+
+    def to_dict(self) -> dict:
+        return self.__dict__
