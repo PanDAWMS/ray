@@ -165,9 +165,8 @@ class ESWorker(object):
             raise StageInFailed(self.id)
         try:
             self.logging_actor.debug.remote(self.id,
-                f"Creating output dir {self.payload_actor_output_dir}",
-                time.asctime()
-            )
+                                            f"Creating output dir {self.payload_actor_output_dir}",
+                                            time.asctime())
             if not os.path.isdir(self.payload_actor_output_dir):
                 os.mkdir(self.payload_actor_output_dir)
         except Exception:
