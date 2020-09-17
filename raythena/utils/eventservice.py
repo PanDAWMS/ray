@@ -26,6 +26,7 @@ class ESEncoder(json.JSONEncoder):
     """
     JSON Encoder supporting serialization of event service data structures.
     """
+
     def default(self, o: object) -> dict:
         """
         Serialize event service data structure to json, use default encoder if the type of the object is unknown
@@ -1040,6 +1041,7 @@ class EventRange(object):
             event_ranges_dict['lastEvent'],
             event_ranges_dict.get('PFN', event_ranges_dict.get('LFN', None)),
             event_ranges_dict['GUID'], event_ranges_dict['scope'])
+
 
 class JobReport(object):
     """
