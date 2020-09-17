@@ -528,6 +528,8 @@ class ESDriver(BaseDriver):
                 # each pilot will request for 'coreCount * 2' event ranges
                 # and we use an additional safety factor of 2
                 n_events = int(job['coreCount']) * len(self.nodes) * 2 * 2
+                self.logging_actor.debug.remote(
+                    self.id, f"Calculate num event ranges - {n_events} = {int(job['coreCount'])} * {len(self.nodes)} * 2 * 2 ", time.asctime())
                 if n_available_ranges < n_events:
                     event_request.add_event_request(pandaID,
                                                     n_events,
