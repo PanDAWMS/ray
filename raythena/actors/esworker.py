@@ -374,6 +374,15 @@ class ESWorker(object):
             self.transition_state(ESWorker.READY_FOR_EVENTS)
         return res
 
+    def get_no_more_ranges(self) -> bool:
+        """
+        Returns a boolean indicating whether any events remain to be processed
+
+        Returns:
+            True if no more ranges to be processed
+        """
+        return self.payload.get_no_more_ranges()
+
     def stageout_event_service_files(
             self,
             ranges_update: Dict[str, str]) -> Union[EventRangeUpdate, None]:

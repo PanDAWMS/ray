@@ -306,6 +306,15 @@ class Pilot2HttpPayload(ESPayload):
         """
         return self.pilot_process.poll()
 
+    def get_no_more_ranges(self) -> bool:
+        """
+        Returns the no_more_ranges bool
+
+        Returns:
+            None
+        """
+        return self.no_more_ranges
+
     def start(self, job: PandaJob) -> None:
         """
         Starts the payload subprocess and the http server in a separate thread

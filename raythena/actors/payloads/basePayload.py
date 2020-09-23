@@ -91,6 +91,16 @@ class BasePayload(ABC):
         raise NotImplementedError("Base method not implemented")
 
     @abstractmethod
+    def get_no_more_ranges(self) -> int:
+        """
+        Returns a boolean indicating whether any events remain to be processed
+
+        Returns:
+            True if no more ranges to be processed
+        """
+        raise NotImplementedError("Base method not implemented")
+
+    @abstractmethod
     def fetch_job_update(self) -> Union[None, Dict[str, str]]:
         """
         Tries to get a job update from the payload
