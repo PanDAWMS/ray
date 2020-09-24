@@ -165,19 +165,19 @@ class Pilot2HttpPayload(ESPayload):
     
         condabindir = self.config.payload.get('condabindir', '')
         self.logging_actor.debug.remote(self.worker_id, f"condabindir: {repr(condabindir)}", time.asctime())
-        if condabindir:
+        if condabindir is not '':
             conda_activate = os.path.expandvars(os.path.join(self.config.payload.get('condabindir', ''),'activate'))
         self.logging_actor.debug.remote(self.worker_id, f"conda_activate: {repr(conda_activate)}", time.asctime())
 
         pilot_venv = self.config.payload.get('virtualenv', '')
         self.logging_actor.debug.remote(self.worker_id,f"pilot_venv: {repr(pilot_venv)}", time.asctime())
 
-        if os.path.isfile(conda_activate) and pilot_venv:
+        if os.path.isfile(conda_activate) and pilot_venv is not '':
             cmd += f"source {conda_activate} {pilot_venv};"
         self.logging_actor.debug.remote(self.worker_id,f"cmd: {repr(cmd)}", time.asctime())
 
         extra_setup = self.config.payload.get('extrasetup', '')
-        if extra_setup:
+        if extra_setup is not '':
             cmd += f"{extra_setup}{';' if not extra_setup.endswith(';') else ''}"
         self.logging_actor.debug.remote(self.worker_id,f"cmd: {repr(cmd)}", time.asctime())
 
