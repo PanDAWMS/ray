@@ -163,22 +163,25 @@ class Pilot2HttpPayload(ESPayload):
         """
         cmd = str()
     
-        condabindir = self.config.payload.get('condabindir', '')
-        self.logging_actor.debug.remote(self.worker_id, f"condabindir: {repr(condabindir)}", time.asctime())
-        if condabindir is not '':
-            conda_activate = os.path.expandvars(os.path.join(self.config.payload.get('condabindir', ''),'activate'))
-        self.logging_actor.debug.remote(self.worker_id, f"conda_activate: {repr(conda_activate)}", time.asctime())
+        conda_activate = None
+        condabindir = self.config.payload.get('condabindir', None)
+        pilot_venv = self.config.payload.get('virtualenv', None)
 
-        pilot_venv = self.config.payload.get('virtualenv', '')
+        if condabindir is not None:
+            conda_activate = os.path.expandvars(os.path.join(self.config.payload.get('condabindir', ''),'activate'))
+
+        self.logging_actor.debug.remote(self.worker_id, f"conda_activate: {repr(conda_activate)}", time.asctime())
         self.logging_actor.debug.remote(self.worker_id,f"pilot_venv: {repr(pilot_venv)}", time.asctime())
 
-        if os.path.isfile(conda_activate) and pilot_venv is not '':
+        if os.path.isfile(conda_activate) and pilot_venv is not None:
             cmd += f"source {conda_activate} {pilot_venv};"
+
         self.logging_actor.debug.remote(self.worker_id,f"cmd: {repr(cmd)}", time.asctime())
 
-        extra_setup = self.config.payload.get('extrasetup', '')
-        if extra_setup is not '':
+        extra_setup = self.config.payload.get('extrasetup', None)
+        if extra_setup is not None:
             cmd += f"{extra_setup}{';' if not extra_setup.endswith(';') else ''}"
+
         self.logging_actor.debug.remote(self.worker_id,f"cmd: {repr(cmd)}", time.asctime())
 
         pilot_src = f"{shlex.quote(self.config.ray['workdir'])}/pilot2"
@@ -187,7 +190,9 @@ class Pilot2HttpPayload(ESPayload):
             raise FailedPayload(self.worker_id)
 
         cmd += f"ln -s {pilot_src} {os.path.join(os.getcwd(), 'pilot2')};"
+
         self.logging_actor.debug.remote(self.worker_id,f"cmd: {repr(cmd)}", time.asctime())
+
         prod_source_label = shlex.quote(self.current_job['prodSourceLabel'])
 
         pilotwrapper_bin = os.path.expandvars(
@@ -201,22 +206,22 @@ class Pilot2HttpPayload(ESPayload):
 
         queue_escaped = shlex.quote(self.config.payload['pandaqueue'])
         cmd += f"{shlex.quote(pilotwrapper_bin)}  --piloturl local -q {queue_escaped} -r {queue_escaped} " 
+
         self.logging_actor.debug.remote(self.worker_id,f"cmd: {repr(cmd)}", time.asctime())
  
         if py3pilot in ["true", "t", "y", "yes", "yea", "definately"]:
             cmd += "-3 "
+
         self.logging_actor.debug.remote(self.worker_id,f"cmd: {repr(cmd)}", time.asctime())
         
         cmd += f" -s {queue_escaped} -i PR -j {prod_source_label} --container --mute --pilot-user=atlas -t " \
                f"-d --cleanup=False -w generic --url=http://{self.host} -p {self.port} --allow-same-user=False --resource-type MCORE " \
                f"--hpc-resource {shlex.quote(self.config.payload['hpcresource'])};"
+
         self.logging_actor.debug.remote(self.worker_id,f"cmd: {repr(cmd)}", time.asctime())
 
-        cmd += ";"
-        self.logging_actor.debug.remote(self.worker_id,f"cmd: {repr(cmd)}", time.asctime())
-
-        extra_script = self.config.payload.get('extrapostpayload', '')
-        if extra_script:
+        extra_script = self.config.payload.get('extrapostpayload', None)
+        if extra_script is not None:
             cmd += f"{extra_script}{';' if not extra_script.endswith(';') else ''}"
         cmd_script = os.path.join(os.getcwd(), "payload.sh")
         with open(cmd_script, 'w') as f:
