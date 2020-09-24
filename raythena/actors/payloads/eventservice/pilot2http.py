@@ -163,17 +163,16 @@ class Pilot2HttpPayload(ESPayload):
         """
         cmd = str()
     
-        conda_activate = None
         condabindir = self.config.payload.get('condabindir', '')
         self.logging_actor.debug.remote(self.worker_id, f"condabindir: {repr(condabindir)}", time.asctime())
-        if condabindir is not None:
+        if condabindir:
             conda_activate = os.path.expandvars(os.path.join(self.config.payload.get('condabindir', ''),'activate'))
         self.logging_actor.debug.remote(self.worker_id, f"conda_activate: {repr(conda_activate)}", time.asctime())
 
         pilot_venv = self.config.payload.get('virtualenv', '')
         self.logging_actor.debug.remote(self.worker_id,f"pilot_venv: {repr(pilot_venv)}", time.asctime())
 
-        if os.path.isfile(conda_activate) and pilot_venv is not None:
+        if os.path.isfile(conda_activate) and pilot_venv:
             cmd += f"source {conda_activate} {pilot_venv};"
         self.logging_actor.debug.remote(self.worker_id,f"cmd: {repr(cmd)}", time.asctime())
 
@@ -197,19 +196,22 @@ class Pilot2HttpPayload(ESPayload):
         if not os.path.isfile(pilotwrapper_bin):
             raise FailedPayload(self.worker_id)
 
-        queue_escaped = shlex.quote(self.config.payload['pandaqueue'])
-        cmd += f"{shlex.quote(pilotwrapper_bin)}  --piloturl local -q {queue_escaped} -r {queue_escaped} " \
-               f" -s {queue_escaped} -i PR -j {prod_source_label} --container --mute --pilot-user=atlas -t " \
-               f"-d --cleanup=False -w generic --url=http://{self.host} -p {self.port} --allow-same-user=False --resource-type MCORE " \
-               f"--hpc-resource {shlex.quote(self.config.payload['hpcresource'])} "
-        self.logging_actor.debug.remote(self.worker_id,f"cmd: {repr(cmd)}", time.asctime())
-
-        py3pilot = self.config.payload.get('py3pilot', '')
+        py3pilot = self.config.payload.get('py3pilot', '').lower()
         self.logging_actor.debug.remote(self.worker_id,f"py3pilot: {repr(py3pilot)}", time.asctime())
-        if py3pilot is not None:
-            cmd += "-3"
+
+        queue_escaped = shlex.quote(self.config.payload['pandaqueue'])
+        cmd += f"{shlex.quote(pilotwrapper_bin)}  --piloturl local -q {queue_escaped} -r {queue_escaped} " 
+        self.logging_actor.debug.remote(self.worker_id,f"cmd: {repr(cmd)}", time.asctime())
+ 
+        if py3pilot in ["true", "t", "y", "yes", "yea", "definately"]:
+            cmd += "-3 "
         self.logging_actor.debug.remote(self.worker_id,f"cmd: {repr(cmd)}", time.asctime())
         
+        cmd += f" -s {queue_escaped} -i PR -j {prod_source_label} --container --mute --pilot-user=atlas -t " \
+               f"-d --cleanup=False -w generic --url=http://{self.host} -p {self.port} --allow-same-user=False --resource-type MCORE " \
+               f"--hpc-resource {shlex.quote(self.config.payload['hpcresource'])};"
+        self.logging_actor.debug.remote(self.worker_id,f"cmd: {repr(cmd)}", time.asctime())
+
         cmd += ";"
         self.logging_actor.debug.remote(self.worker_id,f"cmd: {repr(cmd)}", time.asctime())
 
