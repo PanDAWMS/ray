@@ -1,0 +1,32 @@
+payload:
+  plugin: pilot2http:Pilot2HttpPayload
+  bindir:
+  pandaqueue: test_LCRC_ES
+  logfilename: log.pilotwrapper
+  extrasetup: export ALRB_CONT_SWTYPE=singularity; export LD_LIBRARY_PATH=/home/dbenjamin/harvester-py3/yampl/lib:$LD_LIBRARY_PATH; export PYTHONPATH=/home/dbenjamin/harvester-py3/yampl/python-yampl:$PYTHONPATH;
+  extrapostpayload:
+  hpcresource: cori
+  containerengine:
+  containerextraargs:
+  py3pilot: True
+
+harvester:
+  cacher: /home/dbenjamin/harvester-py3
+  endpoint: /lcrc/group/ATLAS/harvester/var/lib/workdir/panda
+  communicator: harvesterFileMessenger:HarvesterFileCommunicator
+  harvesterconf: /home/dbenjamin/harvester-py3/etc/panda/panda_harvester.cfg
+
+ray:
+  headip:
+  redisport:
+  redispassword:
+  driver: esdriver:ESDriver
+  workdir: /lcrc/group/ATLAS/harvester/raythena/workdir
+
+resources:
+  corepernode: 36
+  workerpernode: 1
+
+logging:
+  level: debug
+  logfile: raythena.log
