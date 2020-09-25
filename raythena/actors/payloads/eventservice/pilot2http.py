@@ -162,13 +162,13 @@ class Pilot2HttpPayload(ESPayload):
             command string to execute
         """
         cmd = str()
-    
+
         conda_activate = None
         condabindir = self.config.payload.get('condabindir', None)
         pilot_venv = self.config.payload.get('virtualenv', None)
 
         if condabindir is not None:
-            conda_activate = os.path.expandvars(os.path.join(self.config.payload.get('condabindir', ''),'activate'))
+            conda_activate = os.path.expandvars(os.path.join(self.config.payload.get('condabindir', ''), 'activate'))
 
         if conda_activate is not None and os.path.isfile(conda_activate) and pilot_venv is not None:
             cmd += f"source {conda_activate} {pilot_venv};"
@@ -192,17 +192,17 @@ class Pilot2HttpPayload(ESPayload):
         if not os.path.isfile(pilotwrapper_bin):
             raise FailedPayload(self.worker_id)
 
-        py3pilot = self.config.payload.get('py3pilot',None)
+        py3pilot = self.config.payload.get('py3pilot', None)
 
         queue_escaped = shlex.quote(self.config.payload['pandaqueue'])
-        cmd += f"{shlex.quote(pilotwrapper_bin)}  --piloturl local -q {queue_escaped} -r {queue_escaped} -s {queue_escaped} " 
+        cmd += f"{shlex.quote(pilotwrapper_bin)}  --piloturl local -q {queue_escaped} -r {queue_escaped} -s {queue_escaped} "
 
         if str(py3pilot).lower() in ["true", "t", "y", "yes", "yea", "definately"]:
             cmd += "-3 "
 
         cmd += f"-i PR -j {prod_source_label} --container --mute --pilot-user=atlas -t " \
-               f"-d --cleanup=False -w generic --url=http://{self.host} -p {self.port} --allow-same-user=False --resource-type MCORE " \
-               f"--hpc-resource {shlex.quote(self.config.payload['hpcresource'])};"
+            f"-d --cleanup=False -w generic --url=http://{self.host} -p {self.port} --allow-same-user=False --resource-type MCORE " \
+            f"--hpc-resource {shlex.quote(self.config.payload['hpcresource'])};"
 
         # self.logging_actor.debug.remote(self.worker_id,f"cmd: {repr(cmd)}", time.asctime())
 
@@ -248,9 +248,9 @@ class Pilot2HttpPayload(ESPayload):
 
         queue_escaped = shlex.quote(self.config.payload['pandaqueue'])
         cmd += f"{shlex.quote(pilotwrapper_bin)}  --piloturl local -q {queue_escaped} -r {queue_escaped} " \
-               f" -s {queue_escaped} -i PR -j {prod_source_label} --container --mute --pilot-user=atlas -t " \
-               f"-d --cleanup=False -w generic --url=http://{self.host} -p {self.port} --allow-same-user=False --resource-type MCORE " \
-               f"--hpc-resource {shlex.quote(self.config.payload['hpcresource'])};"
+            f" -s {queue_escaped} -i PR -j {prod_source_label} --container --mute --pilot-user=atlas -t " \
+            f"-d --cleanup=False -w generic --url=http://{self.host} -p {self.port} --allow-same-user=False --resource-type MCORE " \
+            f"--hpc-resource {shlex.quote(self.config.payload['hpcresource'])};"
 
         extra_script = self.config.payload.get('extrapostpayload', '')
         if extra_script:
