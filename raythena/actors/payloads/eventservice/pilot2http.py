@@ -204,7 +204,7 @@ class Pilot2HttpPayload(ESPayload):
                f"-d --cleanup=False -w generic --url=http://{self.host} -p {self.port} --allow-same-user=False --resource-type MCORE " \
                f"--hpc-resource {shlex.quote(self.config.payload['hpcresource'])};"
 
-        #self.logging_actor.debug.remote(self.worker_id,f"cmd: {repr(cmd)}", time.asctime())
+        # self.logging_actor.debug.remote(self.worker_id,f"cmd: {repr(cmd)}", time.asctime())
 
         extra_script = self.config.payload.get('extrapostpayload', None)
         if extra_script is not None:
