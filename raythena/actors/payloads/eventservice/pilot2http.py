@@ -173,16 +173,13 @@ class Pilot2HttpPayload(ESPayload):
         self.logging_actor.debug.remote(self.worker_id, f"conda_activate: {repr(conda_activate)}", time.asctime())
         self.logging_actor.debug.remote(self.worker_id,f"pilot_venv: {repr(pilot_venv)}", time.asctime())
 
-        if os.path.isfile(conda_activate) and pilot_venv is not None:
+        if conda_activate is not None and os.path.isfile(conda_activate) and pilot_venv is not None:
             cmd += f"source {conda_activate} {pilot_venv};"
-
-        self.logging_actor.debug.remote(self.worker_id,f"cmd: {repr(cmd)}", time.asctime())
 
         extra_setup = self.config.payload.get('extrasetup', None)
         if extra_setup is not None:
+            self.logging_actor.debug.remote(self.worker_id,f"extra_setup: {extra_setup}", time.asctime())
             cmd += f"{extra_setup}{';' if not extra_setup.endswith(';') else ''}"
-
-        self.logging_actor.debug.remote(self.worker_id,f"cmd: {repr(cmd)}", time.asctime())
 
         pilot_src = f"{shlex.quote(self.config.ray['workdir'])}/pilot2"
 
@@ -191,17 +188,17 @@ class Pilot2HttpPayload(ESPayload):
 
         cmd += f"ln -s {pilot_src} {os.path.join(os.getcwd(), 'pilot2')};"
 
-        self.logging_actor.debug.remote(self.worker_id,f"cmd: {repr(cmd)}", time.asctime())
-
         prod_source_label = shlex.quote(self.current_job['prodSourceLabel'])
 
         pilotwrapper_bin = os.path.expandvars(
             os.path.join(self.config.payload['bindir'], "runpilot2-wrapper.sh"))
 
+        self.logging_actor.debug.remote(self.worker_id,f"pilotwrapper_bin: {pilotwrapper_bin}", time.asctime())
+
         if not os.path.isfile(pilotwrapper_bin):
             raise FailedPayload(self.worker_id)
 
-        py3pilot = self.config.payload.get('py3pilot', '').lower()
+        py3pilot = self.config.payload.get('py3pilot',None)
         self.logging_actor.debug.remote(self.worker_id,f"py3pilot: {repr(py3pilot)}", time.asctime())
 
         queue_escaped = shlex.quote(self.config.payload['pandaqueue'])
@@ -209,7 +206,7 @@ class Pilot2HttpPayload(ESPayload):
 
         self.logging_actor.debug.remote(self.worker_id,f"cmd: {repr(cmd)}", time.asctime())
  
-        if py3pilot in ["true", "t", "y", "yes", "yea", "definately"]:
+        if str(py3pilot).lower() in ["true", "t", "y", "yes", "yea", "definately"]:
             cmd += "-3 "
 
         self.logging_actor.debug.remote(self.worker_id,f"cmd: {repr(cmd)}", time.asctime())
@@ -287,7 +284,7 @@ class Pilot2HttpPayload(ESPayload):
 
     def stagein(self) -> None:
         """
-        Stage-in agis schedconfig, queuedata and ddmendpoints info from harvester cacher
+        Stage-in cric pandaqueues, queuedata and ddmendpoints info from harvester cacher
 
         Returns:
             None
@@ -295,14 +292,17 @@ class Pilot2HttpPayload(ESPayload):
         cwd = os.getcwd()
         harvester_home = os.path.expandvars(self.config.harvester.get("cacher", ''))
 
-        ddm_endpoints_file = os.path.join(harvester_home, "agis_ddmendpoints.json")
+        ddm_endpoints_file = os.path.join(harvester_home, "cric_ddmendpoints.json")
         if os.path.isfile(ddm_endpoints_file):
-            os.symlink(ddm_endpoints_file, os.path.join(cwd, "agis_ddmendpoints.json"))
+            os.symlink(ddm_endpoints_file, os.path.join(cwd, "cric_ddmendpoints.json"))
 
-        schedconf_file = os.path.join(harvester_home, "agis_schedconf.json")
-        if os.path.isfile(schedconf_file):
-            os.symlink(schedconf_file, os.path.join(cwd, "agis_schedconf.json"))
-            os.symlink(schedconf_file, os.path.join(cwd, "queuedata.json"))
+        pandaqueues_file = os.path.join(harvester_home, "cric_pandaqueues.json")
+        if os.path.isfile(pandaqueues_file):
+            os.symlink(pandaqueues_file, os.path.join(cwd, "cric_pandaqueues.json"))
+
+        queuedata_file = os.path.join(harvester_home, "queuedata.json")
+        if os.path.isfile(queuedata_file):
+            os.symlink(queuedata_file, os.path.join(cwd, "queuedata.json"))
 
     def stageout(self) -> None:
         """
