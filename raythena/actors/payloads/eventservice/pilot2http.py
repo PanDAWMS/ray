@@ -202,7 +202,7 @@ class Pilot2HttpPayload(ESPayload):
         self.logging_actor.debug.remote(self.worker_id,f"py3pilot: {repr(py3pilot)}", time.asctime())
 
         queue_escaped = shlex.quote(self.config.payload['pandaqueue'])
-        cmd += f"{shlex.quote(pilotwrapper_bin)}  --piloturl local -q {queue_escaped} -r {queue_escaped} " 
+        cmd += f"{shlex.quote(pilotwrapper_bin)}  --piloturl local -q {queue_escaped} -r {queue_escaped} -s {queue_escaped} " 
 
         self.logging_actor.debug.remote(self.worker_id,f"cmd: {repr(cmd)}", time.asctime())
  
@@ -211,7 +211,7 @@ class Pilot2HttpPayload(ESPayload):
 
         self.logging_actor.debug.remote(self.worker_id,f"cmd: {repr(cmd)}", time.asctime())
         
-        cmd += f" -s {queue_escaped} -i PR -j {prod_source_label} --container --mute --pilot-user=atlas -t " \
+        cmd += f"-i PR -j {prod_source_label} --container --mute --pilot-user=atlas -t " \
                f"-d --cleanup=False -w generic --url=http://{self.host} -p {self.port} --allow-same-user=False --resource-type MCORE " \
                f"--hpc-resource {shlex.quote(self.config.payload['hpcresource'])};"
 
@@ -300,7 +300,8 @@ class Pilot2HttpPayload(ESPayload):
         if os.path.isfile(pandaqueues_file):
             os.symlink(pandaqueues_file, os.path.join(cwd, "cric_pandaqueues.json"))
 
-        queuedata_file = os.path.join(harvester_home, "queuedata.json")
+        queue_escaped = shlex.quote(self.config.payload['pandaqueue'])
+        queuedata_file = os.path.join(harvester_home, f"{queue_escaped}_queuedata.json")
         if os.path.isfile(queuedata_file):
             os.symlink(queuedata_file, os.path.join(cwd, "queuedata.json"))
 
