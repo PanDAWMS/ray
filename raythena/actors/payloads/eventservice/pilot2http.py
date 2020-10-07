@@ -162,13 +162,13 @@ class Pilot2HttpPayload(ESPayload):
             command string to execute
         """
         cmd = str()
-    
+
         conda_activate = None
         condabindir = self.config.payload.get('condabindir', None)
         pilot_venv = self.config.payload.get('virtualenv', None)
 
         if condabindir is not None:
-            conda_activate = os.path.expandvars(os.path.join(self.config.payload.get('condabindir', ''),'activate'))
+            conda_activate = os.path.expandvars(os.path.join(self.config.payload.get('condabindir', ''), 'activate'))
 
         if conda_activate is not None and os.path.isfile(conda_activate) and pilot_venv is not None:
             cmd += f"source {conda_activate} {pilot_venv};"
@@ -192,10 +192,10 @@ class Pilot2HttpPayload(ESPayload):
         if not os.path.isfile(pilotwrapper_bin):
             raise FailedPayload(self.worker_id)
 
-        py3pilot = self.config.payload.get('py3pilot',None)
+        py3pilot = self.config.payload.get('py3pilot', None)
 
         queue_escaped = shlex.quote(self.config.payload['pandaqueue'])
-        cmd += f"{shlex.quote(pilotwrapper_bin)}  --piloturl local -q {queue_escaped} -r {queue_escaped} -s {queue_escaped} " 
+        cmd += f"{shlex.quote(pilotwrapper_bin)}  --piloturl local -q {queue_escaped} -r {queue_escaped} -s {queue_escaped} "
 
         if str(py3pilot).lower() in ["true", "t", "y", "yes", "yea", "definately"]:
             cmd += "-3 "
