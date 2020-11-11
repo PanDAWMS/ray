@@ -422,12 +422,6 @@ class ESDriver(BaseDriver):
         self.actors_message_queue.append(
             self[actor_id].get_message.remote())
 
-        no_more_events = ray.get(self.actors[actor_id].get_no_more_ranges.remote())
-        self.logging_actor.info.remote(
-            self.id, f"{actor_id}.no_more_events: {no_more_events}", time.asctime())
-        if no_more_events:
-            self.no_more_events = True
-
     def handle_update_job(self, actor_id: str, data: Any) -> None:
         """
         Handle worker job update
