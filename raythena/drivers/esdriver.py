@@ -35,7 +35,7 @@ class BookKeeper(object):
         self.finished_range_by_input_file: Dict[str, List[Dict]] = dict()
         self.start_time = time.time()
         self.finished_by_time = []
-        self.logging_actor.debug.remote("BookKeeper", f"Num_finished: start_time {self.start_time}",time.asctime())
+        self.logging_actor.debug.remote("BookKeeper", f"Num_finished: start_time {self.start_time}", time.asctime())
 
     def add_jobs(self, jobs: Dict[str, PandaJobTypeHint]) -> None:
         """
@@ -160,23 +160,23 @@ class BookKeeper(object):
                                        ), time.asctime())
 
         now = time.time()
-        self.logging_actor.debug.remote("BookKeeper", f"Num_finished: {job_ranges.nranges_done()} {now} {len(self.finished_by_time)}",time.asctime())
+        self.logging_actor.debug.remote("BookKeeper", f"Num_finished: {job_ranges.nranges_done()} {now} {len(self.finished_by_time)}", time.asctime())
         if len(self.finished_by_time) == 0:
-            self.finished_by_time.append((now, job_ranges.nranges_done(),None))
+            self.finished_by_time.append((now, job_ranges.nranges_done(), None))
             time_tuple = self.finished_by_time[-1]
             time_stamp = time_tuple[0]
             delta_time = now - time_stamp
-            self.logging_actor.debug.remote("BookKeeper", f"time_tuple: {time_tuple} {now} {delta_time}",time.asctime())
+            self.logging_actor.debug.remote("BookKeeper", f"time_tuple: {time_tuple} {now} {delta_time}", time.asctime())
         else:
             time_tuple = self.finished_by_time[-1]
             time_stamp = time_tuple[0]
             delta_time = now - time_stamp
-            self.logging_actor.debug.remote("BookKeeper", f"time_tuple: {time_tuple} {now} {delta_time}",time.asctime())
-            if int(delta_time) > 300 :
-               slope = float(job_ranges.nranges_done() - time_tuple[1])/delta_time
-               time_tuple = (now, job_ranges.nranges_done(), slope)
-               self.finished_by_time.append(time_tuple)
-               self.logging_actor.debug.remote("BookKeeper", f"add to finished_by_time {len(self.finished_by_time)} time_tuple:  {time_tuple} ",time.asctime())
+            self.logging_actor.debug.remote("BookKeeper", f"time_tuple: {time_tuple} {now} {delta_time}", time.asctime())
+            if int(delta_time) > 300:
+                slope = float(job_ranges.nranges_done() - time_tuple[1])/delta_time
+                time_tuple = (now, job_ranges.nranges_done(), slope)
+                self.finished_by_time.append(time_tuple)
+                self.logging_actor.debug.remote("BookKeeper", f"add to finished_by_time {len(self.finished_by_time)} time_tuple:  {time_tuple} ", time.asctime())
 
         return event_ranges_update
 
