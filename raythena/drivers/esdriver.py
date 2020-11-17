@@ -173,10 +173,12 @@ class BookKeeper(object):
             delta_time = now - time_stamp
             self.logging_actor.debug.remote("BookKeeper", f"time_tuple: {time_tuple} {now} {delta_time}", time.asctime())
             if int(delta_time) > 300:
-                slope = float(job_ranges.nranges_done() - time_tuple[1])/delta_time
+                slope = float(job_ranges.nranges_done() - time_tuple[1]) / delta_time
                 time_tuple = (now, job_ranges.nranges_done(), slope)
                 self.finished_by_time.append(time_tuple)
-                self.logging_actor.debug.remote("BookKeeper", f"add to finished_by_time {len(self.finished_by_time)} time_tuple:  {time_tuple} ", time.asctime())
+                self.logging_actor.debug.remote("BookKeeper",
+                                                f"add to finished_by_time {len(self.finished_by_time)} time_tuple:  {time_tuple} ",
+                                                time.asctime())
 
         return event_ranges_update
 
