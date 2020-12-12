@@ -35,6 +35,8 @@ class BookKeeper(object):
         self.finished_range_by_input_file: Dict[str, List[Dict]] = dict()
         self.start_time = time.time()
         self.finished_by_time = []
+        self.finished_by_time.append((time.time(), 0))
+        self.monitortime = self.config.ray['monitortime']
         self.logging_actor.debug.remote("BookKeeper", f"Num_finished: start_time {self.start_time}", time.asctime())
 
     def add_jobs(self, jobs: Dict[str, PandaJobTypeHint]) -> None:
@@ -61,6 +63,50 @@ class BookKeeper(object):
             None
         """
         self.jobs.process_event_ranges_reply(event_ranges)
+
+    def add_finished_event_ranges(self) -> None:
+        """
+        Add Number of finished event ranges to finished_by_time list.
+        Each entry is the list (time stamp (time.time()), job_ranges.nranges_done()
+
+        Args:
+            None
+
+        Returns:
+            None
+        """
+        nfinished = 0
+        for pandaID in self.jobs:
+            job_ranges = self.jobs.get_event_ranges(pandaID)
+            nfinished = nfinished + job_ranges.nranges_done()
+        # get the previous time stamp
+        time_tuple = self.finished_by_time[-1]
+        time_stamp = time_tuple[0]
+        now = time.time()
+        delta_time = now - time_stamp
+        # Record number of finished jobs at allowed time interval
+        if int(delta_time) >= self.monitortime:
+            time_tuple = (now, nfinished)
+            self.finished_by_time.append(time_tuple)
+            self.logging_actor.debug.remote("BookKeeper",
+                                            f"add to finished_by_time {len(self.finished_by_time)} time_tuple:  {time_tuple} ",
+                                            time.asctime())
+
+    def have_finished_events(self) -> bool:
+        """
+        Checks if any job finished any events
+
+        Args:
+            None
+
+        Returns:
+            True if any event ranges requests have finished, False otherwise
+        """
+        nfinished = 0
+        for pandaID in self.jobs:
+            job_ranges = self.jobs.get_event_ranges(pandaID)
+            nfinished = nfinished + job_ranges.nranges_done()
+        return nfinished > 0
 
     def has_jobs_ready(self) -> bool:
         """
@@ -161,24 +207,6 @@ class BookKeeper(object):
 
         now = time.time()
         self.logging_actor.debug.remote("BookKeeper", f"Num_finished: {job_ranges.nranges_done()} {now} {len(self.finished_by_time)}", time.asctime())
-        if len(self.finished_by_time) == 0:
-            self.finished_by_time.append((now, job_ranges.nranges_done(), None))
-            time_tuple = self.finished_by_time[-1]
-            time_stamp = time_tuple[0]
-            delta_time = now - time_stamp
-            self.logging_actor.debug.remote("BookKeeper", f"time_tuple: {time_tuple} {now} {delta_time}", time.asctime())
-        else:
-            time_tuple = self.finished_by_time[-1]
-            time_stamp = time_tuple[0]
-            delta_time = now - time_stamp
-            self.logging_actor.debug.remote("BookKeeper", f"time_tuple: {time_tuple} {now} {delta_time}", time.asctime())
-            if int(delta_time) > 300:
-                slope = float(job_ranges.nranges_done() - time_tuple[1]) / delta_time
-                time_tuple = (now, job_ranges.nranges_done(), slope)
-                self.finished_by_time.append(time_tuple)
-                self.logging_actor.debug.remote("BookKeeper",
-                                                f"add to finished_by_time {len(self.finished_by_time)} time_tuple:  {time_tuple} ",
-                                                time.asctime())
 
         return event_ranges_update
 
@@ -300,6 +328,7 @@ class ESDriver(BaseDriver):
         self.n_eventsrequest = 0
         self.first_event_range_request = True
         self.no_more_events = False
+        self.timeoutinterval = self.config.ray['timeoutinterval']
 
     def __str__(self) -> str:
         """
@@ -390,10 +419,17 @@ class ESDriver(BaseDriver):
             self.logging_actor.debug.remote(
                 self.id, "Finished handling messages batch", time.asctime())
             self.on_tick()
+            # check if finished any events, set timeout interval accordingly
+            if self.bookKeeper.have_finished_events():
+                timeoutinterval = self.timeoutinterval
+            else:
+                timeoutinterval = None
+            self.logging_actor.debug.remote(
+                self.id, f"set timeout interval on waiting on new messages ({format(timeoutinterval)})", time.asctime())
             self.logging_actor.debug.remote(
                 self.id, "Waiting on new messages from actors", time.asctime())
             new_messages, self.actors_message_queue = ray.wait(
-                self.actors_message_queue)
+                self.actors_message_queue, timeout=timeoutinterval)
 
         self.logging_actor.debug.remote(
             self.id, "Finished handling the Actors. Raythena will shutdown now.", time.asctime())
@@ -597,6 +633,7 @@ class ESDriver(BaseDriver):
         if self.no_more_events:
             self.logging_actor.info.remote(self.id, "no more events available and some workers are already idle. Shutting down...", time.asctime())
             self.stop()
+        self.bookKeeper.add_finished_event_ranges()
         self.request_event_ranges()
 
     def cleanup(self) -> None:

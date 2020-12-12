@@ -3,7 +3,7 @@ payload:
   bindir:
   pandaqueue: test_LCRC_ES
   logfilename: log.pilotwrapper
-  extrasetup: export ALRB_CONT_SWTYPE=singularity; export LD_LIBRARY_PATH=/home/dbenjamin/harvester-py3/yampl/lib:$LD_LIBRARY_PATH; export PYTHONPATH=/home/dbenjamin/harvester-py3/yampl/python-yampl:$PYTHONPATH;
+  extrasetup: export ALRB_CONT_SWTYPE=singularity; export LD_LIBRARY_PATH=/home/dbenjamin/harvester-py3/yampl-v1.0/lib:$LD_LIBRARY_PATH; export PYTHONPATH=/home/dbenjamin/harvester-py3/yampl-v1.0/python-yampl:$PYTHONPATH;
   extrapostpayload:
   hpcresource: cori
   containerengine:
@@ -22,6 +22,8 @@ ray:
   redispassword:
   driver: esdriver:ESDriver
   workdir: /lcrc/group/ATLAS/harvester/raythena/workdir
+  monitortime: 300
+  timeoutinterval: 600
 
 resources:
   corepernode: 36
