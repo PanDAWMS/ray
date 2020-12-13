@@ -20,6 +20,8 @@ ray:
   redispassword:
   driver: esdriver:ESDriver
   workdir: .
+  monitortime: 300
+  timeoutinterval: 600
 
 resources:
   corepernode: 8

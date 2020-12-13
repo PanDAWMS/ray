@@ -38,6 +38,8 @@ class Config(object):
             'redisport': int,
             'redispassword': str,
             'driver': str,
+            'monitortime': int,
+            'timeoutinterval': int,
         },
         'resources': {
             'corepernode': int,
