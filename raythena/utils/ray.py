@@ -25,16 +25,13 @@ def build_nodes_resource_list(config: Config,
         run_actor_on_head = True
     head_ip = config.ray['headip']
     resource_list = list()
-    custom_resource = "payload_slot"
     workerpernode = config.resources.get('workerpernode', 1)
     for node in nodes:
         naddr = node['NodeManagerAddress']
         if not node['alive'] or (not run_actor_on_head and naddr == head_ip):
             continue
-        node_custom_resource = f"{custom_resource}@{naddr}"
-        ray.experimental.set_resource(node_custom_resource, workerpernode,
-                                      node['NodeID'])
-        resource_list.extend([node_custom_resource] * workerpernode)
+        else:
+            resource_list.extend([node] * workerpernode)
     return resource_list
 
 
@@ -76,7 +73,7 @@ def setup_ray(config: Config) -> None:
     """
     if is_external_cluster(config):
         ray_url = f"{config.ray['headip']}:{config.ray['redisport']}"
-        ray.init(address=ray_url, redis_password=config.ray['redispassword'])
+        ray.init(address=ray_url, _redis_password=config.ray['redispassword'])
     else:
         ray.init(_internal_config=json.dumps({"num_heartbeats_timeout": 60000}))
 
@@ -102,4 +99,4 @@ def get_node_ip() -> str:
     Returns:
         Node ip address
     """
-    return ray.services.get_node_ip_address()
+    return ray._private.services.get_node_ip_address()

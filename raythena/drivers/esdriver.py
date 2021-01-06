@@ -369,8 +369,9 @@ class ESDriver(BaseDriver):
             None
         """
 
-        for i, node_constraint in enumerate(self.nodes):
-            _, _, nodeip = node_constraint.partition('@')
+        for i, node in enumerate(self.nodes):
+            nodeip = node['NodeManagerAddress']
+            node_constraint = f"node:{nodeip}"
             actor_id = f"Actor_{i}"
             actor_args = {
                 'actor_id': actor_id,

@@ -18,7 +18,7 @@ from raythena.actors.payloads.basePayload import BasePayload
 from raythena.actors.payloads.eventservice.esPayload import ESPayload
 
 
-@ray.remote(num_cpus=0)
+@ray.remote(num_cpus=1)
 class ESWorker(object):
     """
     Actor running on HPC compute node. Each actor will start a payload plugin which handle the job processing as well
