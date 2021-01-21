@@ -281,6 +281,7 @@ class Pilot2HttpPayload(ESPayload):
         cwd = os.getcwd()
         harvester_home = os.path.expandvars(self.config.harvester.get("cacher", ''))
 
+        self.logging_actor.debug.remote(self.worker_id, "pilot2http start creating symlinks", time.asctime())
         ddm_endpoints_file = os.path.join(harvester_home, "cric_ddmendpoints.json")
         if os.path.isfile(ddm_endpoints_file):
             os.symlink(ddm_endpoints_file, os.path.join(cwd, "cric_ddmendpoints.json"))
@@ -293,6 +294,7 @@ class Pilot2HttpPayload(ESPayload):
         queuedata_file = os.path.join(harvester_home, f"{queue_escaped}_queuedata.json")
         if os.path.isfile(queuedata_file):
             os.symlink(queuedata_file, os.path.join(cwd, "queuedata.json"))
+        self.logging_actor.debug.remote(self.worker_id, "pilot2http stop creating symlinks", time.asctime())
 
     def stageout(self) -> None:
         """
