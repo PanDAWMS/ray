@@ -177,15 +177,6 @@ class ESWorker(object):
             )
         self.cpu_monitor = CPUMonitor(os.path.join(self.payload_actor_process_dir, "cpu_monitor.json"))
         self.cpu_monitor.start()
-        input_files = self.job['inFiles'].split(",")
-        for input_file in input_files:
-            in_abs = input_file if os.path.isabs(input_file) else os.path.join(
-                self.workdir, input_file)
-            if os.path.isfile(in_abs):
-                basename = os.path.basename(in_abs)
-                staged_file = os.path.join(self.payload_actor_process_dir,
-                                           basename)
-                os.symlink(in_abs, staged_file)
 
         self.payload.stagein()
         self.payload.start(self.modify_job(self.job))
