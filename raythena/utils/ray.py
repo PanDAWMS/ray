@@ -1,6 +1,5 @@
 from typing import List
 
-import json
 import ray
 
 from raythena.utils.config import Config
