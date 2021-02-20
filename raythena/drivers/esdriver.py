@@ -33,6 +33,7 @@ class BookKeeper(object):
         self.actors: Dict[str, Union[str, None]] = dict()
         self.rangesID_by_actor: Dict[str, List[str]] = dict()
         self.finished_range_by_input_file: Dict[str, List[Dict]] = dict()
+        self.ranges_to_tar_by_input_file: Dict[str, List[Dict]] = dict()
         self.start_time = time.time()
         self.finished_by_time = []
         self.finished_by_time.append((time.time(), 0))
@@ -190,9 +191,16 @@ class BookKeeper(object):
                     file_basename = os.path.basename(event_range.PFN)
                     if file_basename not in self.finished_range_by_input_file:
                         self.finished_range_by_input_file[file_basename] = list()
+                    if file_basename not in self.ranges_to_tar_by_input_file:
+                        self.ranges_to_tar_by_input_file[file_basename] = list()
                     self.finished_range_by_input_file[file_basename].append(r)
+                    self.ranges_to_tar_by_input_file[file_basename].append(r)
 
         log_message = str()
+        for input_file, ranges in self.ranges_to_tar_by_input_file.items():
+            log_message = f"\n{input_file}: Type: {type (ranges)} values: {repr(ranges)}"
+        self.logging_actor.debug.remote("BookKeeper", log_message, time.asctime())
+        log_message = ""
         for input_file, ranges in self.finished_range_by_input_file.items():
             log_message = f"\n{input_file}: {len(ranges)} event ranges processed{log_message}"
         self.logging_actor.debug.remote("BookKeeper", log_message, time.asctime())
