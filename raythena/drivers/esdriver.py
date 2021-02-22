@@ -2,8 +2,9 @@ import os
 import time
 from queue import Queue, Empty
 from typing import List, Dict, Union, Any
-
+import multiprocessing
 import ray
+
 
 from raythena.actors.esworker import ESWorker
 from raythena.actors.loggingActor import LoggingActor
@@ -40,7 +41,45 @@ class BookKeeper(object):
         self.monitortime = self.config.ray['monitortime']
         self.logging_actor.debug.remote("BookKeeper", f"Num_finished: start_time {self.start_time}", time.asctime())
 
-    def add_jobs(self, jobs: Dict[str, PandaJobTypeHint]) -> None:
+    def get_ranges_to_tar_by_input_file:(self) -> Dict[str, List[Dict]]:
+        """
+        Return the dictionary of event Ranges to be written to tar files organized by input files
+
+        Args:
+            None
+
+        Returns:
+            dict of Event Ranges organized by input file
+        """
+        return self.ranges_to_tar_by_input_file
+
+
+    def update_ranges_to_tar_by_input_file: (self, event_ranges:Dict[str, List[Dict]]) -> None:
+    """
+        update the dictionary of event Ranges to be written to tar files organized by input files
+        removing the event ranges already written to tar file
+
+        Args:
+        event_ranges: dict of Event Ranges organized by input file that have been written to tar file
+
+        Returns:
+        None
+    """
+        log_message = str()
+        log_message = f"\n ranges_to_tar_by_input_file before range removal {repr(self.ranges_to_tar_by_input_file)}"
+        self.logging_actor.debug.remote("BookKeeper", log_message, time.asctime())
+        log_message = ""
+        for input_file, ranges in event_ranges.items():
+            for r in ranges:
+                log_message = f"\n remove range : {repr(r)} {log_message}"
+                self.ranges_to_tar_by_input_file[input_file].remove(r)
+        self.logging_actor.debug.remote("BookKeeper", log_message, time.asctime())
+        log_message = ""
+        log_message = f"\n ranges_to_tar_by_input_file after range removal {repr(self.ranges_to_tar_by_input_file)}"
+        self.logging_actor.debug.remote("BookKeeper", log_message, time.asctime())
+
+
+def add_jobs(self, jobs: Dict[str, PandaJobTypeHint]) -> None:
         """
         Register new jobs. Event service jobs will not be assigned to worker until event ranges are added to the job
 
@@ -301,6 +340,7 @@ class ESDriver(BaseDriver):
         self.requests_queue = Queue()
         self.jobs_queue = Queue()
         self.event_ranges_queue = Queue()
+        self.tar_es_output_queue = Queue()
 
         self.logging_actor.debug.remote(self.id,
                                         f"Driver initialized, running Ray {ray.__version__}", time.asctime())
@@ -337,6 +377,12 @@ class ESDriver(BaseDriver):
         self.first_event_range_request = True
         self.no_more_events = False
         self.timeoutinterval = self.config.ray['timeoutinterval']
+        self.tarinterval = self.config.ray['tarinterval']
+        self.tarmaxfilesize = self.config.ray['tarmaxfilesize']
+        self.tarmaxprocesses = self.config.ray['tarmaxprocesses']
+        self.tar_timestamp = time.time()
+        self.tar_task_queue = multiprocessing.Queue()
+        self.tar_output_queue = multiprocessing.Queue()
 
     def __str__(self) -> str:
         """
@@ -488,7 +534,8 @@ class ESDriver(BaseDriver):
             self.id, f"{actor_id} sent a eventranges update", time.asctime())
         eventranges_update = self.bookKeeper.process_event_ranges_update(
             actor_id, data)
-        self.requests_queue.put(eventranges_update)
+        # check if there are any
+        #self.requests_queue.put(eventranges_update)
         self.actors_message_queue.append(
             self[actor_id].get_message.remote())
 
@@ -639,11 +686,23 @@ class ESDriver(BaseDriver):
         Returns:
             None
         """
-        if self.no_more_events:
+        # check to see if it is time to start tarring up Event Service output
+        self.tar_threads_not_running = self.tar_es_output()
+        if self.no_more_events and self.tar_threads_not_running:
             self.logging_actor.info.remote(self.id, "no more events available and some workers are already idle. Shutting down...", time.asctime())
             self.stop()
         self.bookKeeper.add_finished_event_ranges()
         self.request_event_ranges()
+
+    def tar_es_output(self): -> bool:
+        """
+        Checks to see if there are event ranges to tar up organized by input file and alloted time has passed tarinterval launch tar threads
+
+        Returns:
+             bool - True of there are running Tar Threads.
+        """
+        return_val = False
+        # check for running Tar threads
 
     def cleanup(self) -> None:
         """
