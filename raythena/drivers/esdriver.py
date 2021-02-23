@@ -237,7 +237,7 @@ def add_jobs(self, jobs: Dict[str, PandaJobTypeHint]) -> None:
 
         log_message = str()
         for input_file, ranges in self.ranges_to_tar_by_input_file.items():
-            log_message = f"\n{input_file}: Type: {type (ranges)} values: {repr(ranges)}"
+            log_message = f"\n{input_file}: Type: {type (ranges)} values: {repr(ranges)} {log_message}"
         self.logging_actor.debug.remote("BookKeeper", log_message, time.asctime())
         log_message = ""
         for input_file, ranges in self.finished_range_by_input_file.items():
@@ -535,7 +535,7 @@ class ESDriver(BaseDriver):
         eventranges_update = self.bookKeeper.process_event_ranges_update(
             actor_id, data)
         # check if there are any
-        #self.requests_queue.put(eventranges_update)
+        self.requests_queue.put(eventranges_update)
         self.actors_message_queue.append(
             self[actor_id].get_message.remote())
 
@@ -687,7 +687,7 @@ class ESDriver(BaseDriver):
             None
         """
         # check to see if it is time to start tarring up Event Service output
-        self.tar_threads_not_running = self.tar_es_output()
+        self.tar_threads_not_running = not(self.tar_es_output())
         if self.no_more_events and self.tar_threads_not_running:
             self.logging_actor.info.remote(self.id, "no more events available and some workers are already idle. Shutting down...", time.asctime())
             self.stop()
@@ -703,7 +703,9 @@ class ESDriver(BaseDriver):
         """
         return_val = False
         # check for running Tar threads
-
+        #return_val = True
+        return return_val
+        
     def cleanup(self) -> None:
         """
         Notify each worker that it should terminate then wait for actor to acknowledge
