@@ -34,11 +34,71 @@ class BookKeeper(object):
         self.rangesID_by_actor: Dict[str, List[str]] = dict()
         self.finished_range_by_input_file: Dict[str, List[Dict]] = dict()
         self.ranges_to_tar_by_input_file: Dict[str, List[Dict]] = dict()
+        self.ranges_tarring_by_input_file: Dict[str, List[Dict]] = dict()
+        self.ranges_tarred_by_output_file: Dict[str, List[Dict]] = dict()
         self.start_time = time.time()
         self.finished_by_time = []
         self.finished_by_time.append((time.time(), 0))
         self.monitortime = self.config.ray['monitortime']
         self.logging_actor.debug.remote("BookKeeper", f"Num_finished: start_time {self.start_time}", time.asctime())
+
+    def get_ranges_to_tar_by_input_file:(self) -> Dict[str, List[Dict]]:
+        """
+        Return the dictionary of event Ranges to be written to tar files organized by input files
+
+        Args:
+            None
+
+        Returns:
+            dict of Event Ranges organized by input file
+        """
+        return self.ranges_to_tar_by_input_file
+
+
+    def get_ranges_tarring_by_input_file:(self) -> Dict[str, List[Dict]]:
+        """
+        Return the dictionary of event Ranges being put into tar files organized by input files
+
+        Args:
+            None
+
+        Returns:
+            dict of Event Ranges organized by input file
+        """
+        return self.ranges_tarring_by_input_file
+
+
+    def update_ranges_tarring_by_input_file: (self) -> None:
+    """
+        update the dictionary of event Ranges to be written to tar files organized by input files
+        removing the event ranges event Range lists organized by input files
+
+        Args:
+            None
+
+        Returns:
+            None
+    """
+        log_message = str()
+        log_message = f"\n ranges_to_tar_by_input_file before range removal {repr(self.ranges_to_tar_by_input_file)}"
+        self.logging_actor.debug.remote("BookKeeper", log_message, time.asctime())
+        log_message = ""
+        # loop over input file names and process the list
+        for input_file in self.ranges_to_tar_by_input_file:
+            for event_range in reversed(self.ranges_to_tar_by_input_file[input_file]):
+                if input_file not in self.ranges_tarring_by_input_file:
+                    self.ranges_tarring_by_input_file[input_file] = list()
+                self.ranges_tarring_by_input_file[input_file].append(event_range)
+                log_message = f"\n remove range : {repr(event_range)} {log_message}"
+                self.ranges_to_tar_by_input_file[input_file].remove(event_range)
+        self.logging_actor.debug.remote("BookKeeper", log_message, time.asctime())
+        log_message = ""
+        log_message = f"\n ranges_to_tar_by_input_file after range removal {repr(self.ranges_to_tar_by_input_file)}"
+        self.logging_actor.debug.remote("BookKeeper", log_message, time.asctime())
+        log_message = ""
+        log_message = f"\n ranges_tarring_by_input_file: {repr(self.ranges_tarring_by_input_file)}"
+        self.logging_actor.debug.remote("BookKeeper", log_message, time.asctime())
+
 
     def add_jobs(self, jobs: Dict[str, PandaJobTypeHint]) -> None:
         """
@@ -637,6 +697,27 @@ class ESDriver(BaseDriver):
             except Empty:
                 pass
 
+    def tar_es_output(self) -> None:
+        """
+        Get from bookKeeper the event ranges arraigned by input file than need to put into output tar files
+
+        Returns:
+            None
+        """
+        # check to see if it is time to create output tar files
+        time_stamp = self.tar_timestamp
+        now = time.time()
+        delta_time = now - time_stamp
+        if int(delta_time) >= self.tarinterval:
+            self.tar_timestamp = now
+            self.bookKeeper.update_ranges_tarring_by_input_file()
+            ranges_to_tar = self.bookKeeper.get_ranges_tarring_by_input_file()
+            self.logging_actor.debug.remote(self.id, f"Get Event Ranges to tar: {repr(ranges_to_tar)}", time.asctime())            
+
+        #self.tarmaxfilesize = self.config.ray['tarmaxfilesize']
+        #self.tarmaxprocesses = self.config.ray['tarmaxprocesses']
+
+        
     def on_tick(self) -> None:
         """
         Performs actions that should be executed regularly, after handling a batch of actor messages.
@@ -644,12 +725,15 @@ class ESDriver(BaseDriver):
         Returns:
             None
         """
+        # check for finished tar subprocesses and tar es output
+        # self.check_finished_tar_jobs()
+        self.tar_es_output()
         if self.no_more_events:
             self.logging_actor.info.remote(self.id, "no more events available and some workers are already idle. Shutting down...", time.asctime())
             self.stop()
         self.bookKeeper.add_finished_event_ranges()
         self.request_event_ranges()
-
+        
     def cleanup(self) -> None:
         """
         Notify each worker that it should terminate then wait for actor to acknowledge
@@ -731,6 +815,7 @@ class ESDriver(BaseDriver):
         Returns:
             None
         """
+        # check for running tar processes?
         self.logging_actor.info.remote(self.id, "Graceful shutdown...", time.asctime())
         self.running = False
         self.cleanup()
