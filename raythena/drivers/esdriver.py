@@ -337,7 +337,12 @@ class ESDriver(BaseDriver):
         self.first_event_range_request = True
         self.no_more_events = False
         self.timeoutinterval = self.config.ray['timeoutinterval']
+        self.tarinterval = self.config.ray['tarinterval']
+        self.tarmaxfilesize = self.config.ray['tarmaxfilesize']
+        self.tarmaxprocesses = self.config.ray['tarmaxprocesses']
+        self.tar_timestamp = time.time()
 
+        
     def __str__(self) -> str:
         """
         String representation of driver attributes
