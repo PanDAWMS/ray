@@ -42,7 +42,7 @@ class BookKeeper(object):
         self.monitortime = self.config.ray['monitortime']
         self.logging_actor.debug.remote("BookKeeper", f"Num_finished: start_time {self.start_time}", time.asctime())
 
-    def get_ranges_to_tar_by_input_file:(self) -> Dict[str, List[Dict]]:
+    def get_ranges_to_tar_by_input_file(self) -> Dict[str, List[Dict]]:
         """
         Return the dictionary of event Ranges to be written to tar files organized by input files
 
@@ -55,7 +55,7 @@ class BookKeeper(object):
         return self.ranges_to_tar_by_input_file
 
 
-    def get_ranges_tarring_by_input_file:(self) -> Dict[str, List[Dict]]:
+    def get_ranges_tarring_by_input_file(self) -> Dict[str, List[Dict]]:
         """
         Return the dictionary of event Ranges being put into tar files organized by input files
 
@@ -68,8 +68,8 @@ class BookKeeper(object):
         return self.ranges_tarring_by_input_file
 
 
-    def update_ranges_tarring_by_input_file: (self) -> None:
-    """
+    def update_ranges_tarring_by_input_file(self) -> bool:
+        """
         update the dictionary of event Ranges to be written to tar files organized by input files
         removing the event ranges event Range lists organized by input files
 
@@ -77,27 +77,46 @@ class BookKeeper(object):
             None
 
         Returns:
-            None
-    """
+           True if there are any ranges to tar up. False otherwise
+        """
+        return_val = False
         log_message = str()
-        log_message = f"\n ranges_to_tar_by_input_file before range removal {repr(self.ranges_to_tar_by_input_file)}"
+        log_message = "Enter routine update_ranges_tarring_by_input_file"
         self.logging_actor.debug.remote("BookKeeper", log_message, time.asctime())
-        log_message = ""
-        # loop over input file names and process the list
-        for input_file in self.ranges_to_tar_by_input_file:
-            for event_range in reversed(self.ranges_to_tar_by_input_file[input_file]):
-                if input_file not in self.ranges_tarring_by_input_file:
-                    self.ranges_tarring_by_input_file[input_file] = list()
-                self.ranges_tarring_by_input_file[input_file].append(event_range)
-                log_message = f"\n remove range : {repr(event_range)} {log_message}"
-                self.ranges_to_tar_by_input_file[input_file].remove(event_range)
-        self.logging_actor.debug.remote("BookKeeper", log_message, time.asctime())
-        log_message = ""
-        log_message = f"\n ranges_to_tar_by_input_file after range removal {repr(self.ranges_to_tar_by_input_file)}"
-        self.logging_actor.debug.remote("BookKeeper", log_message, time.asctime())
-        log_message = ""
-        log_message = f"\n ranges_tarring_by_input_file: {repr(self.ranges_tarring_by_input_file)}"
-        self.logging_actor.debug.remote("BookKeeper", log_message, time.asctime())
+        try:
+            log_message = f"ranges_to_tar_by_input_file before range removal {repr(self.ranges_to_tar_by_input_file)}"
+            self.logging_actor.debug.remote("BookKeeper", log_message, time.asctime())
+            log_message = ""
+            # loop over input file names and process the list
+            try:
+                for input_file in self.ranges_to_tar_by_input_file:
+                    self.logging_actor.debug.remote("BookKeeper", f"input file value : {input_file}", time.asctime())
+                    #self.logging_actor.debug.remote("BookKeeper", f" event_ranges: {repr(self.ranges_to_tar_by_input_file[input_file])}", time.asctime())
+                    while self.ranges_to_tar_by_input_file[input_file]:
+                        event_range = self.ranges_to_tar_by_input_file[input_file].pop() 
+                        #self.logging_actor.debug.remote("BookKeeper", f" event_range: {repr(event_range)}", time.asctime())
+                        if input_file not in self.ranges_tarring_by_input_file:
+                            self.ranges_tarring_by_input_file[input_file] = list()
+                        self.ranges_tarring_by_input_file[input_file].append(event_range)
+                        log_message = f"{log_message} remove range : {repr(event_range)}"
+                    self.logging_actor.debug.remote("BookKeeper", log_message, time.asctime())
+            except:
+                self.logging_actor.debug.remote("BookKeeper", "failed to loop over input_files in self.ranges_to_tar_by_input_file", time.asctime())                
+            log_message = ""
+            log_message = f"ranges_to_tar_by_input_file after range removal {repr(self.ranges_to_tar_by_input_file)}"
+            self.logging_actor.debug.remote("BookKeeper", log_message, time.asctime())
+            try:
+                log_message = ""
+                log_message = f"ranges_tarring_by_input_file: {repr(self.ranges_tarring_by_input_file)}"
+                self.logging_actor.debug.remote("BookKeeper", log_message, time.asctime())
+                return_val = True
+            except NameError:
+                self.logging_actor.debug.remote("BookKeeper", "self.ranges_tarring_by_input_file not defined", time.asctime())
+                return_val = False
+        except NameError:
+            self.logging_actor.debug.remote("BookKeeper", "self.ranges_to_tar_by_input_file not defined", time.asctime())
+            return_val = False
+        return return_val
 
 
     def add_jobs(self, jobs: Dict[str, PandaJobTypeHint]) -> None:
@@ -709,15 +728,16 @@ class ESDriver(BaseDriver):
         now = time.time()
         delta_time = now - time_stamp
         if int(delta_time) >= self.tarinterval:
+            self.logging_actor.debug.remote(self.id,"Get Event Ranges to tar", time.asctime())
             self.tar_timestamp = now
             self.bookKeeper.update_ranges_tarring_by_input_file()
             ranges_to_tar = self.bookKeeper.get_ranges_tarring_by_input_file()
             self.logging_actor.debug.remote(self.id, f"Get Event Ranges to tar: {repr(ranges_to_tar)}", time.asctime())            
+            #
 
         #self.tarmaxfilesize = self.config.ray['tarmaxfilesize']
         #self.tarmaxprocesses = self.config.ray['tarmaxprocesses']
 
-        
     def on_tick(self) -> None:
         """
         Performs actions that should be executed regularly, after handling a batch of actor messages.
