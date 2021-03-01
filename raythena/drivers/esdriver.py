@@ -252,7 +252,7 @@ class BookKeeper(object):
         panda_id = self.actors.get(actor_id, None)
         if not panda_id:
             return
-
+        
         if not isinstance(event_ranges_update, EventRangeUpdate):
             event_ranges_update = EventRangeUpdate.build_from_dict(
                 panda_id, event_ranges_update)
@@ -273,6 +273,7 @@ class BookKeeper(object):
                     if file_basename not in self.ranges_to_tar_by_input_file:
                         self.ranges_to_tar_by_input_file[file_basename] = list()
                     self.finished_range_by_input_file[file_basename].append(r)
+                    r['PanDAID'] = panda_id
                     self.ranges_to_tar_by_input_file[file_basename].append(r)
 
         log_message = str()
@@ -392,7 +393,8 @@ class ESDriver(BaseDriver):
             )
             workdir = os.getcwd()
         self.config.ray['workdir'] = workdir
-
+        self.workdir = workdir
+        
         self.cpu_monitor = CPUMonitor(os.path.join(workdir, "cpu_monitor_driver.json"))
         self.cpu_monitor.start()
 
@@ -420,6 +422,8 @@ class ESDriver(BaseDriver):
         self.tarmaxfilesize = self.config.ray['tarmaxfilesize']
         self.tarmaxprocesses = self.config.ray['tarmaxprocesses']
         self.tar_timestamp = time.time()
+        self.tar_merge_es_output_dir = os.path.join(self.workdir,"merge_es_output")
+        self.tar_merge_es_files_dir = os.path.join(self.workdir,"merge_es_files")
 
         
     def __str__(self) -> str:
@@ -729,6 +733,33 @@ class ESDriver(BaseDriver):
         delta_time = now - time_stamp
         if int(delta_time) >= self.tarinterval:
             self.logging_actor.debug.remote(self.id,"Get Event Ranges to tar", time.asctime())
+            # create the output directories if needed
+            try:
+                self.logging_actor.debug.remote(self.id,
+                                                f"Creating dir for es files merged into zip files {self.tar_merge_es_output_dir}",
+                                                time.asctime())
+                if not os.path.isdir(self.tar_merge_es_output_dir):
+                    os.mkdir(self.tar_merge_es_output_dir)
+            except Exception:
+                self.logging_actor.warn.remote(
+                    self.id,
+                    "Exception when creating the tar_merge_es_output_dir",
+                    time.asctime()
+                )
+                return
+            try:
+                self.logging_actor.debug.remote(self.id,
+                                                f"Creating dir for zipped es files {self.tar_merge_es_files_dir}",
+                                                time.asctime())
+                if not os.path.isdir(self.tar_merge_es_files_dir):
+                    os.mkdir(self.tar_merge_es_files_dir)
+            except Exception:
+                self.logging_actor.warn.remote(
+                    self.id,
+                    "Exception when creating the tar_merge_es_files_dir",
+                    time.asctime()
+                )
+                return
             self.tar_timestamp = now
             self.bookKeeper.update_ranges_tarring_by_input_file()
             ranges_to_tar = self.bookKeeper.get_ranges_tarring_by_input_file()
