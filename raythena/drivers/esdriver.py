@@ -35,6 +35,8 @@ class BookKeeper(object):
         self.finished_range_by_input_file: Dict[str, List[Dict]] = dict()
         self.ranges_to_tar_by_input_file: Dict[str, List[Dict]] = dict()
         self.ranges_tarring_by_input_file: Dict[str, List[Dict]] = dict()
+        self.ranges_to_tar: List[List[Dict]] = list()
+        self.ranges_tarred_up: List[List[Dict]] = list()
         self.ranges_tarred_by_output_file: Dict[str, List[Dict]] = dict()
         self.start_time = time.time()
         self.finished_by_time = []
@@ -118,7 +120,62 @@ class BookKeeper(object):
             return_val = False
         return return_val
 
+    def create_ranges_to_tar(self, maxfilesize:int, maxtarprocs:int) -> bool:
+        """
+        using the event ranges organized by input file in ranges_tarring_by_input_file
+        loop over the entries creating a list of lists which container all of event ranges to be tarred up.
+        this list should only be as long as the number of processes that can be used for tar. 
+        update the dictionary of event Ranges to be written to tar files organized by input files
+        removing the event ranges event Range lists organized by input files
 
+        Args:
+            maxfilesize - maximum file size of tar file with event ranges
+            maxtarprocs - number of process for creating tar files
+
+        Returns:
+           True if there are any ranges to tar up. False otherwise
+        """
+        return_val = False
+        log_message = str()
+        self.logging_actor.debug.remote("BookKeeper", "Enter create_ranges_to_tar", time.asctime())
+        if maxtarprocs < 1:
+            self.logging_actor.debug.remote("BookKeeper", f"Need at least one process to run tar", time.asctime())
+            return return_val
+        # loop over input file names and process the list
+        try:
+            self.ranges_to_tar = []
+            for input_file in self.ranges_tarring_by_input_file:
+                total_file_size = 0
+                file_list = []
+                self.logging_actor.debug.remote("BookKeeper", f"input file value : {input_file}", time.asctime())
+                while self.ranges_tarring_by_input_file[input_file] and maxtarprocs > 0:
+                    event_range = self.ranges_tarring_by_input_file[input_file].pop()
+                    if total_file_size + event_range['fsize'] > maxfilesize:
+                        # reached the size limit
+                        self.ranges_to_tar_by_input_file[input_file].append(event_range)
+                        maxtarprocs = maxtarprocs - 1
+                        self.ranges_to_tar.append(file_list)
+                        total_file_size = 0 
+                        file_list = []
+                    else:
+                        total_file_size = total_file_size + event_range['fsize']
+                        file_list.append(event_range)
+                if maxtarprocs > 0:
+                    maxtarprocs = maxtarprocs - 1
+                    self.ranges_to_tar.append(file_list)
+                if maxtarprocs < 1:
+                    break
+            if len(self.ranges_to_tar) > 0:
+                return_val = True
+            self.logging_actor.debug.remote("BookKeeper", f" self.ranges_to_tar: {repr(self.ranges_to_tar)}", time.asctime())
+            self.logging_actor.debug.remote("BookKeeper", f" self.ranges_tarring_by_input_file: {repr(self.ranges_tarring_by_input_file)}", time.asctime())
+        except:
+            self.logging_actor.debug.remote("BookKeeper", "can not create list of ranges to tar", time.asctime())
+            return_val = False
+        return return_val
+
+# [{'eventRangeID': '24027003-4985019832-23509382954-429-1', 'eventStatus': 'finished', 'path': '/lcrc/group/ATLAS/harvester/var/lib/workdir/panda/testing/raythena/testdir/4985019832/Actor_0/esOutput/HITS.24027003._001647.pool.root.1.24027003-4985019832-23509382954-429-1', 'chksum': '7fb76e57', 'fsize': 191698, 'type': 'es_output', 'PanDAID': '4985019832'}, {'eventRangeID': '24027003-4985019832-23509382954-419-1', 'eventStatus': 'finished', 'path': '/lcrc/group/ATLAS/harvester/var/lib/workdir/panda/testing/raythena/testdir/4985019832/Actor_0/esOutput/HITS.24027003._001647.pool.root.1.24027003-4985019832-23509382954-419-1', 'chksum': '91324077', 'fsize': 317505, 'type': 'es_output', 'PanDAID': '4985019832'}]
+   
     def add_jobs(self, jobs: Dict[str, PandaJobTypeHint]) -> None:
         """
         Register new jobs. Event service jobs will not be assigned to worker until event ranges are added to the job
@@ -735,10 +792,10 @@ class ESDriver(BaseDriver):
             self.logging_actor.debug.remote(self.id,"Get Event Ranges to tar", time.asctime())
             # create the output directories if needed
             try:
-                self.logging_actor.debug.remote(self.id,
-                                                f"Creating dir for es files merged into zip files {self.tar_merge_es_output_dir}",
-                                                time.asctime())
                 if not os.path.isdir(self.tar_merge_es_output_dir):
+                    self.logging_actor.debug.remote(self.id,
+                                                    f"Creating dir for es files merged into zip files {self.tar_merge_es_output_dir}",
+                                                    time.asctime())
                     os.mkdir(self.tar_merge_es_output_dir)
             except Exception:
                 self.logging_actor.warn.remote(
@@ -748,10 +805,10 @@ class ESDriver(BaseDriver):
                 )
                 return
             try:
-                self.logging_actor.debug.remote(self.id,
-                                                f"Creating dir for zipped es files {self.tar_merge_es_files_dir}",
-                                                time.asctime())
                 if not os.path.isdir(self.tar_merge_es_files_dir):
+                    self.logging_actor.debug.remote(self.id,
+                                                    f"Creating dir for zipped es files {self.tar_merge_es_files_dir}",
+                                                    time.asctime())
                     os.mkdir(self.tar_merge_es_files_dir)
             except Exception:
                 self.logging_actor.warn.remote(
@@ -761,10 +818,13 @@ class ESDriver(BaseDriver):
                 )
                 return
             self.tar_timestamp = now
+            # get number of running tar processes
+            num_running_tar_procs = 0
+            maxtarprocs = self.tarmaxprocesses - num_running_tar_procs
             self.bookKeeper.update_ranges_tarring_by_input_file()
-            ranges_to_tar = self.bookKeeper.get_ranges_tarring_by_input_file()
-            self.logging_actor.debug.remote(self.id, f"Get Event Ranges to tar: {repr(ranges_to_tar)}", time.asctime())            
-            #
+            self.bookKeeper.create_ranges_tar(self.tarmaxfilesize,maxtarprocs)
+            #self.logging_actor.debug.remote(self.id, f"Event Ranges to tar: {repr(ranges_to_tar)}", time.asctime())            
+            # loop over 
 
         #self.tarmaxfilesize = self.config.ray['tarmaxfilesize']
         #self.tarmaxprocesses = self.config.ray['tarmaxprocesses']
