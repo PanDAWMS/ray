@@ -44,6 +44,18 @@ class BookKeeper(object):
         self.monitortime = self.config.ray['monitortime']
         self.logging_actor.debug.remote("BookKeeper", f"Num_finished: start_time {self.start_time}", time.asctime())
 
+    def get_ranges_to_tar(self) -> List[List[Dict]]:
+        """
+        Return a list of lists of event Ranges to be written to tar files 
+
+        Args:
+            None
+
+        Returns:
+            List of Lists of Event Ranges to be put into tar files
+        """
+        return self.ranges_to_tar
+
     def get_ranges_to_tar_by_input_file(self) -> Dict[str, List[Dict]]:
         """
         Return the dictionary of event Ranges to be written to tar files organized by input files
@@ -56,7 +68,6 @@ class BookKeeper(object):
         """
         return self.ranges_to_tar_by_input_file
 
-
     def get_ranges_tarring_by_input_file(self) -> Dict[str, List[Dict]]:
         """
         Return the dictionary of event Ranges being put into tar files organized by input files
@@ -68,7 +79,6 @@ class BookKeeper(object):
             dict of Event Ranges organized by input file
         """
         return self.ranges_tarring_by_input_file
-
 
     def update_ranges_tarring_by_input_file(self) -> bool:
         """
@@ -822,8 +832,9 @@ class ESDriver(BaseDriver):
             num_running_tar_procs = 0
             maxtarprocs = self.tarmaxprocesses - num_running_tar_procs
             self.bookKeeper.update_ranges_tarring_by_input_file()
-            self.bookKeeper.create_ranges_tar(self.tarmaxfilesize,maxtarprocs)
-            #self.logging_actor.debug.remote(self.id, f"Event Ranges to tar: {repr(ranges_to_tar)}", time.asctime())            
+            if self.bookKeeper.create_ranges_to_tar(self.tarmaxfilesize,maxtarprocs):
+                # launch tar processes
+                self.logging_actor.debug.remote(self.id, f"Launch tar processes: {len(self.bookKeeper.get_ranges_to_tar())}", time.asctime())            
             # loop over 
 
         #self.tarmaxfilesize = self.config.ray['tarmaxfilesize']
