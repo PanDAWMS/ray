@@ -815,7 +815,7 @@ class ESDriver(BaseDriver):
                     try:
                         result = future.result()
                         self.logging_actor.debug.remote(self.id, f"Tar subprocess result {repr(result)}", time.asctime())
-                    except as ex:
+                    except Exception as ex:
                         # do something
                         self.logging_actor.info.remote(self.id, f"Tar subprocess Caught exception {ex}", time.asctime())
                         pass
