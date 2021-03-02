@@ -147,7 +147,7 @@ class BookKeeper(object):
         """
         return_val = False
         log_message = str()
-        self.logging_actor.debug.remote("BookKeeper", "Enter create_ranges_to_tar", time.asctime())
+        self.logging_actor.debug.remote("BookKeeper", f"Enter create_ranges_to_tar maxfilesize maxtarprocs {maxfilesize maxtarprocs}", time.asctime())
         if maxtarprocs < 1:
             self.logging_actor.debug.remote("BookKeeper", f"Need at least one process to run tar", time.asctime())
             return return_val
@@ -164,12 +164,15 @@ class BookKeeper(object):
                         # reached the size limit
                         self.ranges_to_tar_by_input_file[input_file].append(event_range)
                         maxtarprocs = maxtarprocs - 1
+                        self.logging_actor.debug.remote("BookKeeper", f"file_list (at file size limit) : {repr(file_list)}", time.asctime())
                         self.ranges_to_tar.append(file_list)
                         total_file_size = 0 
                         file_list = []
+                        self.logging_actor.debug.remote("BookKeeper", f"file_list (reset) : {repr(file_list)}", time.asctime())
                     else:
                         total_file_size = total_file_size + event_range['fsize']
                         file_list.append(event_range)
+                self.logging_actor.debug.remote("BookKeeper", f"file_list (end while loop) : {repr(file_list)}", time.asctime())
                 if maxtarprocs > 0:
                     maxtarprocs = maxtarprocs - 1
                     self.ranges_to_tar.append(file_list)
