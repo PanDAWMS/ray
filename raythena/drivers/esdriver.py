@@ -767,7 +767,7 @@ class ESDriver(BaseDriver):
             ranges_to_tar = self.bookKeeper.get_ranges_to_tar()
             self.logging_actor.debug.remote(self.id, f" number of ranges to tar {len(ranges_to_tar)}", time.asctime())
             self.logging_actor.debug.remote(self.id, f"Ranges to tar {repr(ranges_to_tar)}", time.asctime())
-            self.tar_es_output(self.bookKeeper.get_ranges_to_tar())
+            self.tar_es_output(ranges_to_tar)
 
         if self.no_more_events:
             self.logging_actor.info.remote(self.id, "no more events available and some workers are already idle. Shutting down...", time.asctime())
@@ -988,8 +988,9 @@ class ESDriver(BaseDriver):
         #self.logging_actor.debug.remote(self.id, log_message, time.asctime())
         #while ranges_to_tar and maxtarprocs > 0:
         while ranges_to_tar:
+            range_list = self.ranges_to_tar.pop()
+            self.logging_actor.debug.remote(self.id, f" pop event range {repr(range_list)} - number of ranges to tar : {len(ranges_to_tar)}", time.asctime())
             try:
-                range_list = self.ranges_to_tar.pop()
                 self.running_tar_procs.append(self.tar_executor.submit(self.create_tar_file,range_list))
                 #maxtarprocs = maxtarprocs - 1
             except Exception as exc :
