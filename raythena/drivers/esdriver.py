@@ -279,9 +279,9 @@ class BookKeeper(object):
 
         log_message = str()
         for input_file, ranges in self.ranges_to_tar_by_input_file.items():
-            log_message = f"\n{input_file}: Type: {type (ranges)} values: {repr(ranges)}"
+            log_message = f"\n{input_file} number of event ranges: {len(ranges)}"
         self.logging_actor.debug.remote("BookKeeper", log_message, time.asctime())
-        log_message = ""
+        log_message = str()
         for input_file, ranges in self.finished_range_by_input_file.items():
             log_message = f"\n{input_file}: {len(ranges)} event ranges processed{log_message}"
         self.logging_actor.debug.remote("BookKeeper", log_message, time.asctime())
