@@ -981,7 +981,7 @@ class ESDriver(BaseDriver):
         #self.logging_actor.debug.remote(self.id, f"Enter tar_es_output - number of running tar procs {num_running_tar_procs}", time.asctime())
         # add new ranges to tar to the list
         self.ranges_to_tar.extend(ranges_to_tar)
-        self.logging_actor.debug.remote(self.id, f"tar_es_output - number of ranges to tar : {len(ranges_to_tar)}", time.asctime())
+        self.logging_actor.debug.remote(self.id, f"tar_es_output - number of ranges to tar : {len(self.ranges_to_tar)}", time.asctime())
 
         #maxtarprocs = self.tarmaxprocesses - num_running_tar_procs
         #log_message = f"Launch tar subprocesses : num possible processes - {maxtarprocs} number of tar files to make - {len(self.ranges_to_tar)}" 
@@ -998,6 +998,7 @@ class ESDriver(BaseDriver):
                 self.ranges_to_tar.append(range_list)
                 pass
             
+        self.logging_actor.debug.remote(self.id, f"tar_es_output - number of tar processes : {len(self.running_tar_procs)}", time.asctime())
         #self.tarmaxfilesize = self.config.ray['tarmaxfilesize']
         #self.tarmaxprocesses = self.config.ray['tarmaxprocesses']
 
