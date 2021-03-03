@@ -430,6 +430,33 @@ class ESDriver(BaseDriver):
         self.tar_executor = concurrent.futures.ProcessPoolExecutor(max_workers=self.tarmaxprocesses)
         self.running_tar_procs = list()
 
+        # create the output directories if needed
+        try:
+            if not os.path.isdir(self.tar_merge_es_output_dir):
+                self.logging_actor.debug.remote(self.id,
+                                                f"Creating dir for es files merged into zip files {self.tar_merge_es_output_dir}",
+                                                time.asctime())
+                os.mkdir(self.tar_merge_es_output_dir)
+        except Exception:
+            self.logging_actor.warn.remote(
+                self.id,
+                "Exception when creating the tar_merge_es_output_dir",
+                time.asctime()
+            )
+            raise
+        try:
+            if not os.path.isdir(self.tar_merge_es_files_dir):
+                self.logging_actor.debug.remote(self.id,
+                                                f"Creating dir for zipped es files {self.tar_merge_es_files_dir}",
+                                                time.asctime())
+                os.mkdir(self.tar_merge_es_files_dir)
+        except Exception:
+            self.logging_actor.warn.remote(
+                self.id,
+                "Exception when creating the tar_merge_es_files_dir",
+                time.asctime()
+            )
+            raise
 
         
     def __str__(self) -> str:
