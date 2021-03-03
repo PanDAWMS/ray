@@ -4,7 +4,8 @@ from queue import Queue, Empty
 from typing import List, Dict, Union, Any
 import concurrent.futures 
 import tarfile
-
+import shutil
+import zlib
 
 import ray
 
@@ -19,7 +20,6 @@ from raythena.utils.eventservice import (EventRangeRequest, PandaJobRequest,
 from raythena.utils.plugins import PluginsRegistry
 from raythena.utils.ray import (build_nodes_resource_list, get_node_ip)
 from raythena.utils.timing import CPUMonitor
-from raythena.utils.tarfiles import TarFiles
 
 EventRangeTypeHint = Dict[str, str]
 PandaJobTypeHint = Dict[str, str]
@@ -93,7 +93,7 @@ class BookKeeper(object):
         # loop over input file names and process the list
         try:
             self.ranges_to_tar = []
-            for input_file in self.ranges_tarring_by_input_file:
+            for input_file in self.ranges_to_tar_by_input_file:
                 total_file_size = 0
                 file_list = []
                 self.logging_actor.debug.remote("BookKeeper", f"input file value : {input_file}", time.asctime())
@@ -413,14 +413,25 @@ class ESDriver(BaseDriver):
         self.actors = dict()
         self.actors_message_queue = list()
         self.bookKeeper = BookKeeper(self.logging_actor, config)
-        self.tarFiles = TarFiles(self.logging_actor, config)
         self.terminated = list()
         self.running = True
         self.n_eventsrequest = 0
         self.first_event_range_request = True
         self.no_more_events = False
         self.timeoutinterval = self.config.ray['timeoutinterval']
+        self.tar_timestamp = time.time()
+        self.tarinterval = self.config.ray['tarinterval']
+        self.tarmaxprocesses = self.config.ray['tarmaxprocesses']
+        self.tar_merge_es_output_dir = os.path.join(self.workdir,"merge_es_output")
+        self.tar_merge_es_files_dir = os.path.join(self.workdir,"merge_es_files")
+        #self.ranges_to_tar: List[List[Dict]] = list()
+        self.ranges_to_tar = list()
+        
+        self.tar_executor = concurrent.futures.ProcessPoolExecutor(max_workers=self.tarmaxprocesses)
+        self.running_tar_procs = list()
 
+
+        
     def __str__(self) -> str:
         """
         String representation of driver attributes
@@ -726,7 +737,10 @@ class ESDriver(BaseDriver):
         now = time.time()
         if int(now - self.tar_timestamp) >= self.tarinterval:
             self.tar_timestamp = now
-            self.tarFiles.tar_es_output(self.bookKeeper.get_ranges_to_tar())
+            ranges_to_tar = self.bookKeeper.get_ranges_to_tar()
+            self.logging_actor.debug.remote(self.id, f" number of ranges to tar {len(ranges_to_tar)}", time.asctime())
+            self.logging_actor.debug.remote(self.id, f"Ranges to tar {repr(ranges_to_tar)}", time.asctime())
+            #self.tar_es_output(self.bookKeeper.get_ranges_to_tar())
 
         if self.no_more_events:
             self.logging_actor.info.remote(self.id, "no more events available and some workers are already idle. Shutting down...", time.asctime())
