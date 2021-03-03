@@ -277,13 +277,13 @@ class BookKeeper(object):
                     r['PanDAID'] = panda_id
                     self.ranges_to_tar_by_input_file[file_basename].append(r)
 
-        log_message = str()
+        log_message = "ranges_to_tar_by_input_file : "
         for input_file, ranges in self.ranges_to_tar_by_input_file.items():
-            log_message = f"\n{input_file} number of event ranges: {len(ranges)}"
+            log_message += f"Input File : {input_file} number of event ranges: {len(ranges)} "
         self.logging_actor.debug.remote("BookKeeper", log_message, time.asctime())
-        log_message = str()
+        log_message = "finished_range_by_input_file : "
         for input_file, ranges in self.finished_range_by_input_file.items():
-            log_message = f"\n{input_file}: {len(ranges)} event ranges processed{log_message}"
+            log_message += f"Input File : {input_file} number of event ranges {len(ranges)} "
         self.logging_actor.debug.remote("BookKeeper", log_message, time.asctime())
         self.logging_actor.info.remote("BookKeeper",
                                        (
