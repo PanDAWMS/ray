@@ -888,9 +888,9 @@ class ESDriver(BaseDriver):
         self.tar_executor = ProcessPoolExecutor(max_workers=self.tarmaxprocesses)
         self.running_tar_procs = list()
         """
-        try:
-            if len(self.running_tar_procs) > 0:
-                completed_failed_futures = list()
+        if len(self.running_tar_procs) > 0:
+            completed_failed_futures = list()
+            #try:
                 #for future in concurrent.futures.as_completed(self.running_tar_procs, 60):
                 #    completed_failed_futures.append(future)
                 #    try:
@@ -903,8 +903,9 @@ class ESDriver(BaseDriver):
                 #while completed_failed_futures:
                 #    future = completed_failed_futures.pop()
                 #    self.running_tar_procs.remove(future)
-        except concurrent.futures.TimeoutError:
+            #except concurrent.futures.TimeoutError:
                 # did not get information within timeout try later
-                self.logging_actor.debug.remote(self.id, "Warning - did not get tar process completed tasks within 60 seconds", time.asctime())
+                #self.logging_actor.debug.remote(self.id, "Warning - did not get tar process completed tasks within 60 seconds", time.asctime())
+                #pass
         return len(self.running_tar_procs)
     
