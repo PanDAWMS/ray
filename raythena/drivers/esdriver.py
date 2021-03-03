@@ -987,9 +987,9 @@ class ESDriver(BaseDriver):
         #log_message = f"Launch tar subprocesses : num possible processes - {maxtarprocs} number of tar files to make - {len(self.ranges_to_tar)}" 
         #self.logging_actor.debug.remote(self.id, log_message, time.asctime())
         #while ranges_to_tar and maxtarprocs > 0:
-        while ranges_to_tar:
+        while self.ranges_to_tar:
             range_list = self.ranges_to_tar.pop()
-            self.logging_actor.debug.remote(self.id, f" pop event range {repr(range_list)} - number of ranges to tar : {len(ranges_to_tar)}", time.asctime())
+            self.logging_actor.debug.remote(self.id, f" pop event range {repr(range_list)} - number of ranges to tar : {len(self.ranges_to_tar)}", time.asctime())
             try:
                 self.running_tar_procs.append(self.tar_executor.submit(self.create_tar_file,range_list))
                 #maxtarprocs = maxtarprocs - 1
