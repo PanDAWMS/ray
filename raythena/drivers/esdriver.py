@@ -967,7 +967,39 @@ class ESDriver(BaseDriver):
     
     
 # [{'eventRangeID': '24027003-4985019832-23509382954-429-1', 'eventStatus': 'finished', 'path': '/lcrc/group/ATLAS/harvester/var/lib/workdir/panda/testing/raythena/testdir/4985019832/Actor_0/esOutput/HITS.24027003._001647.pool.root.1.24027003-4985019832-23509382954-429-1', 'chksum': '7fb76e57', 'fsize': 191698, 'type': 'es_output', 'PanDAID': '4985019832'}, {'eventRangeID': '24027003-4985019832-23509382954-419-1', 'eventStatus': 'finished', 'path': '/lcrc/group/ATLAS/harvester/var/lib/workdir/panda/testing/raythena/testdir/4985019832/Actor_0/esOutput/HITS.24027003._001647.pool.root.1.24027003-4985019832-23509382954-419-1', 'chksum': '91324077', 'fsize': 317505, 'type': 'es_output', 'PanDAID': '4985019832'}]
- 
+
+    def tar_es_output(self, ranges_to_tar: List[List[Dict]]) -> None:
+        """
+        Get from bookKeeper the event ranges arraigned by input file than need to put into output tar files
+
+        Returns:
+            None
+        """
+        # get number of running tar processes
+        num_running_tar_procs = self.check_for_running_tar_proc()
+        self.logging_actor.debug.remote(self.id, f"Enter tar_es_output - number of running tar procs {num_running_tar_procs}", time.asctime())
+        # add new ranges to tar to the list
+        self.ranges_to_tar.extend(ranges_to_tar)
+
+        maxtarprocs = self.tarmaxprocesses - num_running_tar_procs
+        log_message = f"Launch tar subprocesses : num possible processes - {maxtarprocs} number of tar files to make - {len(self.ranges_to_tar)}" 
+        self.logging_actor.debug.remote(self.id, log_message, time.asctime())
+        while ranges_to_tar and maxtarprocs > 0:
+            try:
+                range_list = self.ranges_to_tar.pop()
+                self.running_tar_procs.append(self.tar_executor.submit(create_tar_file,range_list))
+                maxtarprocs = maxtarprocs - 1
+            except Exception as exc :
+                self.logging_actor.warn.remote(self.id, f"Exception {exc} when submitting tar subprocess",time.asctime())
+                self.ranges_to_tar.append(range_list)
+                pass
+            
+        #self.tarmaxfilesize = self.config.ray['tarmaxfilesize']
+        #self.tarmaxprocesses = self.config.ray['tarmaxprocesses']
+
+
+
+
    #def check_for_running_tar_proc(self) -> int:
    #     """
    #     Checks the self.running_tar_procs list for the Future objects. if process still running let it run otherwise
