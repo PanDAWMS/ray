@@ -990,7 +990,7 @@ class ESDriver(BaseDriver):
         while ranges_to_tar:
             try:
                 range_list = self.ranges_to_tar.pop()
-                self.running_tar_procs.append(self.tar_executor.submit(create_tar_file,range_list))
+                self.running_tar_procs.append(self.tar_executor.submit(self.create_tar_file,range_list))
                 #maxtarprocs = maxtarprocs - 1
             except Exception as exc :
                 self.logging_actor.warn.remote(self.id, f"Exception {exc} when submitting tar subprocess",time.asctime())
