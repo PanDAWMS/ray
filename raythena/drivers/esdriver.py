@@ -899,7 +899,6 @@ class ESDriver(BaseDriver):
                     except Exception as ex:
                         # do something
                         self.logging_actor.info.remote(self.id, f"Tar subprocess Caught exception {ex}", time.asctime())
-                        pass
                 # clear out finished or failed tar processes
                 while completed_failed_futures:
                     future = completed_failed_futures.pop()
@@ -907,6 +906,5 @@ class ESDriver(BaseDriver):
             except concurrent.futures.TimeoutError:
                 # did not get information within timeout try later
                 self.logging_actor.debug.remote(self.id, "Warning - did not get tar process completed tasks within 60 seconds", time.asctime())
-                pass
         return len(self.running_tar_procs)
     
