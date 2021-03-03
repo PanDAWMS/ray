@@ -767,7 +767,7 @@ class ESDriver(BaseDriver):
             ranges_to_tar = self.bookKeeper.get_ranges_to_tar()
             self.logging_actor.debug.remote(self.id, f" number of ranges to tar {len(ranges_to_tar)}", time.asctime())
             self.logging_actor.debug.remote(self.id, f"Ranges to tar {repr(ranges_to_tar)}", time.asctime())
-            #self.tar_es_output(self.bookKeeper.get_ranges_to_tar())
+            self.tar_es_output(self.bookKeeper.get_ranges_to_tar())
 
         if self.no_more_events:
             self.logging_actor.info.remote(self.id, "no more events available and some workers are already idle. Shutting down...", time.asctime())
@@ -975,20 +975,23 @@ class ESDriver(BaseDriver):
         Returns:
             None
         """
+        self.logging_actor.debug.remote(self.id, f"Enter tar_es_output routine", time.asctime())
         # get number of running tar processes
-        num_running_tar_procs = self.check_for_running_tar_proc()
-        self.logging_actor.debug.remote(self.id, f"Enter tar_es_output - number of running tar procs {num_running_tar_procs}", time.asctime())
+        #num_running_tar_procs = self.check_for_running_tar_proc()
+        #self.logging_actor.debug.remote(self.id, f"Enter tar_es_output - number of running tar procs {num_running_tar_procs}", time.asctime())
         # add new ranges to tar to the list
         self.ranges_to_tar.extend(ranges_to_tar)
+        self.logging_actor.debug.remote(self.id, f"tar_es_output - number of ranges to tar : {len(ranges_to_tar)}", time.asctime())
 
-        maxtarprocs = self.tarmaxprocesses - num_running_tar_procs
-        log_message = f"Launch tar subprocesses : num possible processes - {maxtarprocs} number of tar files to make - {len(self.ranges_to_tar)}" 
-        self.logging_actor.debug.remote(self.id, log_message, time.asctime())
-        while ranges_to_tar and maxtarprocs > 0:
+        #maxtarprocs = self.tarmaxprocesses - num_running_tar_procs
+        #log_message = f"Launch tar subprocesses : num possible processes - {maxtarprocs} number of tar files to make - {len(self.ranges_to_tar)}" 
+        #self.logging_actor.debug.remote(self.id, log_message, time.asctime())
+        #while ranges_to_tar and maxtarprocs > 0:
+        while ranges_to_tar:
             try:
                 range_list = self.ranges_to_tar.pop()
                 self.running_tar_procs.append(self.tar_executor.submit(create_tar_file,range_list))
-                maxtarprocs = maxtarprocs - 1
+                #maxtarprocs = maxtarprocs - 1
             except Exception as exc :
                 self.logging_actor.warn.remote(self.id, f"Exception {exc} when submitting tar subprocess",time.asctime())
                 self.ranges_to_tar.append(range_list)
