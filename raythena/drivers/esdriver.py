@@ -3,6 +3,8 @@ import time
 from queue import Queue, Empty
 from typing import List, Dict, Union, Any
 import concurrent.futures 
+import tarfile
+
 
 import ray
 
@@ -17,6 +19,7 @@ from raythena.utils.eventservice import (EventRangeRequest, PandaJobRequest,
 from raythena.utils.plugins import PluginsRegistry
 from raythena.utils.ray import (build_nodes_resource_list, get_node_ip)
 from raythena.utils.timing import CPUMonitor
+from raythena.utils.tarfiles import TarFiles
 
 EventRangeTypeHint = Dict[str, str]
 PandaJobTypeHint = Dict[str, str]
@@ -35,7 +38,6 @@ class BookKeeper(object):
         self.rangesID_by_actor: Dict[str, List[str]] = dict()
         self.finished_range_by_input_file: Dict[str, List[Dict]] = dict()
         self.ranges_to_tar_by_input_file: Dict[str, List[Dict]] = dict()
-        self.ranges_tarring_by_input_file: Dict[str, List[Dict]] = dict()
         self.ranges_to_tar: List[List[Dict]] = list()
         self.ranges_tarred_up: List[List[Dict]] = list()
         self.ranges_tarred_by_output_file: Dict[str, List[Dict]] = dict()
@@ -43,6 +45,7 @@ class BookKeeper(object):
         self.finished_by_time = []
         self.finished_by_time.append((time.time(), 0))
         self.monitortime = self.config.ray['monitortime']
+        self.tarmaxfilesize = self.config.ray['tarmaxfilesize']
         self.logging_actor.debug.remote("BookKeeper", f"Num_finished: start_time {self.start_time}", time.asctime())
 
     def get_ranges_to_tar(self) -> List[List[Dict]]:
@@ -55,6 +58,7 @@ class BookKeeper(object):
         Returns:
             List of Lists of Event Ranges to be put into tar files
         """
+        self.create_ranges_to_tar()
         return self.ranges_to_tar
 
     def get_ranges_to_tar_by_input_file(self) -> Dict[str, List[Dict]]:
@@ -69,89 +73,23 @@ class BookKeeper(object):
         """
         return self.ranges_to_tar_by_input_file
 
-    def get_ranges_tarring_by_input_file(self) -> Dict[str, List[Dict]]:
+    def create_ranges_to_tar(self) -> bool:
         """
-        Return the dictionary of event Ranges being put into tar files organized by input files
-
-        Args:
-            None
-
-        Returns:
-            dict of Event Ranges organized by input file
-        """
-        return self.ranges_tarring_by_input_file
-
-    def update_ranges_tarring_by_input_file(self) -> bool:
-        """
-        update the dictionary of event Ranges to be written to tar files organized by input files
-        removing the event ranges event Range lists organized by input files
-
-        Args:
-            None
-
-        Returns:
-           True if there are any ranges to tar up. False otherwise
-        """
-        return_val = False
-        log_message = str()
-        log_message = "Enter routine update_ranges_tarring_by_input_file"
-        self.logging_actor.debug.remote("BookKeeper", log_message, time.asctime())
-        try:
-            log_message = f"ranges_to_tar_by_input_file before range removal {repr(self.ranges_to_tar_by_input_file)}"
-            self.logging_actor.debug.remote("BookKeeper", log_message, time.asctime())
-            log_message = ""
-            # loop over input file names and process the list
-            try:
-                for input_file in self.ranges_to_tar_by_input_file:
-                    self.logging_actor.debug.remote("BookKeeper", f"input file value : {input_file}", time.asctime())
-                    #self.logging_actor.debug.remote("BookKeeper", f" event_ranges: {repr(self.ranges_to_tar_by_input_file[input_file])}", time.asctime())
-                    while self.ranges_to_tar_by_input_file[input_file]:
-                        event_range = self.ranges_to_tar_by_input_file[input_file].pop() 
-                        #self.logging_actor.debug.remote("BookKeeper", f" event_range: {repr(event_range)}", time.asctime())
-                        if input_file not in self.ranges_tarring_by_input_file:
-                            self.ranges_tarring_by_input_file[input_file] = list()
-                        self.ranges_tarring_by_input_file[input_file].append(event_range)
-                        log_message = f"{log_message} remove range : {repr(event_range)}"
-                    self.logging_actor.debug.remote("BookKeeper", log_message, time.asctime())
-            except:
-                self.logging_actor.debug.remote("BookKeeper", "failed to loop over input_files in self.ranges_to_tar_by_input_file", time.asctime())                
-            log_message = ""
-            log_message = f"ranges_to_tar_by_input_file after range removal {repr(self.ranges_to_tar_by_input_file)}"
-            self.logging_actor.debug.remote("BookKeeper", log_message, time.asctime())
-            try:
-                log_message = ""
-                log_message = f"ranges_tarring_by_input_file: {repr(self.ranges_tarring_by_input_file)}"
-                self.logging_actor.debug.remote("BookKeeper", log_message, time.asctime())
-                return_val = True
-            except NameError:
-                self.logging_actor.debug.remote("BookKeeper", "self.ranges_tarring_by_input_file not defined", time.asctime())
-                return_val = False
-        except NameError:
-            self.logging_actor.debug.remote("BookKeeper", "self.ranges_to_tar_by_input_file not defined", time.asctime())
-            return_val = False
-        return return_val
-
-    def create_ranges_to_tar(self, maxfilesize:int, maxtarprocs:int) -> bool:
-        """
-        using the event ranges organized by input file in ranges_tarring_by_input_file
+        using the event ranges organized by input file in ranges_to_tar_by_input_file
         loop over the entries creating a list of lists which container all of event ranges to be tarred up.
-        this list should only be as long as the number of processes that can be used for tar. 
         update the dictionary of event Ranges to be written to tar files organized by input files
         removing the event ranges event Range lists organized by input files
 
         Args:
-            maxfilesize - maximum file size of tar file with event ranges
-            maxtarprocs - number of process for creating tar files
+             None:
 
         Returns:
            True if there are any ranges to tar up. False otherwise
         """
         return_val = False
         log_message = str()
-        self.logging_actor.debug.remote("BookKeeper", f"Enter create_ranges_to_tar maxfilesize maxtarprocs {maxfilesize} {maxtarprocs}", time.asctime())
-        if maxtarprocs < 1:
-            self.logging_actor.debug.remote("BookKeeper", f"Need at least one process to run tar", time.asctime())
-            return return_val
+        self.logging_actor.debug.remote("BookKeeper", f"Enter create_ranges_to_tar self.tarmaxfilesize: {self.tarmaxfilesize}", time.asctime())
+        self.logging_actor.debug.remote("BookKeeper", f" self.ranges_to_tar_by_input_file: {repr(self.ranges_to_tar_by_input_file)}", time.asctime())
         # loop over input file names and process the list
         try:
             self.ranges_to_tar = []
@@ -159,30 +97,22 @@ class BookKeeper(object):
                 total_file_size = 0
                 file_list = []
                 self.logging_actor.debug.remote("BookKeeper", f"input file value : {input_file}", time.asctime())
-                while self.ranges_tarring_by_input_file[input_file] and maxtarprocs > 0:
-                    event_range = self.ranges_tarring_by_input_file[input_file].pop()
-                    if total_file_size + event_range['fsize'] > maxfilesize:
+                while self.ranges_to_tar_by_input_file[input_file]:
+                    event_range = self.ranges_to_tar_by_input_file[input_file].pop()
+                    if total_file_size + event_range['fsize'] > self.tarmaxfilesize:
                         # reached the size limit
                         self.ranges_to_tar_by_input_file[input_file].append(event_range)
-                        maxtarprocs = maxtarprocs - 1
-                        #DPBself.logging_actor.debug.remote("BookKeeper", f"file_list at file size limit: {repr(file_list)}", time.asctime())
                         self.ranges_to_tar.append(file_list)
                         total_file_size = 0 
                         file_list = []
-                        #DPBself.logging_actor.debug.remote("BookKeeper", f"file_list reset: {repr(file_list)}", time.asctime())
                     else:
                         total_file_size = total_file_size + event_range['fsize']
                         file_list.append(event_range)
-                #DPBself.logging_actor.debug.remote("BookKeeper", f"file_list end while loop: {repr(file_list)}", time.asctime())
-                if maxtarprocs > 0:
-                    maxtarprocs = maxtarprocs - 1
-                    self.ranges_to_tar.append(file_list)
-                if maxtarprocs < 1:
-                    break
+                self.ranges_to_tar.append(file_list)
             if len(self.ranges_to_tar) > 0:
                 return_val = True
-            #DPBself.logging_actor.debug.remote("BookKeeper", f" self.ranges_to_tar: {repr(self.ranges_to_tar)}", time.asctime())
-            #DPBself.logging_actor.debug.remote("BookKeeper", f" self.ranges_tarring_by_input_file: {repr(self.ranges_tarring_by_input_file)}", time.asctime())
+            self.logging_actor.debug.remote("BookKeeper", f" self.ranges_to_tar: {repr(self.ranges_to_tar)}", time.asctime())
+            self.logging_actor.debug.remote("BookKeeper", f" self.ranges_to_tar_by_input_file: {repr(self.ranges_to_tar_by_input_file)}", time.asctime())
         except:
             self.logging_actor.debug.remote("BookKeeper", "can not create list of ranges to tar", time.asctime())
             return_val = False
@@ -483,21 +413,13 @@ class ESDriver(BaseDriver):
         self.actors = dict()
         self.actors_message_queue = list()
         self.bookKeeper = BookKeeper(self.logging_actor, config)
+        self.tarFiles = TarFiles(self.logging_actor, config)
         self.terminated = list()
         self.running = True
         self.n_eventsrequest = 0
         self.first_event_range_request = True
         self.no_more_events = False
         self.timeoutinterval = self.config.ray['timeoutinterval']
-        self.tarinterval = self.config.ray['tarinterval']
-        self.tarmaxfilesize = self.config.ray['tarmaxfilesize']
-        self.tarmaxprocesses = self.config.ray['tarmaxprocesses']
-        self.tar_timestamp = time.time()
-        self.tar_merge_es_output_dir = os.path.join(self.workdir,"merge_es_output")
-        self.tar_merge_es_files_dir = os.path.join(self.workdir,"merge_es_files")
-
-        self.tar_executor = concurrent.futures.ProcessPoolExecutor(max_workers=self.tarmaxprocesses)
-        self.running_tar_procs = list()
 
     def __str__(self) -> str:
         """
@@ -792,97 +714,7 @@ class ESDriver(BaseDriver):
                 self.n_eventsrequest -= 1
             except Empty:
                 pass
-
-    def check_for_running_tar_proc(self) -> int:
-        """
-        Checks the self.running_tar_procs list for the Future objects. if process still running let it run otherwise
-        get the results of running and pass information to the BookKeeper and onto Harvester
-            
-        Args:
-            None
-            
-        Returns:
-            number of running Tar subprocesses. 
-
-        self.tar_executor = ProcessPoolExecutor(max_workers=self.tarmaxprocesses)
-        self.running_tar_procs = list()
-        """
-        if len(self.running_tar_procs) > 0:
-            completed_failed_futures = []
-            try:
-                for future in concurrent.futures.as_completed(self.running_tar_procs, 60):
-                    completed_failed_futures.append(future)
-                    try:
-                        result = future.result()
-                        self.logging_actor.debug.remote(self.id, f"Tar subprocess result {repr(result)}", time.asctime())
-                    except Exception as ex:
-                        # do something
-                        self.logging_actor.info.remote(self.id, f"Tar subprocess Caught exception {ex}", time.asctime())
-                        pass
-                # clear out finished or failed tar processes
-                while completed_failed_futures:
-                    future = completed_failed_futures.pop()
-                    self.running_tar_procs.remove(future)
-            except concurrent.futures.TimeoutError:
-                # did not get information within timeout try later
-                self.logging_actor.debug.remote(self.id, "Warning - did not get tar process completed tasks within 60 seconds", time.asctime())
-                pass
-        return len(self.running_tar_procs)
-    
-    def tar_es_output(self) -> None:
-        """
-        Get from bookKeeper the event ranges arraigned by input file than need to put into output tar files
-
-        Returns:
-            None
-        """
-        # get number of running tar processes
-        num_running_tar_procs = self.check_for_running_tar_proc()
-        self.logging_actor.debug.remote(self.id, "Enter tar_es_output - number of running tar procs {num_running_tar_procs}", time.asctime())
-        # check to see if it is time to create output tar files
-        time_stamp = self.tar_timestamp
-        now = time.time()
-        delta_time = now - time_stamp
-        if int(delta_time) >= self.tarinterval:
-            self.logging_actor.debug.remote(self.id, "Get Event Ranges to tar", time.asctime())
-            # create the output directories if needed
-            try:
-                if not os.path.isdir(self.tar_merge_es_output_dir):
-                    self.logging_actor.debug.remote(self.id,
-                                                    f"Creating dir for es files merged into zip files {self.tar_merge_es_output_dir}",
-                                                    time.asctime())
-                    os.mkdir(self.tar_merge_es_output_dir)
-            except Exception:
-                self.logging_actor.warn.remote(
-                    self.id,
-                    "Exception when creating the tar_merge_es_output_dir",
-                    time.asctime()
-                )
-                return
-            try:
-                if not os.path.isdir(self.tar_merge_es_files_dir):
-                    self.logging_actor.debug.remote(self.id,
-                                                    f"Creating dir for zipped es files {self.tar_merge_es_files_dir}",
-                                                    time.asctime())
-                    os.mkdir(self.tar_merge_es_files_dir)
-            except Exception:
-                self.logging_actor.warn.remote(
-                    self.id,
-                    "Exception when creating the tar_merge_es_files_dir",
-                    time.asctime()
-                )
-                return
-            self.tar_timestamp = now
-            maxtarprocs = self.tarmaxprocesses - num_running_tar_procs
-            self.bookKeeper.update_ranges_tarring_by_input_file()
-            if self.bookKeeper.create_ranges_to_tar(self.tarmaxfilesize,maxtarprocs):
-                # launch tar processes
-                self.logging_actor.debug.remote(self.id, f"Launch tar processes: {len(self.bookKeeper.get_ranges_to_tar())}", time.asctime())            
-            # loop over 
-
-        #self.tarmaxfilesize = self.config.ray['tarmaxfilesize']
-        #self.tarmaxprocesses = self.config.ray['tarmaxprocesses']
-
+        
     def on_tick(self) -> None:
         """
         Performs actions that should be executed regularly, after handling a batch of actor messages.
@@ -890,9 +722,12 @@ class ESDriver(BaseDriver):
         Returns:
             None
         """
-        # check for finished tar subprocesses and tar es output
-        # self.check_finished_tar_jobs()
-        self.tar_es_output()
+        # check to see if it is time to create output tar files
+        now = time.time()
+        if int(now - self.tar_timestamp) >= self.tarinterval:
+            self.tar_timestamp = now
+            self.tarFiles.tar_es_output(self.bookKeeper.get_ranges_to_tar())
+
         if self.no_more_events:
             self.logging_actor.info.remote(self.id, "no more events available and some workers are already idle. Shutting down...", time.asctime())
             self.stop()
