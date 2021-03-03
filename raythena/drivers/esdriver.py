@@ -888,22 +888,22 @@ class ESDriver(BaseDriver):
         self.tar_executor = ProcessPoolExecutor(max_workers=self.tarmaxprocesses)
         self.running_tar_procs = list()
         """
-        if len(self.running_tar_procs) > 0:
-            completed_failed_futures = []
-            try:
-                for future in concurrent.futures.as_completed(self.running_tar_procs, 60):
-                    completed_failed_futures.append(future)
-                    try:
-                        result = future.result()
-                        self.logging_actor.debug.remote(self.id, f"Tar subprocess result {repr(result)}", time.asctime())
-                    except Exception as ex:
-                        # do something
-                        self.logging_actor.info.remote(self.id, f"Tar subprocess Caught exception {ex}", time.asctime())
+        try:
+            if len(self.running_tar_procs) > 0:
+                completed_failed_futures = list()
+                #for future in concurrent.futures.as_completed(self.running_tar_procs, 60):
+                #    completed_failed_futures.append(future)
+                #    try:
+                #        result = future.result()
+                #        self.logging_actor.debug.remote(self.id, f"Tar subprocess result {repr(result)}", time.asctime())
+                #    except Exception as ex:
+                #        # do something
+                #        self.logging_actor.info.remote(self.id, f"Tar subprocess Caught exception {ex}", time.asctime())
                 # clear out finished or failed tar processes
-                while completed_failed_futures:
-                    future = completed_failed_futures.pop()
-                    self.running_tar_procs.remove(future)
-            except concurrent.futures.TimeoutError:
+                #while completed_failed_futures:
+                #    future = completed_failed_futures.pop()
+                #    self.running_tar_procs.remove(future)
+        except concurrent.futures.TimeoutError:
                 # did not get information within timeout try later
                 self.logging_actor.debug.remote(self.id, "Warning - did not get tar process completed tasks within 60 seconds", time.asctime())
         return len(self.running_tar_procs)
