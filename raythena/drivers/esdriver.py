@@ -424,8 +424,9 @@ class ESDriver(BaseDriver):
         self.tarmaxprocesses = self.config.ray['tarmaxprocesses']
         self.tar_merge_es_output_dir = os.path.join(self.workdir,"merge_es_output")
         self.tar_merge_es_files_dir = os.path.join(self.workdir,"merge_es_files")
-        #self.ranges_to_tar: List[List[Dict]] = list()
-        self.ranges_to_tar = list()
+        self.ranges_to_tar: List[List[Dict]] = list()
+        self.running_tar_threads = dict()
+
         
         self.tar_executor = concurrent.futures.ThreadPoolExecutor(max_workers=self.tarmaxprocesses)
 
@@ -910,7 +911,7 @@ class ESDriver(BaseDriver):
                 pfn = os.path.join(self.tar_merge_es_files_dir, lfn)
                 shutil.move(event_range["path"],pfn)
             # rename zip file (move)
-            shutil.move(tmp_file_path,file_path)
+            shutil.move(temp_file_path,file_path)
             return return_val
             # move input files to new location and create output dictionary
         except Exception as exc:
@@ -976,64 +977,41 @@ class ESDriver(BaseDriver):
             None
         """
         self.logging_actor.debug.remote(self.id, f"Enter tar_es_output routine", time.asctime())
-        # get number of running tar processes
-        #num_running_tar_procs = self.check_for_running_tar_proc()
-        #self.logging_actor.debug.remote(self.id, f"Enter tar_es_output - number of running tar procs {num_running_tar_procs}", time.asctime())
         # add new ranges to tar to the list
         self.ranges_to_tar.extend(ranges_to_tar)
         self.logging_actor.debug.remote(self.id, f"tar_es_output - number of ranges to tar : {len(self.ranges_to_tar)}", time.asctime())
 
-        #maxtarprocs = self.tarmaxprocesses - num_running_tar_procs
-        #log_message = f"Launch tar subprocesses : num possible processes - {maxtarprocs} number of tar files to make - {len(self.ranges_to_tar)}" 
-        #self.logging_actor.debug.remote(self.id, log_message, time.asctime())
-        #while ranges_to_tar and maxtarprocs > 0:
         try:
-            self.running_tar_procs = {self.tar_executor.submit(self.create_tar_file,range_list): range_list for range_list in self.ranges_to_tar}
-            self.logging_actor.debug.remote(self.id, f"Type: {type(self.running_tar_procs)} {len(self.running_tar_procs)} - number of ranges to tar : {len(self.ranges_to_tar)}", time.asctime())
+            self.running_tar_threads = {self.tar_executor.submit(self.create_tar_file,range_list): range_list for range_list in self.ranges_to_tar}
+            self.logging_actor.debug.remote(self.id, f"Type: {type(self.running_tar_threads)} {len(self.running_tar_threads)} - number of ranges to tar : {len(self.ranges_to_tar)}", time.asctime())
             self.ranges_to_tar = list()
         except Exception as exc :
             self.logging_actor.warn.remote(self.id, f"Exception {exc} when submitting tar subprocess",time.asctime())
             pass
             
-        self.logging_actor.debug.remote(self.id, f"tar_es_output - number of tar processes : {len(self.running_tar_procs)}", time.asctime())
-        #self.tarmaxfilesize = self.config.ray['tarmaxfilesize']
-        #self.tarmaxprocesses = self.config.ray['tarmaxprocesses']
-
-
-
-
-   #def check_for_running_tar_proc(self) -> int:
-   #     """
-   #     Checks the self.running_tar_procs list for the Future objects. if process still running let it run otherwise
-   #     get the results of running and pass information to the BookKeeper and onto Harvester
-   #         
-   #     Args:
-   #         None
-   #         
-   #     Returns:
-   #         number of running Tar subprocesses. 
-   #
-   #     self.tar_executor = ProcessPoolExecutor(max_workers=self.tarmaxprocesses)
-   #     self.running_tar_procs = list()
-   #     """
-        #if len(self.running_tar_procs) > 0:
-        #    completed_failed_futures = list()
-            #try:
-                #for future in concurrent.futures.as_completed(self.running_tar_procs, 60):
-                #    completed_failed_futures.append(future)
-                #    try:
-                #        result = future.result()
-                #        self.logging_actor.debug.remote(self.id, f"Tar subprocess result {repr(result)}", time.asctime())
-                #    except Exception as ex:
-                #        # do something
-                #        self.logging_actor.info.remote(self.id, f"Tar subprocess Caught exception {ex}", time.asctime())
-                # clear out finished or failed tar processes
-                #while completed_failed_futures:
-                #    future = completed_failed_futures.pop()
-                #    self.running_tar_procs.remove(future)
-            #except concurrent.futures.TimeoutError:
-                # did not get information within timeout try later
-                #self.logging_actor.debug.remote(self.id, "Warning - did not get tar process completed tasks within 60 seconds", time.asctime())
-                #pass
-        #return len(self.running_tar_procs)
-    
+        self.logging_actor.debug.remote(self.id, f"tar_es_output - number of tar processes : {len(self.running_tar_threads)}", time.asctime())
+        
+   def check_for_running_tar_thread(self) -> None:
+        """
+        Checks the self.running_tar_threads dict for the Future objects. if thread is still running let it run otherwise
+        get the results of running and pass information to the BookKeeper and onto Harvester
+            
+        Args:
+            None
+            
+        Returns:
+            None
+   
+        """
+        try:
+            for future in concurrent.futures.as_completed(self.running_tar_threads, 60):
+                try:
+                    result = future.result()
+                    self.logging_actor.debug.remote(self.id, f"Tar subthread result {repr(result)}", time.asctime())
+                except Exception as ex:
+                    # do something
+                    self.logging_actor.info.remote(self.id, f"Tar subthread Caught exception {ex}", time.asctime())
+        except concurrent.futures.TimeoutError:
+            # did not get information within timeout try later
+            self.logging_actor.debug.remote(self.id, "Warning - did not get tar process completed tasks within 60 seconds", time.asctime())
+            pass
