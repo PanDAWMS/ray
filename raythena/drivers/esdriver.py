@@ -610,6 +610,7 @@ class ESDriver(BaseDriver):
             self.id, f"{actor_id} sent a eventranges update", time.asctime())
         eventranges_update = self.bookKeeper.process_event_ranges_update(
             actor_id, data)
+        self.logging_actor.debug.remote(self.id,f"eventranges_update - {repr(eventranges_update)}",time.asctime())
         self.requests_queue.put(eventranges_update)
         self.actors_message_queue.append(
             self[actor_id].get_message.remote())
@@ -761,6 +762,7 @@ class ESDriver(BaseDriver):
         Returns:
             None
         """
+        self.check_for_running_tar_thread()
         # check to see if it is time to create output tar files
         now = time.time()
         if int(now - self.tar_timestamp) >= self.tarinterval:
@@ -989,9 +991,9 @@ class ESDriver(BaseDriver):
             self.logging_actor.warn.remote(self.id, f"Exception {exc} when submitting tar subprocess",time.asctime())
             pass
             
-        self.logging_actor.debug.remote(self.id, f"tar_es_output - number of tar processes : {len(self.running_tar_threads)}", time.asctime())
+        self.logging_actor.debug.remote(self.id, f"tar_es_output - number of tar processes : {len(self.running_tar_threads)} {repr(self.running_tar_threads)}", time.asctime())
         
-   def check_for_running_tar_thread(self) -> None:
+    def check_for_running_tar_thread(self) -> None:
         """
         Checks the self.running_tar_threads dict for the Future objects. if thread is still running let it run otherwise
         get the results of running and pass information to the BookKeeper and onto Harvester
@@ -1000,18 +1002,21 @@ class ESDriver(BaseDriver):
             None
             
         Returns:
-            None
+           List of a dict to be passed onto Harvester
    
         """
+        results = list()
         try:
             for future in concurrent.futures.as_completed(self.running_tar_threads, 60):
                 try:
                     result = future.result()
-                    self.logging_actor.debug.remote(self.id, f"Tar subthread result {repr(result)}", time.asctime())
+                    results.append(result)
                 except Exception as ex:
-                    # do something
                     self.logging_actor.info.remote(self.id, f"Tar subthread Caught exception {ex}", time.asctime())
+                    pass
         except concurrent.futures.TimeoutError:
             # did not get information within timeout try later
             self.logging_actor.debug.remote(self.id, "Warning - did not get tar process completed tasks within 60 seconds", time.asctime())
             pass
+        self.logging_actor.debug.remote(self.id, f"Leaving check_for_running_tar_thread # of completed {len(results)} {repr(results)}", time.asctime())
+        return results
