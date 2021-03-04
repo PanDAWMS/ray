@@ -427,8 +427,8 @@ class ESDriver(BaseDriver):
         #self.ranges_to_tar: List[List[Dict]] = list()
         self.ranges_to_tar = list()
         
-        self.tar_executor = concurrent.futures.ProcessPoolExecutor(max_workers=self.tarmaxprocesses)
-        self.running_tar_procs = list()
+        self.tar_executor = concurrent.futures.ThreadPoolExecutor(max_workers=self.tarmaxprocesses)
+
 
         # create the output directories if needed
         try:
@@ -987,16 +987,13 @@ class ESDriver(BaseDriver):
         #log_message = f"Launch tar subprocesses : num possible processes - {maxtarprocs} number of tar files to make - {len(self.ranges_to_tar)}" 
         #self.logging_actor.debug.remote(self.id, log_message, time.asctime())
         #while ranges_to_tar and maxtarprocs > 0:
-        while self.ranges_to_tar:
-            range_list = self.ranges_to_tar.pop()
-            self.logging_actor.debug.remote(self.id, f" pop event range {repr(range_list)} - number of ranges to tar : {len(self.ranges_to_tar)}", time.asctime())
-            try:
-                self.running_tar_procs.append(self.tar_executor.submit(self.create_tar_file,range_list))
-                #maxtarprocs = maxtarprocs - 1
-            except Exception as exc :
-                self.logging_actor.warn.remote(self.id, f"Exception {exc} when submitting tar subprocess",time.asctime())
-                self.ranges_to_tar.append(range_list)
-                pass
+        try:
+            self.running_tar_procs = {self.tar_executor.submit(self.create_tar_file,range_list): range_list for range_list in self.ranges_to_tar}
+            self.logging_actor.debug.remote(self.id, f"Type: {type(self.running_tar_procs)} {len(self.running_tar_procs)} - number of ranges to tar : {len(self.ranges_to_tar)}", time.asctime())
+            self.ranges_to_tar = list()
+        except Exception as exc :
+            self.logging_actor.warn.remote(self.id, f"Exception {exc} when submitting tar subprocess",time.asctime())
+            pass
             
         self.logging_actor.debug.remote(self.id, f"tar_es_output - number of tar processes : {len(self.running_tar_procs)}", time.asctime())
         #self.tarmaxfilesize = self.config.ray['tarmaxfilesize']
