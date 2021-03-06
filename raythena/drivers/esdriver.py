@@ -610,8 +610,9 @@ class ESDriver(BaseDriver):
             self.id, f"{actor_id} sent a eventranges update", time.asctime())
         eventranges_update = self.bookKeeper.process_event_ranges_update(
             actor_id, data)
-        self.logging_actor.debug.remote(self.id,f"eventranges_update - {repr(eventranges_update)}",time.asctime())
-        self.requests_queue.put(eventranges_update)
+        self.logging_actor.debug.remote(self.id,f"eventranges_update data  - {str(data)}",time.asctime())
+        self.logging_actor.debug.remote(self.id,f"eventranges_update - {str(eventranges_update)}",time.asctime())
+        #self.requests_queue.put(eventranges_update)
         self.actors_message_queue.append(
             self[actor_id].get_message.remote())
 
@@ -1010,10 +1011,13 @@ class ESDriver(BaseDriver):
             for future in concurrent.futures.as_completed(self.running_tar_threads, 60):
                 try:
                     result = future.result()
+                    self.logging_actor.debug.remote(self.id, f"check_for_running_tar_thread future return result - type {type(result)} value - {repr(result)}", time.asctime())
                     results.append(result)
                 except Exception as ex:
                     self.logging_actor.info.remote(self.id, f"Tar subthread Caught exception {ex}", time.asctime())
                     pass
+            # build event range update from results
+            #self.requests_queue.put(eventranges_update)
         except concurrent.futures.TimeoutError:
             # did not get information within timeout try later
             self.logging_actor.debug.remote(self.id, "Warning - did not get tar process completed tasks within 60 seconds", time.asctime())
