@@ -763,7 +763,10 @@ class ESDriver(BaseDriver):
         Returns:
             None
         """
-        self.check_for_running_tar_thread()
+        tar_results = self.get_tar_results()
+        if tar_results and isinstance(tar_results,dict):
+            # give results to BookKeeper to send to Harvester ????
+            self.logging_actor.debug.remote(self.id, f"results of tar threads - {repr(tar_results)}", time.asctime())
         # check to see if it is time to create output tar files
         now = time.time()
         if int(now - self.tar_timestamp) >= self.tarinterval:
@@ -994,7 +997,7 @@ class ESDriver(BaseDriver):
             
         self.logging_actor.debug.remote(self.id, f"tar_es_output - number of tar processes : {len(self.running_tar_threads)} {repr(self.running_tar_threads)}", time.asctime())
         
-    def check_for_running_tar_thread(self) -> None:
+    def get_tar_results(self) ->  Dict[str, List[Dict]]:
         """
         Checks the self.running_tar_threads dict for the Future objects. if thread is still running let it run otherwise
         get the results of running and pass information to the BookKeeper and onto Harvester
@@ -1003,16 +1006,23 @@ class ESDriver(BaseDriver):
             None
             
         Returns:
-           List of a dict to be passed onto Harvester
+           dict of lists of event ranges dict to be passed onto Harvester 
    
         """
-        results = list()
+        results = dict()
         try:
             for future in concurrent.futures.as_completed(self.running_tar_threads, 60):
                 try:
                     result = future.result()
-                    self.logging_actor.debug.remote(self.id, f"check_for_running_tar_thread future return result - type {type(result)} value - {repr(result)}", time.asctime())
-                    results.append(result)
+                    if result and isinstance(result, dict):
+                        # non empty dictionary
+                        self.logging_actor.debug.remote(self.id, f"check_for_running_tar_thread future return result - type {type(result)} value - {repr(result)}", time.asctime())
+                        for PanDA_id in result:
+                            data = result[PanDA_id]
+                            if PanDA_id not in results:
+                                results[PanDA_id] = list()
+                            results[PanDA_id].append(data)
+                    self.logging_actor.debug.remote(self.id, f"check_for_running_tar_thread running results - {repr(results)}", time.asctime())
                 except Exception as ex:
                     self.logging_actor.info.remote(self.id, f"Tar subthread Caught exception {ex}", time.asctime())
                     pass
