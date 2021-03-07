@@ -1016,13 +1016,15 @@ class ESDriver(BaseDriver):
                     result = future.result()
                     if result and isinstance(result, dict):
                         # non empty dictionary
-                        self.logging_actor.debug.remote(self.id, f"check_for_running_tar_thread future return result - type {type(result)} value - {repr(result)}", time.asctime())
+                        self.logging_actor.debug.remote(self.id, f"get_tar_results future return result - type {type(result)} value - {repr(result)}", time.asctime())
                         for PanDA_id in result:
                             data = result[PanDA_id]
+                            self.logging_actor.debug.remote(self.id, f"get_tar_results data - type {type(data)} value - {repr(data)}", time.asctime())
                             if PanDA_id not in results:
-                                results[PanDA_id] = list()
-                            results[PanDA_id].append(data)
-                    self.logging_actor.debug.remote(self.id, f"check_for_running_tar_thread running results - {repr(results)}", time.asctime())
+                                results[PanDA_id] = data
+                            else:
+                                results[PanDA_id].append(data)
+                    self.logging_actor.debug.remote(self.id, f"get_tar_results running results - {repr(results)}", time.asctime())
                 except Exception as ex:
                     self.logging_actor.info.remote(self.id, f"Tar subthread Caught exception {ex}", time.asctime())
                     pass
@@ -1032,5 +1034,5 @@ class ESDriver(BaseDriver):
             # did not get information within timeout try later
             self.logging_actor.debug.remote(self.id, "Warning - did not get tar process completed tasks within 60 seconds", time.asctime())
             pass
-        self.logging_actor.debug.remote(self.id, f"Leaving check_for_running_tar_thread # of completed {len(results)} {repr(results)}", time.asctime())
+        self.logging_actor.debug.remote(self.id, f"Leaving get_tar_results # of completed {len(results)} {repr(results)}", time.asctime())
         return results
