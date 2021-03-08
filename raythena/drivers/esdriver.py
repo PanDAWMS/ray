@@ -426,6 +426,7 @@ class ESDriver(BaseDriver):
         self.tar_merge_es_files_dir = os.path.join(self.workdir,"merge_es_files")
         self.ranges_to_tar: List[List[Dict]] = list()
         self.running_tar_threads = dict()
+        self.processed_event_ranges = dict()
 
         
         self.tar_executor = concurrent.futures.ThreadPoolExecutor(max_workers=self.tarmaxprocesses)
@@ -767,6 +768,23 @@ class ESDriver(BaseDriver):
         if tar_results and isinstance(tar_results,dict):
             # give results to BookKeeper to send to Harvester ????
             self.logging_actor.debug.remote(self.id, f"results of tar threads - {repr(tar_results)}", time.asctime())
+            # check for duplicates
+            for PanDA_id in tar_results:
+                if PanDA_id not in self.processed_event_ranges:
+                    self.processed_event_ranges[PanDA_id] = dict()
+                for element in tar_results[PanDA_id]:
+                    eventRangeID = element['eventRangeID']
+                    path = element['path']
+                    if eventRangeID not in self.processed_event_ranges[PanDA_id]:
+                        self.processed_event_ranges[PanDA_id][eventRangeID] = list()
+                    self.processed_event_ranges[PanDA_id][eventRangeID].append(path)
+                # loop over processed event ranges list the duplicate files
+                for eventRangeID in self.processed_event_ranges[PandDA_id]:
+                    if len(self.processed_event_ranges[PandDA_id][eventRangeID]) > 1:
+                        # duplicate eventRangeID
+                        self.logging_actor.warn.remote(self.id, f"ERROR duplicate eventRangeID - {eventRangeID}", time.asctime())
+                        for path in (self.processed_event_ranges[PandDA_id][eventRangeID]):
+                            self.logging_actor.warn.remote(self.id, f"ERROR duplicate eventRangeID - {eventRangeID} {path}", time.asctime())
         # check to see if it is time to create output tar files
         now = time.time()
         if int(now - self.tar_timestamp) >= self.tarinterval:
@@ -1024,7 +1042,7 @@ class ESDriver(BaseDriver):
                                 results[PanDA_id] = data
                             else:
                                 results[PanDA_id].extend(data)
-                    self.logging_actor.debug.remote(self.id, f"get_tar_results running results - {repr(results)}", time.asctime())
+                    #self.logging_actor.debug.remote(self.id, f"get_tar_results running results - {repr(results)}", time.asctime())
                 except Exception as ex:
                     self.logging_actor.info.remote(self.id, f"Tar subthread Caught exception {ex}", time.asctime())
                     pass
@@ -1034,5 +1052,5 @@ class ESDriver(BaseDriver):
             # did not get information within timeout try later
             self.logging_actor.debug.remote(self.id, "Warning - did not get tar process completed tasks within 60 seconds", time.asctime())
             pass
-        self.logging_actor.debug.remote(self.id, f"Leaving get_tar_results # of completed {len(results)} {repr(results)}", time.asctime())
+        #self.logging_actor.debug.remote(self.id, f"Leaving get_tar_results # of completed {len(results)} {repr(results)}", time.asctime())
         return results
