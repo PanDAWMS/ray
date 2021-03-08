@@ -765,7 +765,34 @@ class ESDriver(BaseDriver):
         Returns:
             None
         """
-        tar_results = self.get_tar_results()
+        # check to see if it is time to create output tar files
+        now = time.time()
+        if int(now - self.tar_timestamp) >= self.tarinterval:
+            self.tar_timestamp = now
+            tar_results = self.get_tar_results()
+            self.check_for_duplicates(tar_results)
+            ranges_to_tar = self.bookKeeper.get_ranges_to_tar()
+            self.logging_actor.debug.remote(self.id, f" number of ranges to tar {len(ranges_to_tar)}", time.asctime())
+            self.logging_actor.debug.remote(self.id, f"Ranges to tar {repr(ranges_to_tar)}", time.asctime())
+            self.tar_es_output(ranges_to_tar)
+
+        if self.no_more_events:
+            self.logging_actor.info.remote(self.id, "no more events available and some workers are already idle. Shutting down...", time.asctime())
+            self.stop()
+        self.bookKeeper.add_finished_event_ranges()
+        self.request_event_ranges()
+        
+    def check_for_duplicates(self, tar_results: Dict[str, List[Dict]]) -> bool:
+        """
+        Notify each worker that it should terminate then wait for actor to acknowledge
+        that the interruption was received
+
+        Args:
+            dictionary of event ranges from finished tar jobs
+        Returns:
+            True if no duplicate eventRanges
+        """
+        return_val = True
         if tar_results and isinstance(tar_results,dict):
             # give results to BookKeeper to send to Harvester ????
             self.logging_actor.debug.remote(self.id, f"results of tar threads - {repr(tar_results)}", time.asctime())
@@ -783,24 +810,12 @@ class ESDriver(BaseDriver):
                 for eventRangeID in self.processed_event_ranges[PanDA_id]:
                     if len(self.processed_event_ranges[PanDA_id][eventRangeID]) > 1:
                         # duplicate eventRangeID
+                        return_val = False
                         self.logging_actor.warn.remote(self.id, f"ERROR duplicate eventRangeID - {eventRangeID}", time.asctime())
                         for path in (self.processed_event_ranges[PanDA_id][eventRangeID]):
                             self.logging_actor.warn.remote(self.id, f"ERROR duplicate eventRangeID - {eventRangeID} {path}", time.asctime())
-        # check to see if it is time to create output tar files
-        now = time.time()
-        if int(now - self.tar_timestamp) >= self.tarinterval:
-            self.tar_timestamp = now
-            ranges_to_tar = self.bookKeeper.get_ranges_to_tar()
-            self.logging_actor.debug.remote(self.id, f" number of ranges to tar {len(ranges_to_tar)}", time.asctime())
-            self.logging_actor.debug.remote(self.id, f"Ranges to tar {repr(ranges_to_tar)}", time.asctime())
-            self.tar_es_output(ranges_to_tar)
-
-        if self.no_more_events:
-            self.logging_actor.info.remote(self.id, "no more events available and some workers are already idle. Shutting down...", time.asctime())
-            self.stop()
-        self.bookKeeper.add_finished_event_ranges()
-        self.request_event_ranges()
-        
+        return return_val
+                            
     def cleanup(self) -> None:
         """
         Notify each worker that it should terminate then wait for actor to acknowledge
