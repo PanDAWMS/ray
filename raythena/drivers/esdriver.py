@@ -779,11 +779,11 @@ class ESDriver(BaseDriver):
                         self.processed_event_ranges[PanDA_id][eventRangeID] = list()
                     self.processed_event_ranges[PanDA_id][eventRangeID].append(path)
                 # loop over processed event ranges list the duplicate files
-                for eventRangeID in self.processed_event_ranges[PandDA_id]:
-                    if len(self.processed_event_ranges[PandDA_id][eventRangeID]) > 1:
+                for eventRangeID in self.processed_event_ranges[PanDA_id]:
+                    if len(self.processed_event_ranges[PanDA_id][eventRangeID]) > 1:
                         # duplicate eventRangeID
                         self.logging_actor.warn.remote(self.id, f"ERROR duplicate eventRangeID - {eventRangeID}", time.asctime())
-                        for path in (self.processed_event_ranges[PandDA_id][eventRangeID]):
+                        for path in (self.processed_event_ranges[PanDA_id][eventRangeID]):
                             self.logging_actor.warn.remote(self.id, f"ERROR duplicate eventRangeID - {eventRangeID} {path}", time.asctime())
         # check to see if it is time to create output tar files
         now = time.time()
