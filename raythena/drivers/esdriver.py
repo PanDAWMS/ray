@@ -427,7 +427,8 @@ class ESDriver(BaseDriver):
         self.ranges_to_tar: List[List[Dict]] = list()
         self.running_tar_threads = dict()
         self.processed_event_ranges = dict()
-
+        self.finished_tar_tasks = set()
+        
         
         self.tar_executor = concurrent.futures.ThreadPoolExecutor(max_workers=self.tarmaxprocesses)
 
@@ -1031,17 +1032,19 @@ class ESDriver(BaseDriver):
         try:
             for future in concurrent.futures.as_completed(self.running_tar_threads, 60):
                 try:
-                    result = future.result()
-                    if result and isinstance(result, dict):
-                        # non empty dictionary
-                        #self.logging_actor.debug.remote(self.id, f"get_tar_results future return result - type {type(result)} value - {repr(result)}", time.asctime())
-                        for PanDA_id in result:
-                            data = result[PanDA_id]
-                            #self.logging_actor.debug.remote(self.id, f"get_tar_results data - type {type(data)} value - {repr(data)}", time.asctime())
-                            if PanDA_id not in results:
-                                results[PanDA_id] = data
-                            else:
-                                results[PanDA_id].extend(data)
+                    if future not in self.finished_tar_tasks:
+                        self.finished_tar_tasks.add(future)
+                        result = future.result()
+                        if result and isinstance(result, dict):
+                            # non empty dictionary
+                            #self.logging_actor.debug.remote(self.id, f"get_tar_results future return result - type {type(result)} value - {repr(result)}", time.asctime())
+                            for PanDA_id in result:
+                                data = result[PanDA_id]
+                                #self.logging_actor.debug.remote(self.id, f"get_tar_results data - type {type(data)} value - {repr(data)}", time.asctime())
+                                if PanDA_id not in results:
+                                    results[PanDA_id] = data
+                                else:
+                                    results[PanDA_id].extend(data)
                     #self.logging_actor.debug.remote(self.id, f"get_tar_results running results - {repr(results)}", time.asctime())
                 except Exception as ex:
                     self.logging_actor.info.remote(self.id, f"Tar subthread Caught exception {ex}", time.asctime())
