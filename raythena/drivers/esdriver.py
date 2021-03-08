@@ -770,13 +770,19 @@ class ESDriver(BaseDriver):
         if int(now - self.tar_timestamp) >= self.tarinterval:
             self.tar_timestamp = now
             tar_results = self.get_tar_results()
-            self.check_for_duplicates(tar_results)
+            if self.check_for_duplicates(tar_results):
+                # send results to Harvester
+                self.logging_actor.debug.remote(self.id, f" send tar file results to Harvester", time.asctime())
             ranges_to_tar = self.bookKeeper.get_ranges_to_tar()
             self.logging_actor.debug.remote(self.id, f" number of ranges to tar {len(ranges_to_tar)}", time.asctime())
             self.logging_actor.debug.remote(self.id, f"Ranges to tar {repr(ranges_to_tar)}", time.asctime())
             self.tar_es_output(ranges_to_tar)
 
         if self.no_more_events:
+            tar_results = self.get_tar_results()
+            if self.check_for_duplicates(tar_results):
+                # send results to Harvester
+                self.logging_actor.debug.remote(self.id, f" send tar file results to Harvester", time.asctime())
             self.logging_actor.info.remote(self.id, "no more events available and some workers are already idle. Shutting down...", time.asctime())
             self.stop()
         self.bookKeeper.add_finished_event_ranges()
