@@ -87,7 +87,6 @@ class BookKeeper(object):
            True if there are any ranges to tar up. False otherwise
         """
         return_val = False
-        log_message = str()
         self.logging_actor.debug.remote("BookKeeper", f"Enter create_ranges_to_tar self.tarmaxfilesize: {self.tarmaxfilesize}", time.asctime())
         self.logging_actor.debug.remote("BookKeeper", f" self.ranges_to_tar_by_input_file: {repr(self.ranges_to_tar_by_input_file)}", time.asctime())
         # loop over input file names and process the list
@@ -113,7 +112,7 @@ class BookKeeper(object):
                 return_val = True
             self.logging_actor.debug.remote("BookKeeper", f" self.ranges_to_tar: {repr(self.ranges_to_tar)}", time.asctime())
             self.logging_actor.debug.remote("BookKeeper", f" self.ranges_to_tar_by_input_file: {repr(self.ranges_to_tar_by_input_file)}", time.asctime())
-        except Exception as exc:
+        except Exception:
             self.logging_actor.debug.remote("BookKeeper", "can not create list of ranges to tar", time.asctime())
             return_val = False
         return return_val
@@ -605,7 +604,8 @@ class ESDriver(BaseDriver):
         self.logging_actor.info.remote(self.id, f"{actor_id} sent a eventranges update", time.asctime())
         # self.logging_actor.debug.remote(self.id,f"eventranges_update type {type(data)} data  - {str(data)}",time.asctime())
         eventranges_update = self.bookKeeper.process_event_ranges_update(actor_id, data)
-        # self.logging_actor.debug.remote(self.id,f"eventranges_update - {str(eventranges_update)}",time.asctime())
+        self.logging_actor.debug.remote(self.id, f"eventranges_update - {len(eventranges_update)}", time.asctime())
+        # self.logging_actor.debug.remote(self.id, f"eventranges_update - {str(eventranges_update)}", time.asctime())
         # DPB move to handle zip files self.requests_queue.put(eventranges_update)
         self.actors_message_queue.append(self[actor_id].get_message.remote())
 
@@ -763,7 +763,7 @@ class ESDriver(BaseDriver):
             tar_results = self.get_tar_results()
             if self.check_for_duplicates(tar_results):
                 # send results to Harvester
-                self.logging_actor.debug.remote(self.id, f" send tar file results to Harvester", time.asctime())
+                self.logging_actor.debug.remote(self.id, "on_tick send tar file results to Harvester", time.asctime())
             ranges_to_tar = self.bookKeeper.get_ranges_to_tar()
             self.logging_actor.debug.remote(self.id, f" number of ranges to tar {len(ranges_to_tar)}", time.asctime())
             self.logging_actor.debug.remote(self.id, f"Ranges to tar {repr(ranges_to_tar)}", time.asctime())
@@ -773,7 +773,7 @@ class ESDriver(BaseDriver):
             tar_results = self.get_tar_results()
             if self.check_for_duplicates(tar_results):
                 # send results to Harvester
-                self.logging_actor.debug.remote(self.id, f" send tar file results to Harvester", time.asctime())
+                self.logging_actor.debug.remote(self.id, "on_tick no more events: send tar file results to Harvester", time.asctime())
             self.logging_actor.info.remote(self.id, "no more events available and some workers are already idle. Shutting down...", time.asctime())
             self.stop()
         self.bookKeeper.add_finished_event_ranges()
@@ -950,7 +950,7 @@ class ESDriver(BaseDriver):
             # rename zip file (move)
             shutil.move(temp_file_path, file_path)
             return return_val
-        except Exception as exc:
+        except Exception:
             raise
             return return_val
 
@@ -994,15 +994,11 @@ class ESDriver(BaseDriver):
 
         event_range_list = list()
         for event_range in range_list:
-            event_range_list.append(
-                {
-                    "eventRangeID": event_range['eventRangeID'],
-                    "eventStatus": "finished"
-                })
+            event_range_list.append({"eventRangeID": event_range['eventRangeID'], "eventStatus": "finished"})
         return_dict["eventRanges"] = event_range_list
 
         return_val = {PanDA_id: return_dict}
-        # self.logging_actor.debug.remote(self.id, f"create_harvester_data {repr(return_dict)} ", time.asctime())
+
         self.logging_actor.debug.remote(self.id, f"create_harvester_data {repr(return_val)} ", time.asctime())
         return return_val
 
@@ -1013,7 +1009,7 @@ class ESDriver(BaseDriver):
         Returns:
             None
         """
-        self.logging_actor.debug.remote(self.id, f"Enter tar_es_output routine", time.asctime())
+        self.logging_actor.debug.remote(self.id, "Enter tar_es_output routine", time.asctime())
         # add new ranges to tar to the list
         self.ranges_to_tar.extend(ranges_to_tar)
         self.logging_actor.debug.remote(self.id, f"tar_es_output - number of ranges to tar : {len(self.ranges_to_tar)}", time.asctime())
@@ -1065,7 +1061,7 @@ class ESDriver(BaseDriver):
                 except Exception as ex:
                     self.logging_actor.info.remote(self.id, f"Tar subthread Caught exception {ex}", time.asctime())
                     pass
-            self.logging_actor.debug.remote(self.id, f"get_tar_results #completed futures - {str(nfutures)} #new completed futures - {str(newfutures)}", time.asctime())
+            self.logging_actor.debug.remote(self.id, f"get_tar_results #completed futures - {nfutures} #new completed futures - {newfutures}", time.asctime())
             # build event range update from results
             # self.requests_queue.put(eventranges_update)
         except concurrent.futures.TimeoutError:
