@@ -255,6 +255,7 @@ class BookKeeper(object):
             return
         
         if not isinstance(event_ranges_update, EventRangeUpdate):
+            self.logging_actor.debug.remote("BookKeeper", f"call build_from_dict {type(event_ranges_update)}", time.asctime())
             event_ranges_update = EventRangeUpdate.build_from_dict(
                 panda_id, event_ranges_update)
         self.logging_actor.debug.remote(
@@ -969,7 +970,7 @@ class ESDriver(BaseDriver):
         Calculate adler32 checksum for file
         
         Args:
-           file_name - name of file to calculate checksum
+a           file_name - name of file to calculate checksum
         Return:
            string with Adler 32 checksum
         """
