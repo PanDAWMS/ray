@@ -1025,13 +1025,12 @@ class ESDriver(BaseDriver):
 
         try:
             self.running_tar_threads = {self.tar_executor.submit(self.create_tar_file, range_list): range_list for range_list in self.ranges_to_tar}
-            self.logging_actor.debug.remote(self.id, f" # threads - {len(self.running_tar_threads)} #ranges_to_tar - {len(self.ranges_to_tar)}", time.asctime())
             self.ranges_to_tar = list()
         except Exception as exc:
             self.logging_actor.warn.remote(self.id, f"Exception {exc} when submitting tar subprocess", time.asctime())
             pass
 
-        self.logging_actor.debug.remote(self.id, f"tar_es_output #threads : {len(self.running_tar_threads)} {repr(self.running_tar_threads)}", time.asctime())
+        self.logging_actor.debug.remote(self.id, f"tar_es_output #threads submitted : {len(self.running_tar_threads)}", time.asctime())
 
     def get_tar_results(self) -> Dict[str, List[Dict]]:
         """
