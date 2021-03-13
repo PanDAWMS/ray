@@ -58,7 +58,6 @@ class BookKeeper(object):
         Returns:
             List of Lists of Event Ranges to be put into tar files
         """
-        self.create_ranges_to_tar()
         return self.ranges_to_tar
 
     def get_ranges_to_tar_by_input_file(self) -> Dict[str, List[Dict]]:
@@ -110,10 +109,10 @@ class BookKeeper(object):
                 self.ranges_to_tar.append(file_list)
             if len(self.ranges_to_tar) > 0:
                 return_val = True
-            self.logging_actor.debug.remote("BookKeeper", f" self.ranges_to_tar: {repr(self.ranges_to_tar)}", time.asctime())
-            self.logging_actor.debug.remote("BookKeeper", f" self.ranges_to_tar_by_input_file: {repr(self.ranges_to_tar_by_input_file)}", time.asctime())
+            self.logging_actor.debug.remote("BookKeeper", f"create_ranges_to_tar :# {len(self.ranges_to_tar)} {repr(self.ranges_to_tar)}", time.asctime())
+            self.logging_actor.debug.remote("BookKeeper", f"create_ranges_to_tar by input file: {repr(self.ranges_to_tar_by_input_file)}", time.asctime())
         except Exception:
-            self.logging_actor.debug.remote("BookKeeper", "can not create list of ranges to tar", time.asctime())
+            self.logging_actor.debug.remote("BookKeeper", "create_ranges_to_tar - can not create list of ranges to tar", time.asctime())
             return_val = False
         return return_val
 
@@ -764,7 +763,9 @@ class ESDriver(BaseDriver):
             if self.check_for_duplicates(tar_results):
                 # send results to Harvester
                 self.logging_actor.debug.remote(self.id, "on_tick send tar file results to Harvester", time.asctime())
-            ranges_to_tar = self.bookKeeper.get_ranges_to_tar()
+            ranges_to_tar = list()
+            if self.bookKeeper.create_ranges_to_tar():
+                ranges_to_tar = self.bookKeeper.get_ranges_to_tar()
             self.logging_actor.debug.remote(self.id, f" number of ranges to tar {len(ranges_to_tar)}", time.asctime())
             self.logging_actor.debug.remote(self.id, f"Ranges to tar {repr(ranges_to_tar)}", time.asctime())
             self.tar_es_output(ranges_to_tar)
