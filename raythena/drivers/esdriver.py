@@ -608,12 +608,11 @@ class ESDriver(BaseDriver):
             None
         """
         self.logging_actor.info.remote(self.id, f"{actor_id} sent a eventranges update", time.asctime())
-        self.logging_actor.debug.remote(self.id,f"eventranges_update type {type(data)} data  - {str(data)}",time.asctime())
+        #self.logging_actor.debug.remote(self.id,f"eventranges_update type {type(data)} data  - {str(data)}",time.asctime())
         eventranges_update = self.bookKeeper.process_event_ranges_update(actor_id, data)
-        self.logging_actor.debug.remote(self.id,f"eventranges_update - {str(eventranges_update)}",time.asctime())
-        #self.requests_queue.put(eventranges_update)
-        self.actors_message_queue.append(
-            self[actor_id].get_message.remote())
+        #self.logging_actor.debug.remote(self.id,f"eventranges_update - {str(eventranges_update)}",time.asctime())
+        #DPB move to handle zip files self.requests_queue.put(eventranges_update)
+        self.actors_message_queue.append(self[actor_id].get_message.remote())
 
     def handle_update_job(self, actor_id: str, data: Any) -> None:
         """
@@ -1013,7 +1012,7 @@ a           file_name - name of file to calculate checksum
         return_dict["eventRanges"] = event_range_list
         
         return_val = { PanDA_id: return_dict }
-        self.logging_actor.debug.remote(self.id, f"create_harvester_data {repr(return_dict)} ", time.asctime())
+        #self.logging_actor.debug.remote(self.id, f"create_harvester_data {repr(return_dict)} ", time.asctime())
         self.logging_actor.debug.remote(self.id, f"create_harvester_data {repr(return_val)} ", time.asctime())
         return return_val
     
@@ -1054,19 +1053,24 @@ a           file_name - name of file to calculate checksum
            dict of lists of event ranges dict to be passed onto Harvester 
    
         """
+        self.logging_actor.debug.remote(self.id, "Enter get_tar_results", time.asctime())
         results = dict()
         try:
+            nfutures = 0
+            newfutures = 0
             for future in concurrent.futures.as_completed(self.running_tar_threads, 60):
                 try:
+                    nfutures += 1
                     if future not in self.finished_tar_tasks:
+                        newfutures += 1
                         self.finished_tar_tasks.add(future)
                         result = future.result()
                         if result and isinstance(result, dict):
                             # non empty dictionary
-                            #self.logging_actor.debug.remote(self.id, f"get_tar_results future return result - type {type(result)} value - {repr(result)}", time.asctime())
+                            self.logging_actor.debug.remote(self.id, f"get_tar_results future return result - type {type(result)} value - {repr(result)}", time.asctime())
                             for PanDA_id in result:
                                 data = result[PanDA_id]
-                                #self.logging_actor.debug.remote(self.id, f"get_tar_results data - type {type(data)} value - {repr(data)}", time.asctime())
+                                self.logging_actor.debug.remote(self.id, f"get_tar_results data - type {type(data)} value - {repr(data)}", time.asctime())
                                 if PanDA_id not in results:
                                     results[PanDA_id] = data
                                 else:
@@ -1075,11 +1079,12 @@ a           file_name - name of file to calculate checksum
                 except Exception as ex:
                     self.logging_actor.info.remote(self.id, f"Tar subthread Caught exception {ex}", time.asctime())
                     pass
+            self.logging_actor.debug.remote(self.id, f"get_tar_results # of completed futures found {nfutures} # of new completed futures {newfutures}", time.asctime())
             # build event range update from results
             #self.requests_queue.put(eventranges_update)
         except concurrent.futures.TimeoutError:
             # did not get information within timeout try later
             self.logging_actor.debug.remote(self.id, "Warning - did not get tar process completed tasks within 60 seconds", time.asctime())
             pass
-        #self.logging_actor.debug.remote(self.id, f"Leaving get_tar_results # of completed {len(results)} {repr(results)}", time.asctime())
+        self.logging_actor.debug.remote(self.id, f"Leaving get_tar_results # of completed {len(results)} {repr(results)}", time.asctime())
         return results
