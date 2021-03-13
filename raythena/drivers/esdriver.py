@@ -989,14 +989,9 @@ class ESDriver(BaseDriver):
              Dictionary with PanDA_id is the key and dictionary containing file info and list  Event range elements
         """
         return_dict = dict()
-        # add file info to return dictionary
-        return_dict["zipFile"] =
-        {
-            "lfn": file_path,
-            "adler32": file_chksum,
-            "fsize": file_fsize
-        }
-        # add event ranges list to return dictionary
+
+        return_dict["zipFile"] = {"lfn": file_path, "adler32": file_chksum, "fsize": file_fsize}
+
         event_range_list = list()
         for event_range in range_list:
             event_range_list.append(
