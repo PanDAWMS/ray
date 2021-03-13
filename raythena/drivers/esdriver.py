@@ -609,11 +609,9 @@ class ESDriver(BaseDriver):
         Returns:
             None
         """
-        self.logging_actor.info.remote(
-            self.id, f"{actor_id} sent a eventranges update", time.asctime())
-        eventranges_update = self.bookKeeper.process_event_ranges_update(
-            actor_id, data)
-        self.logging_actor.debug.remote(self.id,f"eventranges_update data  - {str(data)}",time.asctime())
+        self.logging_actor.info.remote(self.id, f"{actor_id} sent a eventranges update", time.asctime())
+        self.logging_actor.debug.remote(self.id,f"eventranges_update type {type(data)} data  - {str(data)}",time.asctime())
+        eventranges_update = self.bookKeeper.process_event_ranges_update(actor_id, data)
         self.logging_actor.debug.remote(self.id,f"eventranges_update - {str(eventranges_update)}",time.asctime())
         #self.requests_queue.put(eventranges_update)
         self.actors_message_queue.append(
