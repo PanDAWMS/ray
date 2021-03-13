@@ -25,7 +25,7 @@ ray:
   monitortime: 300
   timeoutinterval: 600
   tarinterval: 120
-  tarmaxfilesize: 2000000
+  tarmaxfilesize: 5000000000
   tarmaxprocesses: 5
 
 resources:

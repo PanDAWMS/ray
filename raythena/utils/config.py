@@ -40,6 +40,9 @@ class Config(object):
             'driver': str,
             'monitortime': int,
             'timeoutinterval': int,
+            'tarinterval': int,
+            'tarmaxfilesize', int,
+            'tarmaxprocesses', int,
         },
         'resources': {
             'corepernode': int,
