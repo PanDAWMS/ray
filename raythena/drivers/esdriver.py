@@ -2,7 +2,7 @@ import os
 import time
 from queue import Queue, Empty
 from typing import List, Dict, Union, Any
-import concurrent.futures 
+import concurrent.futures
 import tarfile
 import shutil
 import zlib
@@ -50,7 +50,7 @@ class BookKeeper(object):
 
     def get_ranges_to_tar(self) -> List[List[Dict]]:
         """
-        Return a list of lists of event Ranges to be written to tar files 
+        Return a list of lists of event Ranges to be written to tar files
 
         Args:
             None
@@ -103,7 +103,7 @@ class BookKeeper(object):
                         # reached the size limit
                         self.ranges_to_tar_by_input_file[input_file].append(event_range)
                         self.ranges_to_tar.append(file_list)
-                        total_file_size = 0 
+                        total_file_size = 0
                         file_list = []
                     else:
                         total_file_size = total_file_size + event_range['fsize']
@@ -113,13 +113,11 @@ class BookKeeper(object):
                 return_val = True
             self.logging_actor.debug.remote("BookKeeper", f" self.ranges_to_tar: {repr(self.ranges_to_tar)}", time.asctime())
             self.logging_actor.debug.remote("BookKeeper", f" self.ranges_to_tar_by_input_file: {repr(self.ranges_to_tar_by_input_file)}", time.asctime())
-        except:
+        except Exception as exc:
             self.logging_actor.debug.remote("BookKeeper", "can not create list of ranges to tar", time.asctime())
             return_val = False
         return return_val
 
-# [{'eventRangeID': '24027003-4985019832-23509382954-429-1', 'eventStatus': 'finished', 'path': '/lcrc/group/ATLAS/harvester/var/lib/workdir/panda/testing/raythena/testdir/4985019832/Actor_0/esOutput/HITS.24027003._001647.pool.root.1.24027003-4985019832-23509382954-429-1', 'chksum': '7fb76e57', 'fsize': 191698, 'type': 'es_output', 'PanDAID': '4985019832'}, {'eventRangeID': '24027003-4985019832-23509382954-419-1', 'eventStatus': 'finished', 'path': '/lcrc/group/ATLAS/harvester/var/lib/workdir/panda/testing/raythena/testdir/4985019832/Actor_0/esOutput/HITS.24027003._001647.pool.root.1.24027003-4985019832-23509382954-419-1', 'chksum': '91324077', 'fsize': 317505, 'type': 'es_output', 'PanDAID': '4985019832'}]
-   
     def add_jobs(self, jobs: Dict[str, PandaJobTypeHint]) -> None:
         """
         Register new jobs. Event service jobs will not be assigned to worker until event ranges are added to the job
@@ -253,7 +251,7 @@ class BookKeeper(object):
         panda_id = self.actors.get(actor_id, None)
         if not panda_id:
             return
-        
+
         if not isinstance(event_ranges_update, EventRangeUpdate):
             self.logging_actor.debug.remote("BookKeeper", f"call build_from_dict {type(event_ranges_update)}", time.asctime())
             event_ranges_update = EventRangeUpdate.build_from_dict(
@@ -396,7 +394,7 @@ class ESDriver(BaseDriver):
             workdir = os.getcwd()
         self.config.ray['workdir'] = workdir
         self.workdir = workdir
-        
+
         self.cpu_monitor = CPUMonitor(os.path.join(workdir, "cpu_monitor_driver.json"))
         self.cpu_monitor.start()
 
@@ -423,16 +421,14 @@ class ESDriver(BaseDriver):
         self.tar_timestamp = time.time()
         self.tarinterval = self.config.ray['tarinterval']
         self.tarmaxprocesses = self.config.ray['tarmaxprocesses']
-        self.tar_merge_es_output_dir = os.path.join(self.workdir,"merge_es_output")
-        self.tar_merge_es_files_dir = os.path.join(self.workdir,"merge_es_files")
+        self.tar_merge_es_output_dir = os.path.join(self.workdir, "merge_es_output")
+        self.tar_merge_es_files_dir = os.path.join(self.workdir, "merge_es_files")
         self.ranges_to_tar: List[List[Dict]] = list()
         self.running_tar_threads = dict()
         self.processed_event_ranges = dict()
         self.finished_tar_tasks = set()
-        
-        
-        self.tar_executor = concurrent.futures.ThreadPoolExecutor(max_workers=self.tarmaxprocesses)
 
+        self.tar_executor = concurrent.futures.ThreadPoolExecutor(max_workers=self.tarmaxprocesses)
 
         # create the output directories if needed
         try:
@@ -462,7 +458,6 @@ class ESDriver(BaseDriver):
             )
             raise
 
-        
     def __str__(self) -> str:
         """
         String representation of driver attributes
@@ -608,10 +603,10 @@ class ESDriver(BaseDriver):
             None
         """
         self.logging_actor.info.remote(self.id, f"{actor_id} sent a eventranges update", time.asctime())
-        #self.logging_actor.debug.remote(self.id,f"eventranges_update type {type(data)} data  - {str(data)}",time.asctime())
+        # self.logging_actor.debug.remote(self.id,f"eventranges_update type {type(data)} data  - {str(data)}",time.asctime())
         eventranges_update = self.bookKeeper.process_event_ranges_update(actor_id, data)
-        #self.logging_actor.debug.remote(self.id,f"eventranges_update - {str(eventranges_update)}",time.asctime())
-        #DPB move to handle zip files self.requests_queue.put(eventranges_update)
+        # self.logging_actor.debug.remote(self.id,f"eventranges_update - {str(eventranges_update)}",time.asctime())
+        # DPB move to handle zip files self.requests_queue.put(eventranges_update)
         self.actors_message_queue.append(self[actor_id].get_message.remote())
 
     def handle_update_job(self, actor_id: str, data: Any) -> None:
@@ -753,7 +748,7 @@ class ESDriver(BaseDriver):
                 self.n_eventsrequest -= 1
             except Empty:
                 pass
-        
+
     def on_tick(self) -> None:
         """
         Performs actions that should be executed regularly, after handling a batch of actor messages.
@@ -783,7 +778,7 @@ class ESDriver(BaseDriver):
             self.stop()
         self.bookKeeper.add_finished_event_ranges()
         self.request_event_ranges()
-        
+
     def check_for_duplicates(self, tar_results: Dict[str, List[Dict]]) -> bool:
         """
         Notify each worker that it should terminate then wait for actor to acknowledge
@@ -795,7 +790,7 @@ class ESDriver(BaseDriver):
             True if no duplicate eventRanges
         """
         return_val = True
-        if tar_results and isinstance(tar_results,dict):
+        if tar_results and isinstance(tar_results, dict):
             # give results to BookKeeper to send to Harvester ????
             self.logging_actor.debug.remote(self.id, f"results of tar threads - {repr(tar_results)}", time.asctime())
             # check for duplicates
@@ -817,7 +812,7 @@ class ESDriver(BaseDriver):
                         for path in (self.processed_event_ranges[PanDA_id][eventRangeID]):
                             self.logging_actor.warn.remote(self.id, f"ERROR duplicate eventRangeID - {eventRangeID} {path}", time.asctime())
         return return_val
-                            
+
     def cleanup(self) -> None:
         """
         Notify each worker that it should terminate then wait for actor to acknowledge
@@ -922,7 +917,7 @@ class ESDriver(BaseDriver):
         Use input range_list to create tar file and return list of tarred up event ranges and information needed by Harvester
 
         Args:
-            range_list   list of event range dictionaries 
+            range_list   list of event range dictionaries
         Returns:
             Dictionary - key PanDAid, item list of event ranges with information needed by Harvester
         """
@@ -932,14 +927,14 @@ class ESDriver(BaseDriver):
         temp_file_base_name = file_base_name + ".tmpfile"
         temp_file_path = os.path.join(self.tar_merge_es_output_dir, temp_file_base_name)
         file_path = os.path.join(self.tar_merge_es_output_dir, file_base_name)
-        
-        #self.tar_merge_es_output_dir zip files
-        #self.tar_merge_es_files_dir  es files
+
+        # self.tar_merge_es_output_dir zip files
+        # self.tar_merge_es_files_dir  es files
 
         PanDA_id = range_list[0]['PanDAID']
 
         file_fsize = 0
-        try: 
+        try:
             # create tar file looping over event ranges
             with tarfile.open(temp_file_path, "w") as tar:
                 for event_range in range_list:
@@ -951,11 +946,10 @@ class ESDriver(BaseDriver):
             for event_range in range_list:
                 lfn = os.path.basename(event_range["path"])
                 pfn = os.path.join(self.tar_merge_es_files_dir, lfn)
-                shutil.move(event_range["path"],pfn)
+                shutil.move(event_range["path"], pfn)
             # rename zip file (move)
-            shutil.move(temp_file_path,file_path)
+            shutil.move(temp_file_path, file_path)
             return return_val
-            # move input files to new location and create output dictionary
         except Exception as exc:
             raise
             return return_val
@@ -963,9 +957,9 @@ class ESDriver(BaseDriver):
     def calc_adler32(self, file_name: str) -> str:
         """
         Calculate adler32 checksum for file
-        
+
         Args:
-a           file_name - name of file to calculate checksum
+           file_name - name of file to calculate checksum
         Return:
            string with Adler 32 checksum
         """
@@ -996,11 +990,12 @@ a           file_name - name of file to calculate checksum
         """
         return_dict = dict()
         # add file info to return dictionary
-        return_dict["zipFile"] = {
+        return_dict["zipFile"] =
+        {
             "lfn": file_path,
             "adler32": file_chksum,
             "fsize": file_fsize
-            }
+        }
         # add event ranges list to return dictionary
         event_range_list = list()
         for event_range in range_list:
@@ -1010,14 +1005,11 @@ a           file_name - name of file to calculate checksum
                     "eventStatus": "finished"
                 })
         return_dict["eventRanges"] = event_range_list
-        
-        return_val = { PanDA_id: return_dict }
-        #self.logging_actor.debug.remote(self.id, f"create_harvester_data {repr(return_dict)} ", time.asctime())
+
+        return_val = {PanDA_id: return_dict}
+        # self.logging_actor.debug.remote(self.id, f"create_harvester_data {repr(return_dict)} ", time.asctime())
         self.logging_actor.debug.remote(self.id, f"create_harvester_data {repr(return_val)} ", time.asctime())
         return return_val
-    
-    
-# [{'eventRangeID': '24027003-4985019832-23509382954-429-1', 'eventStatus': 'finished', 'path': '/lcrc/group/ATLAS/harvester/var/lib/workdir/panda/testing/raythena/testdir/4985019832/Actor_0/esOutput/HITS.24027003._001647.pool.root.1.24027003-4985019832-23509382954-429-1', 'chksum': '7fb76e57', 'fsize': 191698, 'type': 'es_output', 'PanDAID': '4985019832'}, {'eventRangeID': '24027003-4985019832-23509382954-419-1', 'eventStatus': 'finished', 'path': '/lcrc/group/ATLAS/harvester/var/lib/workdir/panda/testing/raythena/testdir/4985019832/Actor_0/esOutput/HITS.24027003._001647.pool.root.1.24027003-4985019832-23509382954-419-1', 'chksum': '91324077', 'fsize': 317505, 'type': 'es_output', 'PanDAID': '4985019832'}]
 
     def tar_es_output(self, ranges_to_tar: List[List[Dict]]) -> None:
         """
@@ -1032,26 +1024,26 @@ a           file_name - name of file to calculate checksum
         self.logging_actor.debug.remote(self.id, f"tar_es_output - number of ranges to tar : {len(self.ranges_to_tar)}", time.asctime())
 
         try:
-            self.running_tar_threads = {self.tar_executor.submit(self.create_tar_file,range_list): range_list for range_list in self.ranges_to_tar}
-            self.logging_actor.debug.remote(self.id, f"Type: {type(self.running_tar_threads)} {len(self.running_tar_threads)} - number of ranges to tar : {len(self.ranges_to_tar)}", time.asctime())
+            self.running_tar_threads = {self.tar_executor.submit(self.create_tar_file, range_list): range_list for range_list in self.ranges_to_tar}
+            self.logging_actor.debug.remote(self.id, f" # threads - {len(self.running_tar_threads)} #ranges_to_tar - {len(self.ranges_to_tar)}", time.asctime())
             self.ranges_to_tar = list()
-        except Exception as exc :
-            self.logging_actor.warn.remote(self.id, f"Exception {exc} when submitting tar subprocess",time.asctime())
+        except Exception as exc:
+            self.logging_actor.warn.remote(self.id, f"Exception {exc} when submitting tar subprocess", time.asctime())
             pass
-            
-        self.logging_actor.debug.remote(self.id, f"tar_es_output - number of tar processes : {len(self.running_tar_threads)} {repr(self.running_tar_threads)}", time.asctime())
-        
-    def get_tar_results(self) ->  Dict[str, List[Dict]]:
+
+        self.logging_actor.debug.remote(self.id, f"tar_es_output #threads : {len(self.running_tar_threads)} {repr(self.running_tar_threads)}", time.asctime())
+
+    def get_tar_results(self) -> Dict[str, List[Dict]]:
         """
         Checks the self.running_tar_threads dict for the Future objects. if thread is still running let it run otherwise
         get the results of running and pass information to the BookKeeper and onto Harvester
-            
+
         Args:
             None
-            
+
         Returns:
-           dict of lists of event ranges dict to be passed onto Harvester 
-   
+           dict of lists of event ranges dict to be passed onto Harvester
+
         """
         self.logging_actor.debug.remote(self.id, "Enter get_tar_results", time.asctime())
         results = dict()
@@ -1067,7 +1059,7 @@ a           file_name - name of file to calculate checksum
                         result = future.result()
                         if result and isinstance(result, dict):
                             # non empty dictionary
-                            self.logging_actor.debug.remote(self.id, f"get_tar_results future return result - type {type(result)} value - {repr(result)}", time.asctime())
+                            self.logging_actor.debug.remote(self.id, f"get_tar_results future type {type(result)} value - {repr(result)}", time.asctime())
                             for PanDA_id in result:
                                 data = result[PanDA_id]
                                 self.logging_actor.debug.remote(self.id, f"get_tar_results data - type {type(data)} value - {repr(data)}", time.asctime())
@@ -1079,9 +1071,9 @@ a           file_name - name of file to calculate checksum
                 except Exception as ex:
                     self.logging_actor.info.remote(self.id, f"Tar subthread Caught exception {ex}", time.asctime())
                     pass
-            self.logging_actor.debug.remote(self.id, f"get_tar_results # of completed futures found {nfutures} # of new completed futures {newfutures}", time.asctime())
+            self.logging_actor.debug.remote(self.id, f"get_tar_results #completed futures - {nfutures} #new completed futures - {newfutures}", time.asctime())
             # build event range update from results
-            #self.requests_queue.put(eventranges_update)
+            # self.requests_queue.put(eventranges_update)
         except concurrent.futures.TimeoutError:
             # did not get information within timeout try later
             self.logging_actor.debug.remote(self.id, "Warning - did not get tar process completed tasks within 60 seconds", time.asctime())
