@@ -525,8 +525,7 @@ class ESDriver(BaseDriver):
         Returns:
             None
         """
-        new_messages, self.actors_message_queue = ray.wait(
-            self.actors_message_queue, num_returns=1)
+        new_messages, self.actors_message_queue = ray.wait(self.actors_message_queue, num_returns=1)
         total_sent = 0
         while new_messages and self.running:
             self.logging_actor.debug.remote(
@@ -550,8 +549,7 @@ class ESDriver(BaseDriver):
                         self.handle_update_event_ranges(actor_id, data)
                     elif message == Messages.PROCESS_DONE:
                         self.handle_actor_done(actor_id)
-            self.logging_actor.debug.remote(
-                self.id, "Finished handling messages batch", time.asctime())
+            self.logging_actor.debug.remote(self.id, "Finished handling messages batch", time.asctime())
             self.on_tick()
             # check if finished any events, set timeout interval accordingly
             if self.bookKeeper.have_finished_events():
@@ -984,7 +982,7 @@ a           file_name - name of file to calculate checksum
             val += 2 ** 32
         return hex(val)[2:10].zfill(8).lower()
 
-    def create_harvester_data(self, PanDA_id: str, file_path: str, file_chksum: str, file_fsize: int, range_list: list) -> Dict[str, List[Dict]]:
+    def create_harvester_data(self, PanDA_id: str, file_path: str, file_chksum: str, file_fsize: int, range_list: list) -> Dict:
         """
         create data structure for telling Harvester what files are merged and ready to process
 
@@ -995,20 +993,28 @@ a           file_name - name of file to calculate checksum
              file_fsize - file size in bytes
              range_list - list of event ranges in the file
         Return:
-             Dictionary with PanDA_id is the key and list of Event range elements
+             Dictionary with PanDA_id is the key and dictionary containing file info and list  Event range elements
         """
-        return_list = list()
+        return_dict = dict()
+        # add file info to return dictionary
+        return_dict["zipFile"] = {
+            "lfn": file_path,
+            "adler32": file_chksum,
+            "fsize": file_fsize
+            }
+        # add event ranges list to return dictionary
+        event_range_list = list()
         for event_range in range_list:
-            return_list.append(
+            event_range_list.append(
                 {
                     "eventRangeID": event_range['eventRangeID'],
-                    "eventStatus": "finished",
-                    "path": file_path,
-                    "type": "zip_output",
-                    "chksum": file_chksum,
-                    "fsize": file_fsize
+                    "eventStatus": "finished"
                 })
-        return_val = { PanDA_id: return_list }
+        return_dict["eventRanges"] = event_range_list
+        
+        return_val = { PanDA_id: return_dict }
+        self.logging_actor.debug.remote(self.id, f"create_harvester_data {repr(return_dict)} ", time.asctime())
+        self.logging_actor.debug.remote(self.id, f"create_harvester_data {repr(return_val)} ", time.asctime())
         return return_val
     
     
@@ -1065,7 +1071,7 @@ a           file_name - name of file to calculate checksum
                                     results[PanDA_id] = data
                                 else:
                                     results[PanDA_id].extend(data)
-                    #self.logging_actor.debug.remote(self.id, f"get_tar_results running results - {repr(results)}", time.asctime())
+                    self.logging_actor.debug.remote(self.id, f"get_tar_results running results - {repr(results)}", time.asctime())
                 except Exception as ex:
                     self.logging_actor.info.remote(self.id, f"Tar subthread Caught exception {ex}", time.asctime())
                     pass
