@@ -1070,7 +1070,7 @@ class ESDriver(BaseDriver):
                 except Exception as ex:
                     self.logging_actor.info.remote(self.id, f"Tar subthread Caught exception {ex}", time.asctime())
                     pass
-            self.logging_actor.debug.remote(self.id, f"get_tar_results #completed futures - {nfutures} #new completed futures - {newfutures}", time.asctime())
+            self.logging_actor.debug.remote(self.id, f"get_tar_results #completed futures - {str(nfutures)} #new completed futures - {str(newfutures)}", time.asctime())
             # build event range update from results
             # self.requests_queue.put(eventranges_update)
         except concurrent.futures.TimeoutError:
