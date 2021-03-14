@@ -1033,7 +1033,7 @@ class ESDriver(BaseDriver):
             pass
         return
 
-    def check_for_duplicates(self, tar_results: Dict[str, Dict]) -> bool:
+    def check_for_duplicates(self, tar_results: dict) -> bool:
         """
         Notify each worker that it should terminate then wait for actor to acknowledge
         that the interruption was received
@@ -1043,33 +1043,38 @@ class ESDriver(BaseDriver):
         Returns:
             True if no duplicate eventRanges
         """
-        return_val = True
-        if tar_results and isinstance(tar_results, dict):
-            # give results to BookKeeper to send to Harvester ????
-            self.logging_actor.debug.remote(self.id, f"check_for_duplicates - results of tar threads - {repr(tar_results)}", time.asctime())
-            # check for duplicates
-            for PanDA_id in tar_results:
-                if PanDA_id not in self.processed_event_ranges:
-                    self.processed_event_ranges[PanDA_id] = dict()
-                for element in tar_results[PanDA_id]:
-                    path = str()
-                    if "zipFile" in element and element["zipFile"]:
-                        file_info = element.get("zipFile", None)
-                        if file_info:
-                            path = file_info["lfn"]
-                    ranges_info = element.get("eventRanges", None)
-                    if ranges_info:
-                        for rangeInfo in ranges_info:
-                            eventRangeID = rangeInfo['eventRangeID']
-                            if eventRangeID not in self.processed_event_ranges[PanDA_id]:
-                                self.processed_event_ranges[PanDA_id][eventRangeID] = list()
-                            self.processed_event_ranges[PanDA_id][eventRangeID].append(path)
-                # loop over processed event ranges list the duplicate files
-                for eventRangeID in self.processed_event_ranges[PanDA_id]:
-                    if len(self.processed_event_ranges[PanDA_id][eventRangeID]) > 1:
-                        # duplicate eventRangeID
-                        return_val = False
-                        self.logging_actor.warn.remote(self.id, f"ERROR duplicate eventRangeID - {eventRangeID}", time.asctime())
-                        for path in (self.processed_event_ranges[PanDA_id][eventRangeID]):
-                            self.logging_actor.warn.remote(self.id, f"ERROR duplicate eventRangeID - {eventRangeID} {path}", time.asctime())
+        try:
+            return_val = True
+            if tar_results and isinstance(tar_results, dict):
+                # give results to BookKeeper to send to Harvester ????
+                self.logging_actor.debug.remote(self.id, f"check_for_duplicates - results of tar threads - {repr(tar_results)}", time.asctime())
+                # check for duplicates
+                for PanDA_id in tar_results:
+                    if PanDA_id not in self.processed_event_ranges:
+                        self.processed_event_ranges[PanDA_id] = dict()
+                    for element in tar_results[PanDA_id]:
+                        path = str()
+                        if "zipFile" in element and element["zipFile"]:
+                            file_info = element.get("zipFile", None)
+                            if file_info:
+                                path = file_info["lfn"]
+                        ranges_info = element.get("eventRanges", None)
+                        if ranges_info:
+                            for rangeInfo in ranges_info:
+                                eventRangeID = rangeInfo['eventRangeID']
+                                if eventRangeID not in self.processed_event_ranges[PanDA_id]:
+                                    self.processed_event_ranges[PanDA_id][eventRangeID] = list()
+                                self.processed_event_ranges[PanDA_id][eventRangeID].append(path)
+                    # loop over processed event ranges list the duplicate files
+                    for eventRangeID in self.processed_event_ranges[PanDA_id]:
+                        if len(self.processed_event_ranges[PanDA_id][eventRangeID]) > 1:
+                            # duplicate eventRangeID
+                            return_val = False
+                            self.logging_actor.warn.remote(self.id, f"ERROR duplicate eventRangeID - {eventRangeID}", time.asctime())
+                            for path in (self.processed_event_ranges[PanDA_id][eventRangeID]):
+                                self.logging_actor.warn.remote(self.id, f"ERROR duplicate eventRangeID - {eventRangeID} {path}", time.asctime())
+        except Exception as ex:
+            self.logging_actor.info.remote(self.id, f"Tar subthread Caught exception {ex}", time.asctime())
+            return_val = False
+            pass
         return return_val
