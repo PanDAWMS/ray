@@ -1066,9 +1066,9 @@ class ESDriver(BaseDriver):
                     self.logging_actor.debug.remote(self.id, f"check_for_duplicates - ranges_info {repr(ranges_info)} path - {path}", time.asctime())
                     if ranges_info:
                         for rangeInfo in ranges_info:
-                            self.logging_actor.debug.remote(self.id, f"check_for_duplicates - rangeInfo type - {type(rangeInfo)}", time.asctime())
-                            self.logging_actor.debug.remote(self.id, f"check_for_duplicates - rangeInfo {repr(rangeInfo)} path - {path}", time.asctime())
+                            self.logging_actor.debug.remote(self.id, f"check_for_duplicates - rangeInfo type - {type(rangeInfo)} {repr(rangeInfo)}", time.asctime())
                             eventRangeID = rangeInfo['eventRangeID']
+                            self.logging_actor.debug.remote(self.id, f"check_for_duplicates - rangeInfo type - {type(self.processed_event_ranges[PanDA_id])} {repr(self.processed_event_ranges[PanDA_id])}", time.asctime())
                             if eventRangeID not in self.processed_event_ranges[PanDA_id]:
                                 self.processed_event_ranges[PanDA_id][eventRangeID] = list()
                             self.processed_event_ranges[PanDA_id][eventRangeID].append(path)
