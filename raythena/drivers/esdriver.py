@@ -603,11 +603,12 @@ class ESDriver(BaseDriver):
             None
         """
         self.logging_actor.info.remote(self.id, f"handle_update_event_ranges: {actor_id} sent a eventranges update", time.asctime())
-        self.logging_actor.debug.remote(self.id, f"handle_update_event_ranges: eventranges_update type {type(data)} data  - {str(data)}", time.asctime())
-        eventranges_update = self.bookKeeper.process_event_ranges_update(actor_id, data)
-        self.logging_actor.debug.remote(self.id, f"handle_update_event_ranges: eventranges_update - {len(eventranges_update)}", time.asctime())
-        self.logging_actor.debug.remote(self.id, f"handle_update_event_ranges: eventranges_update - {str(eventranges_update)}", time.asctime())
-        self.requests_queue.put(eventranges_update)
+        # self.logging_actor.debug.remote(self.id, f"handle_update_event_ranges: eventranges_update type {type(data)} data  - {str(data)}", time.asctime())
+        self.bookKeeper.process_event_ranges_update(actor_id, data)
+        # eventranges_update = self.bookKeeper.process_event_ranges_update(actor_id, data)
+        # self.logging_actor.debug.remote(self.id, f"handle_update_event_ranges: eventranges_update - {len(eventranges_update)}", time.asctime())
+        # self.logging_actor.debug.remote(self.id, f"handle_update_event_ranges: eventranges_update - {str(eventranges_update)}", time.asctime())
+        # self.requests_queue.put(eventranges_update)
         self.actors_message_queue.append(self[actor_id].get_message.remote())
 
     def handle_update_job(self, actor_id: str, data: Any) -> None:
@@ -1009,12 +1010,10 @@ class ESDriver(BaseDriver):
         """
         self.logging_actor.debug.remote(self.id, "get_tar_results: Enter routine", time.asctime())
         try:
-            tarcheck_interval = self.tarcheckinterval
-            if skip_time_check:
-                tarcheck_interval = 0
             now = time.time()
-            if int(now - self.tarcheck_timestamp) < tarcheck_interval:
-                self.logging_actor.debug.remote(self.id, "get_tar_results: Leaving early too soon to check", time.asctime())
+            delta_time = int(now - self.tarcheck_timestamp)
+            if not skip_time_check and delta_time < self.tarcheckinterval:
+                self.logging_actor.debug.remote(self.id, f"get_tar_results: Leaving early - sec. since last check {delta_time} check interval {self.tarcheckinterval}", time.asctime())
                 return
             self.logging_actor.debug.remote(self.id, "get_tar_results: Start to check for tar results", time.asctime())
             self.tarcheck_timestamp = now
@@ -1027,18 +1026,16 @@ class ESDriver(BaseDriver):
                         newfutures += 1
                         self.finished_tar_tasks.add(future)
                         result = future.result()
-                        if result and isinstance(result, dict):
-                            # non empty dictionary
-                            self.logging_actor.debug.remote(self.id, f"get_tar_results future type {type(result)} value - {repr(result)}", time.asctime())
-                            if self.check_for_duplicates(result):
-                                for PanDA_id in result:
-                                    data = result[PanDA_id]
-                                    self.logging_actor.debug.remote(self.id, f"get_tar_results data - type {type(data)} value - {repr(data)}", time.asctime())
-                                    evt_ranges = EventRangeUpdate.build_from_dict(PanDA_id, data)
-                                    self.logging_actor.debug.remote(self.id, f"evt_ranges - {type(evt_ranges)} {len(evt_ranges)} {str(evt_ranges)}", time.asctime())
-                                    self.requests_queue.put(evt_ranges)
+                        if result and isinstance(result, dict) and self.check_for_duplicates(result):
+                            # self.logging_actor.debug.remote(self.id, f"get_tar_results: future type {type(result)} value - {repr(result)}", time.asctime())
+                            for PanDA_id in result:
+                                data = result[PanDA_id]
+                                self.logging_actor.debug.remote(self.id, f"get_tar_results: data - type {type(data)} value - {repr(data)}", time.asctime())
+                                evt_ranges = EventRangeUpdate.build_from_dict(PanDA_id, data)
+                                self.logging_actor.debug.remote(self.id, f"get_tar_results: evt_ranges - {type(evt_ranges)} {len(evt_ranges)} {str(evt_ranges)}", time.asctime())
+                                self.requests_queue.put(evt_ranges)
                 except Exception as ex:
-                    self.logging_actor.info.remote(self.id, f"Tar subthread Caught exception {ex}", time.asctime())
+                    self.logging_actor.info.remote(self.id, f"get_tar_results: Caught exception {ex}", time.asctime())
                     pass
             self.logging_actor.debug.remote(self.id, f"get_tar_results #completed futures - {nfutures} #new completed futures - {newfutures}", time.asctime())
         except concurrent.futures.TimeoutError:
