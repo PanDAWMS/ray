@@ -1060,9 +1060,14 @@ class ESDriver(BaseDriver):
                         file_info = tar_results[PanDA_id].get("zipFile", None)
                         if file_info:
                             path = file_info["lfn"]
+                        self.logging_actor.debug.remote(self.id, f"check_for_duplicates - file_info {repr(file_info)} path - {path}", time.asctime())
                     ranges_info = tar_results[PanDA_id].get("eventRanges", None)
+                    self.logging_actor.debug.remote(self.id, f"check_for_duplicates - ranges_info type - {type(ranges_info)}", time.asctime())
+                    self.logging_actor.debug.remote(self.id, f"check_for_duplicates - ranges_info {repr(ranges_info)} path - {path}", time.asctime())
                     if ranges_info:
                         for rangeInfo in ranges_info:
+                            self.logging_actor.debug.remote(self.id, f"check_for_duplicates - rangeInfo type - {type(rangeInfo)}", time.asctime())
+                            self.logging_actor.debug.remote(self.id, f"check_for_duplicates - rangeInfo {repr(rangeInfo)} path - {path}", time.asctime())
                             eventRangeID = rangeInfo['eventRangeID']
                             if eventRangeID not in self.processed_event_ranges[PanDA_id]:
                                 self.processed_event_ranges[PanDA_id][eventRangeID] = list()
