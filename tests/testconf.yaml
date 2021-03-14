@@ -25,6 +25,7 @@ ray:
   tarinterval: 120
   tarmaxfilesize: 5000000000
   tarmaxprocesses: 5
+  tarcheckinterval: 120
 
 resources:
   corepernode: 8

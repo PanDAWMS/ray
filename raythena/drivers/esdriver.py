@@ -425,6 +425,8 @@ class ESDriver(BaseDriver):
         self.running_tar_threads = dict()
         self.processed_event_ranges = dict()
         self.finished_tar_tasks = set()
+        self.tarcheck_timestamp = time.time()
+        self.tarcheckinterval = self.config.ray['tarcheckinterval']
 
         self.tar_executor = concurrent.futures.ThreadPoolExecutor(max_workers=self.tarmaxprocesses)
 
@@ -600,12 +602,12 @@ class ESDriver(BaseDriver):
         Returns:
             None
         """
-        self.logging_actor.info.remote(self.id, f"{actor_id} sent a eventranges update", time.asctime())
-        # self.logging_actor.debug.remote(self.id,f"eventranges_update type {type(data)} data  - {str(data)}",time.asctime())
+        self.logging_actor.info.remote(self.id, f"handle_update_event_ranges: {actor_id} sent a eventranges update", time.asctime())
+        self.logging_actor.debug.remote(self.id, f"handle_update_event_ranges: eventranges_update type {type(data)} data  - {str(data)}", time.asctime())
         eventranges_update = self.bookKeeper.process_event_ranges_update(actor_id, data)
-        self.logging_actor.debug.remote(self.id, f"eventranges_update - {len(eventranges_update)}", time.asctime())
-        # self.logging_actor.debug.remote(self.id, f"eventranges_update - {str(eventranges_update)}", time.asctime())
-
+        self.logging_actor.debug.remote(self.id, f"handle_update_event_ranges: eventranges_update - {len(eventranges_update)}", time.asctime())
+        self.logging_actor.debug.remote(self.id, f"handle_update_event_ranges: eventranges_update - {str(eventranges_update)}", time.asctime())
+        self.requests_queue.put(eventranges_update)
         self.actors_message_queue.append(self[actor_id].get_message.remote())
 
     def handle_update_job(self, actor_id: str, data: Any) -> None:
@@ -755,26 +757,13 @@ class ESDriver(BaseDriver):
         Returns:
             None
         """
-        # check to see if it is time to create output tar files
-        now = time.time()
-        if int(now - self.tar_timestamp) >= self.tarinterval:
-            self.tar_timestamp = now
-            tar_results = self.get_tar_results()
-            if self.check_for_duplicates(tar_results):
-                # send results to Harvester
-                self.logging_actor.debug.remote(self.id, "on_tick send tar file results to Harvester", time.asctime())
-            ranges_to_tar = list()
-            if self.bookKeeper.create_ranges_to_tar():
-                ranges_to_tar = self.bookKeeper.get_ranges_to_tar()
-            self.logging_actor.debug.remote(self.id, f" number of ranges to tar {len(ranges_to_tar)}", time.asctime())
-            self.logging_actor.debug.remote(self.id, f"Ranges to tar {repr(ranges_to_tar)}", time.asctime())
-            self.tar_es_output(ranges_to_tar)
+        self.logging_actor.debug.remote(self.id, "on_tick: Enter routine", time.asctime())
+        self.get_tar_results(skip_time_check = False)
+        self.tar_es_output()
 
         if self.no_more_events:
-            tar_results = self.get_tar_results()
-            if self.check_for_duplicates(tar_results):
-                # send results to Harvester
-                self.logging_actor.debug.remote(self.id, "on_tick no more events: send tar file results to Harvester", time.asctime())
+            self.logging_actor.debug.remote(self.id, "on_tick no more events: send tar file results to Harvester", time.asctime())
+            self.get_tar_results(skip_time_check = True)
             self.logging_actor.info.remote(self.id, "no more events available and some workers are already idle. Shutting down...", time.asctime())
             self.stop()
         self.bookKeeper.add_finished_event_ranges()
@@ -969,41 +958,66 @@ class ESDriver(BaseDriver):
         self.logging_actor.debug.remote(self.id, f"create_harvester_data {repr(return_val)} ", time.asctime())
         return return_val
 
-    def tar_es_output(self, ranges_to_tar: List[List[Dict]]) -> None:
+    def tar_es_output(self) -> None:
         """
         Get from bookKeeper the event ranges arraigned by input file than need to put into output tar files
-
-        Returns:
-            None
-        """
-        self.logging_actor.debug.remote(self.id, "Enter tar_es_output routine", time.asctime())
-        # add new ranges to tar to the list
-        self.ranges_to_tar.extend(ranges_to_tar)
-        self.logging_actor.debug.remote(self.id, f"tar_es_output - number of ranges to tar : {len(self.ranges_to_tar)}", time.asctime())
-
-        try:
-            self.running_tar_threads = {self.tar_executor.submit(self.create_tar_file, range_list): range_list for range_list in self.ranges_to_tar}
-            self.ranges_to_tar = list()
-        except Exception as exc:
-            self.logging_actor.warn.remote(self.id, f"Exception {exc} when submitting tar subprocess", time.asctime())
-            pass
-
-        self.logging_actor.debug.remote(self.id, f"tar_es_output #threads submitted : {len(self.running_tar_threads)}", time.asctime())
-
-    def get_tar_results(self) -> None:
-        """
-        Checks the self.running_tar_threads dict for the Future objects. if thread is still running let it run otherwise
-        get the results of running, check for duplicates and  pass information onto Harvester
 
         Args:
             None
 
         Returns:
             None
+        """
+        self.logging_actor.debug.remote(self.id, "tar_es_output: Enter routine", time.asctime())
+        now = time.time()
+        if int(now - self.tar_timestamp) < self.tarinterval:
+            self.logging_actor.debug.remote(self.id, "tar_es_output: too soon to tar up output Leaving early", time.asctime())
+            return
+
+        self.logging_actor.debug.remote(self.id, "tar_es_output: Begin to tar up es output", time.asctime())
+        ranges_to_tar = list()
+        if self.bookKeeper.create_ranges_to_tar():
+            # add new ranges to tar to the list
+            ranges_to_tar = self.bookKeeper.get_ranges_to_tar()
+            self.logging_actor.debug.remote(self.id, f"tar_es_output: # of new ranges to tar {len(ranges_to_tar)}", time.asctime())
+            self.logging_actor.debug.remote(self.id, f"tar_es_output: new ranges to tar {repr(ranges_to_tar)}", time.asctime())
+            self.tar_timestamp = now
+            self.ranges_to_tar.extend(ranges_to_tar)
+            self.logging_actor.debug.remote(self.id, f"tar_es_output: Total number of ranges to tar : {len(self.ranges_to_tar)}", time.asctime())
+
+            try:
+                self.running_tar_threads = {self.tar_executor.submit(self.create_tar_file, range_list): range_list for range_list in self.ranges_to_tar}
+                self.ranges_to_tar = list()
+            except Exception as exc:
+                self.logging_actor.warn.remote(self.id, f"tar_es_output: Exception {exc} when submitting tar subprocess", time.asctime())
+                pass
+
+            self.logging_actor.debug.remote(self.id, f"tar_es_output: #threads submitted : {len(self.running_tar_threads)}", time.asctime())
+        self.logging_actor.debug.remote(self.id, f"tar_es_output: Leave routine # of new ranges to tar {len(ranges_to_tar)}", time.asctime())
+
+    def get_tar_results(self, skip_time_check: bool) -> None:
+        """
+        Checks the self.running_tar_threads dict for the Future objects. if thread is still running let it run otherwise
+        get the results of running, check for duplicates and  pass information onto Harvester
+
+        Args:
+            skip_time_check: flag to skip time interval check
+
+        Returns:
+            None
 
         """
-        self.logging_actor.debug.remote(self.id, "Enter get_tar_results", time.asctime())
+        self.logging_actor.debug.remote(self.id, "get_tar_results: Enter routine", time.asctime())
         try:
+            tarcheck_interval = self.tarcheckinterval
+            if skip_time_check:
+                tarcheck_interval = 0
+            now = time.time()
+            if int(now - self.tarcheck_timestamp) < tarcheck_interval:
+                self.logging_actor.debug.remote(self.id, "get_tar_results: Leaving early too soon to check", time.asctime())
+                return
+            self.logging_actor.debug.remote(self.id, "get_tar_results: Start to check for tar results", time.asctime())
+            self.tarcheck_timestamp = now
             nfutures = 0
             newfutures = 0
             for future in concurrent.futures.as_completed(self.running_tar_threads, 60):
@@ -1066,7 +1080,7 @@ class ESDriver(BaseDriver):
                     # self.logging_actor.debug.remote(self.id, f"check_for_duplicates - ranges_info {repr(ranges_info)} path - {path}", time.asctime())
                     if ranges_info:
                         for rangeInfo in ranges_info:
-                            self.logging_actor.debug.remote(self.id, f"check_for_duplicates - rangeInfo type - {type(rangeInfo)} {repr(rangeInfo)}", time.asctime())
+                            # self.logging_actor.debug.remote(self.id, f"check_for_duplicates - rangeInfo type - {type(rangeInfo)} {repr(rangeInfo)}", time.asctime())
                             eventRangeID = rangeInfo['eventRangeID']
                             if eventRangeID not in self.processed_event_ranges[PanDA_id]:
                                 self.processed_event_ranges[PanDA_id][eventRangeID] = list()
