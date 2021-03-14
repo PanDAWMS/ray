@@ -1036,7 +1036,8 @@ class ESDriver(BaseDriver):
                                 self.requests_queue.put(evt_ranges)
                 except Exception as ex:
                     self.logging_actor.info.remote(self.id, f"get_tar_results: Caught exception {ex}", time.asctime())
-                    pass
+                    # pass
+                    raise
             self.logging_actor.debug.remote(self.id, f"get_tar_results #completed futures - {nfutures} #new completed futures - {newfutures}", time.asctime())
         except concurrent.futures.TimeoutError:
             # did not get information within timeout try later
