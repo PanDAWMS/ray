@@ -1054,6 +1054,7 @@ class ESDriver(BaseDriver):
                     if PanDA_id not in self.processed_event_ranges:
                         self.processed_event_ranges[PanDA_id] = dict()
                     self.logging_actor.debug.remote(self.id, f"check_for_duplicates - type - {type(tar_results[PanDA_id])}", time.asctime())
+                    self.logging_actor.debug.remote(self.id, f"check_for_duplicates - {repr(tar_results[PanDA_id])}", time.asctime())
                     for element in tar_results[PanDA_id]:
                         self.logging_actor.debug.remote(self.id, f"check_for_duplicates - type - {type(element)} {repr(element)}", time.asctime())
                         path = str()
