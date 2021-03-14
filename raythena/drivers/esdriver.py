@@ -1019,15 +1019,14 @@ class ESDriver(BaseDriver):
                             if self.check_for_duplicates(result):
                                 for PanDA_id in result:
                                     data = result[PanDA_id]
-                                    # self.logging_actor.debug.remote(self.id, f"get_tar_results data - type {type(data)} value - {repr(data)}", time.asctime())
-                                    eventranges_update = EventRangeUpdate.build_from_dict(PanDA_id, data)
-                                    self.requests_queue.put(eventranges_update)
+                                    self.logging_actor.debug.remote(self.id, f"get_tar_results data - type {type(data)} value - {repr(data)}", time.asctime())
+                                    evt_ranges = EventRangeUpdate.build_from_dict(PanDA_id, data)
+                                    self.logging_actor.debug.remote(self.id, f"evt_ranges - {type(evt_ranges)} {len(evt_ranges)} {str(evt_ranges)}", time.asctime())
+                                    self.requests_queue.put(evt_ranges)
                 except Exception as ex:
                     self.logging_actor.info.remote(self.id, f"Tar subthread Caught exception {ex}", time.asctime())
                     pass
             self.logging_actor.debug.remote(self.id, f"get_tar_results #completed futures - {nfutures} #new completed futures - {newfutures}", time.asctime())
-            # build event range update from results
-            # self.requests_queue.put(eventranges_update)
         except concurrent.futures.TimeoutError:
             # did not get information within timeout try later
             self.logging_actor.debug.remote(self.id, "Warning - did not get tar process completed tasks within 60 seconds", time.asctime())
