@@ -1055,20 +1055,18 @@ class ESDriver(BaseDriver):
                         self.processed_event_ranges[PanDA_id] = dict()
                     self.logging_actor.debug.remote(self.id, f"check_for_duplicates - type - {type(tar_results[PanDA_id])}", time.asctime())
                     self.logging_actor.debug.remote(self.id, f"check_for_duplicates - {repr(tar_results[PanDA_id])}", time.asctime())
-                    for element in tar_results[PanDA_id]:
-                        self.logging_actor.debug.remote(self.id, f"check_for_duplicates - type - {type(element)} {repr(element)}", time.asctime())
-                        path = str()
-                        if "zipFile" in element and element["zipFile"]:
-                            file_info = element.get("zipFile", None)
-                            if file_info:
-                                path = file_info["lfn"]
-                        ranges_info = element.get("eventRanges", None)
-                        if ranges_info:
-                            for rangeInfo in ranges_info:
-                                eventRangeID = rangeInfo['eventRangeID']
-                                if eventRangeID not in self.processed_event_ranges[PanDA_id]:
-                                    self.processed_event_ranges[PanDA_id][eventRangeID] = list()
-                                self.processed_event_ranges[PanDA_id][eventRangeID].append(path)
+                    path = str()
+                    if "zipFile" in tar_results[PanDA_id] and tar_results[PanDA_id]["zipFile"]:
+                        file_info = tar_results[PanDA_id].get("zipFile", None)
+                        if file_info:
+                            path = file_info["lfn"]
+                    ranges_info = tar_results[PanDA_id].get("eventRanges", None)
+                    if ranges_info:
+                        for rangeInfo in ranges_info:
+                            eventRangeID = rangeInfo['eventRangeID']
+                            if eventRangeID not in self.processed_event_ranges[PanDA_id]:
+                                self.processed_event_ranges[PanDA_id][eventRangeID] = list()
+                            self.processed_event_ranges[PanDA_id][eventRangeID].append(path)
                     # loop over processed event ranges list the duplicate files
                     for eventRangeID in self.processed_event_ranges[PanDA_id]:
                         if len(self.processed_event_ranges[PanDA_id][eventRangeID]) > 1:
