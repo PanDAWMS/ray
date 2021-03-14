@@ -1050,9 +1050,12 @@ class ESDriver(BaseDriver):
                 self.logging_actor.debug.remote(self.id, f"check_for_duplicates - results of tar threads - {repr(tar_results)}", time.asctime())
                 # check for duplicates
                 for PanDA_id in tar_results:
+                    self.logging_actor.debug.remote(self.id, f"check_for_duplicates - PanDA_id - {PanDA_id}", time.asctime())
                     if PanDA_id not in self.processed_event_ranges:
                         self.processed_event_ranges[PanDA_id] = dict()
+                    self.logging_actor.debug.remote(self.id, f"check_for_duplicates - type - {type(tar_results[PanDA_id])}", time.asctime())
                     for element in tar_results[PanDA_id]:
+                        self.logging_actor.debug.remote(self.id, f"check_for_duplicates - type - {type(element)} {repr(element)}", time.asctime())
                         path = str()
                         if "zipFile" in element and element["zipFile"]:
                             file_info = element.get("zipFile", None)
