@@ -1050,25 +1050,24 @@ class ESDriver(BaseDriver):
                 self.logging_actor.debug.remote(self.id, f"check_for_duplicates - results of tar threads - {repr(tar_results)}", time.asctime())
                 # check for duplicates
                 for PanDA_id in tar_results:
-                    self.logging_actor.debug.remote(self.id, f"check_for_duplicates - PanDA_id - {PanDA_id}", time.asctime())
+                    # self.logging_actor.debug.remote(self.id, f"check_for_duplicates - PanDA_id - {PanDA_id}", time.asctime())
                     if PanDA_id not in self.processed_event_ranges:
                         self.processed_event_ranges[PanDA_id] = dict()
-                    self.logging_actor.debug.remote(self.id, f"check_for_duplicates - type - {type(tar_results[PanDA_id])}", time.asctime())
-                    self.logging_actor.debug.remote(self.id, f"check_for_duplicates - {repr(tar_results[PanDA_id])}", time.asctime())
+                    # self.logging_actor.debug.remote(self.id, f"check_for_duplicates - type - {type(tar_results[PanDA_id])}", time.asctime())
+                    # self.logging_actor.debug.remote(self.id, f"check_for_duplicates - {repr(tar_results[PanDA_id])}", time.asctime())
                     path = str()
                     if "zipFile" in tar_results[PanDA_id] and tar_results[PanDA_id]["zipFile"]:
                         file_info = tar_results[PanDA_id].get("zipFile", None)
                         if file_info:
                             path = file_info["lfn"]
-                        self.logging_actor.debug.remote(self.id, f"check_for_duplicates - file_info {repr(file_info)} path - {path}", time.asctime())
+                        # self.logging_actor.debug.remote(self.id, f"check_for_duplicates - file_info {repr(file_info)} path - {path}", time.asctime())
                     ranges_info = tar_results[PanDA_id].get("eventRanges", None)
-                    self.logging_actor.debug.remote(self.id, f"check_for_duplicates - ranges_info type - {type(ranges_info)}", time.asctime())
-                    self.logging_actor.debug.remote(self.id, f"check_for_duplicates - ranges_info {repr(ranges_info)} path - {path}", time.asctime())
+                    # self.logging_actor.debug.remote(self.id, f"check_for_duplicates - ranges_info type - {type(ranges_info)}", time.asctime())
+                    # self.logging_actor.debug.remote(self.id, f"check_for_duplicates - ranges_info {repr(ranges_info)} path - {path}", time.asctime())
                     if ranges_info:
                         for rangeInfo in ranges_info:
                             self.logging_actor.debug.remote(self.id, f"check_for_duplicates - rangeInfo type - {type(rangeInfo)} {repr(rangeInfo)}", time.asctime())
                             eventRangeID = rangeInfo['eventRangeID']
-                            self.logging_actor.debug.remote(self.id, f"check_for_duplicates - rangeInfo type - {type(self.processed_event_ranges[PanDA_id])} {repr(self.processed_event_ranges[PanDA_id])}", time.asctime())
                             if eventRangeID not in self.processed_event_ranges[PanDA_id]:
                                 self.processed_event_ranges[PanDA_id][eventRangeID] = list()
                             self.processed_event_ranges[PanDA_id][eventRangeID].append(path)
@@ -1081,7 +1080,8 @@ class ESDriver(BaseDriver):
                             for path in (self.processed_event_ranges[PanDA_id][eventRangeID]):
                                 self.logging_actor.warn.remote(self.id, f"ERROR duplicate eventRangeID - {eventRangeID} {path}", time.asctime())
         except Exception as ex:
-            self.logging_actor.info.remote(self.id, f"Tar subthread Caught exception {ex}", time.asctime())
+            self.logging_actor.info.remote(self.id, f"check_for_duplicates Caught exception {ex}", time.asctime())
             return_val = False
             pass
+        self.logging_actor.debug.remote(self.id, f"check_for_duplicates - Return value - {repr(return_val)}", time.asctime())
         return return_val
