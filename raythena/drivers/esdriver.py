@@ -1015,7 +1015,7 @@ class ESDriver(BaseDriver):
             now = time.time()
             delta_time = int(now - self.tarcheck_timestamp)
             if not skip_time_check and delta_time < self.tarcheckinterval:
-                self.logging_actor.debug.remote(self.id, f"get_tar_results: Leaving early - sec. since last check {delta_time} check interval {self.tarcheckinterval}", time.asctime())
+                # self.logging_actor.debug.remote(self.id, f"get_tar_results: Leaving early - sec. since last check {delta_time} check interval {self.tarcheckinterval}", time.asctime())
                 return
             self.logging_actor.debug.remote(self.id, "get_tar_results: Start to check for tar results", time.asctime())
             self.tarcheck_timestamp = now
@@ -1029,7 +1029,7 @@ class ESDriver(BaseDriver):
                         self.finished_tar_tasks.add(future)
                         result = future.result()
                         if result and isinstance(result, dict) and self.check_for_duplicates(result):
-                            self.logging_actor.debug.remote(self.id, f"get_tar_results: future result {type(result)} value - {repr(result)}", time.asctime())
+                            # self.logging_actor.debug.remote(self.id, f"get_tar_results: future result {type(result)} value - {repr(result)}", time.asctime())
                             event_range = EventRangeUpdate(result)
                             self.logging_actor.debug.remote(self.id, f"get_tar_results:type {type(event_range)} value - {repr(event_range)}", time.asctime())
                             self.requests_queue.put(event_range)
@@ -1058,7 +1058,7 @@ class ESDriver(BaseDriver):
             return_val = True
             if tar_results and isinstance(tar_results, dict):
                 # give results to BookKeeper to send to Harvester ????
-                self.logging_actor.debug.remote(self.id, f"check_for_duplicates - results of tar threads - {repr(tar_results)}", time.asctime())
+                # self.logging_actor.debug.remote(self.id, f"check_for_duplicates - results of tar threads - {repr(tar_results)}", time.asctime())
                 # check for duplicates
                 for PanDA_id in tar_results:
                     self.logging_actor.debug.remote(self.id, f"check_for_duplicates - PanDA_id - {PanDA_id}", time.asctime())
@@ -1071,7 +1071,7 @@ class ESDriver(BaseDriver):
                     # self.logging_actor.debug.remote(self.id, f"check_for_duplicates - ranges_info {repr(ranges_info)} path - {path}", time.asctime())
                     if ranges_info:
                         for rangeInfo in ranges_info:
-                            self.logging_actor.debug.remote(self.id, f"check_for_duplicates - rangeInfo type - {type(rangeInfo)} {repr(rangeInfo)}", time.asctime())
+                            # self.logging_actor.debug.remote(self.id, f"check_for_duplicates - rangeInfo type - {type(rangeInfo)} {repr(rangeInfo)}", time.asctime())
                             eventRangeID = rangeInfo['eventRangeID']
                             path = rangeInfo['path']
                             if eventRangeID not in self.processed_event_ranges[PanDA_id]:
