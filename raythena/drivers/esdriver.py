@@ -6,7 +6,8 @@ import concurrent.futures
 import tarfile
 import shutil
 import zlib
-
+import sys
+import traceback
 import ray
 
 from raythena.actors.esworker import ESWorker
@@ -1030,12 +1031,14 @@ class ESDriver(BaseDriver):
                         self.finished_tar_tasks.add(future)
                         result = future.result()
                         if result and isinstance(result, dict) and self.check_for_duplicates(result):
-                            # self.logging_actor.debug.remote(self.id, f"get_tar_results: future result {type(result)} value - {repr(result)}", time.asctime())
+                            self.logging_actor.debug.remote(self.id, f"get_tar_results: future result {type(result)} value - {repr(result)}", time.asctime())
                             event_range = EventRangeUpdate(result)
                             self.logging_actor.debug.remote(self.id, f"get_tar_results:type {type(event_range)} value - {repr(event_range)}", time.asctime())
                             self.requests_queue.put(event_range)
                 except Exception as ex:
+                    exc_type, exc_value, exc_traceback = sys.exc_info()
                     self.logging_actor.info.remote(self.id, f"get_tar_results: Caught exception {ex}", time.asctime())
+                    self.logging_actor.info.remote(self.id, f"get_tar_results: Caught exception {repr(traceback.format_tb(exc_traceback))}", time.asctime())
                     # pass
                     raise
             self.logging_actor.debug.remote(self.id, f"get_tar_results #completed futures - {nfutures} #new completed futures - {newfutures}", time.asctime())
