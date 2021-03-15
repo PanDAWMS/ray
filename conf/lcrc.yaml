@@ -24,6 +24,10 @@ ray:
   workdir: /lcrc/group/ATLAS/harvester/raythena/workdir
   monitortime: 300
   timeoutinterval: 600
+  tarinterval: 120
+  tarmaxfilesize: 5000000000
+  tarmaxprocesses: 5
+  tarcheckinterval: 60
 
 resources:
   corepernode: 36
