@@ -604,8 +604,9 @@ class ESDriver(BaseDriver):
         """
         self.logging_actor.info.remote(self.id, f"handle_update_event_ranges: {actor_id} sent a eventranges update", time.asctime())
         # self.logging_actor.debug.remote(self.id, f"handle_update_event_ranges: eventranges_update type {type(data)} data  - {str(data)}", time.asctime())
-        self.bookKeeper.process_event_ranges_update(actor_id, data)
-        # eventranges_update = self.bookKeeper.process_event_ranges_update(actor_id, data)
+        # self.bookKeeper.process_event_ranges_update(actor_id, data)
+        eventranges_update = self.bookKeeper.process_event_ranges_update(actor_id, data)
+        self.logging_actor.debug.remote(self.id, f"handle_update_event_ranges: eventranges_update type - {type(eventranges_update)}", time.asctime())
         # self.logging_actor.debug.remote(self.id, f"handle_update_event_ranges: eventranges_update - {len(eventranges_update)}", time.asctime())
         # self.logging_actor.debug.remote(self.id, f"handle_update_event_ranges: eventranges_update - {str(eventranges_update)}", time.asctime())
         # self.requests_queue.put(eventranges_update)
