@@ -1064,9 +1064,9 @@ class ESDriver(BaseDriver):
                     self.logging_actor.debug.remote(self.id, f"check_for_duplicates - PanDA_id - {PanDA_id}", time.asctime())
                     if PanDA_id not in self.processed_event_ranges:
                         self.processed_event_ranges[PanDA_id] = dict()
-                    self.logging_actor.debug.remote(self.id, f"check_for_duplicates - type - {type(tar_results[PanDA_id])}", time.asctime())
-                    self.logging_actor.debug.remote(self.id, f"check_for_duplicates - {repr(tar_results[PanDA_id])}", time.asctime())
-                    ranges_info = tar_results[PanDA_id].get("eventRanges", None)
+                    # self.logging_actor.debug.remote(self.id, f"check_for_duplicates - type - {type(tar_results[PanDA_id])}", time.asctime())
+                    # self.logging_actor.debug.remote(self.id, f"check_for_duplicates - {repr(tar_results[PanDA_id])}", time.asctime())
+                    ranges_info = tar_results[PanDA_id]
                     # self.logging_actor.debug.remote(self.id, f"check_for_duplicates - ranges_info type - {type(ranges_info)}", time.asctime())
                     # self.logging_actor.debug.remote(self.id, f"check_for_duplicates - ranges_info {repr(ranges_info)} path - {path}", time.asctime())
                     if ranges_info:
