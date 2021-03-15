@@ -932,7 +932,7 @@ class ESDriver(BaseDriver):
             val += 2 ** 32
         return hex(val)[2:10].zfill(8).lower()
 
-    def create_harvester_data(self, PanDA_id: str, file_path: str, file_chksum: str, file_fsize: int, range_list: list) -> Dict:
+    def create_harvester_data(self, PanDA_id: str, file_path: str, file_chksum: str, file_fsize: int, range_list: list) -> Dict[str, List[Dict]]:
         """
         create data structure for telling Harvester what files are merged and ready to process
 
@@ -946,18 +946,20 @@ class ESDriver(BaseDriver):
              Dictionary with PanDA_id is the key and dictionary containing file info and list  Event range elements
         """
         return_dict = dict()
-
-        return_dict["zipFile"] = {"lfn": file_path, "adler32": file_chksum, "fsize": file_fsize}
-
-        event_range_list = list()
+        return_list = list()
         for event_range in range_list:
-            event_range_list.append({"eventRangeID": event_range['eventRangeID'], "eventStatus": "finished"})
-        return_dict["eventRanges"] = event_range_list
-
-        return_val = {PanDA_id: return_dict}
-
-        self.logging_actor.debug.remote(self.id, f"create_harvester_data {repr(return_val)} ", time.asctime())
-        return return_val
+            return_list.append(
+                {
+                    "eventRangeID": event_range['eventRangeID'],
+                    "eventStatus": "finished",
+                    "path": file_path,
+                    "type": "zip_output",
+                    "chksum": file_chksum,
+                    "fsize": file_fsize
+                })
+        if return_list:
+            return_dict = {PanDA_id: return_list}
+        return return_dict
 
     def tar_es_output(self) -> None:
         """
@@ -1027,13 +1029,10 @@ class ESDriver(BaseDriver):
                         self.finished_tar_tasks.add(future)
                         result = future.result()
                         if result and isinstance(result, dict) and self.check_for_duplicates(result):
-                            # self.logging_actor.debug.remote(self.id, f"get_tar_results: future type {type(result)} value - {repr(result)}", time.asctime())
-                            for PanDA_id in result:
-                                data = result[PanDA_id]
-                                self.logging_actor.debug.remote(self.id, f"get_tar_results: data - type {type(data)} value - {repr(data)}", time.asctime())
-                                evt_ranges = EventRangeUpdate.build_from_dict(PanDA_id, data)
-                                self.logging_actor.debug.remote(self.id, f"get_tar_results: evt_ranges - {type(evt_ranges)} {len(evt_ranges)} {str(evt_ranges)}", time.asctime())
-                                self.requests_queue.put(evt_ranges)
+                            self.logging_actor.debug.remote(self.id, f"get_tar_results: future result {type(result)} value - {repr(result)}", time.asctime())
+                            event_range = EventRangeUpdate(result)
+                            self.logging_actor.debug.remote(self.id, f"get_tar_results:type {type(event_range)} value - {repr(event_range)}", time.asctime())
+                            self.requests_queue.put(event_range)
                 except Exception as ex:
                     self.logging_actor.info.remote(self.id, f"get_tar_results: Caught exception {ex}", time.asctime())
                     # pass
@@ -1062,24 +1061,19 @@ class ESDriver(BaseDriver):
                 self.logging_actor.debug.remote(self.id, f"check_for_duplicates - results of tar threads - {repr(tar_results)}", time.asctime())
                 # check for duplicates
                 for PanDA_id in tar_results:
-                    # self.logging_actor.debug.remote(self.id, f"check_for_duplicates - PanDA_id - {PanDA_id}", time.asctime())
+                    self.logging_actor.debug.remote(self.id, f"check_for_duplicates - PanDA_id - {PanDA_id}", time.asctime())
                     if PanDA_id not in self.processed_event_ranges:
                         self.processed_event_ranges[PanDA_id] = dict()
-                    # self.logging_actor.debug.remote(self.id, f"check_for_duplicates - type - {type(tar_results[PanDA_id])}", time.asctime())
-                    # self.logging_actor.debug.remote(self.id, f"check_for_duplicates - {repr(tar_results[PanDA_id])}", time.asctime())
-                    path = str()
-                    if "zipFile" in tar_results[PanDA_id] and tar_results[PanDA_id]["zipFile"]:
-                        file_info = tar_results[PanDA_id].get("zipFile", None)
-                        if file_info:
-                            path = file_info["lfn"]
-                        # self.logging_actor.debug.remote(self.id, f"check_for_duplicates - file_info {repr(file_info)} path - {path}", time.asctime())
+                    self.logging_actor.debug.remote(self.id, f"check_for_duplicates - type - {type(tar_results[PanDA_id])}", time.asctime())
+                    self.logging_actor.debug.remote(self.id, f"check_for_duplicates - {repr(tar_results[PanDA_id])}", time.asctime())
                     ranges_info = tar_results[PanDA_id].get("eventRanges", None)
                     # self.logging_actor.debug.remote(self.id, f"check_for_duplicates - ranges_info type - {type(ranges_info)}", time.asctime())
                     # self.logging_actor.debug.remote(self.id, f"check_for_duplicates - ranges_info {repr(ranges_info)} path - {path}", time.asctime())
                     if ranges_info:
                         for rangeInfo in ranges_info:
-                            # self.logging_actor.debug.remote(self.id, f"check_for_duplicates - rangeInfo type - {type(rangeInfo)} {repr(rangeInfo)}", time.asctime())
+                            self.logging_actor.debug.remote(self.id, f"check_for_duplicates - rangeInfo type - {type(rangeInfo)} {repr(rangeInfo)}", time.asctime())
                             eventRangeID = rangeInfo['eventRangeID']
+                            path = rangeInfo['path']
                             if eventRangeID not in self.processed_event_ranges[PanDA_id]:
                                 self.processed_event_ranges[PanDA_id][eventRangeID] = list()
                             self.processed_event_ranges[PanDA_id][eventRangeID].append(path)
