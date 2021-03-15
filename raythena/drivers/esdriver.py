@@ -1017,7 +1017,7 @@ class ESDriver(BaseDriver):
             now = time.time()
             delta_time = int(now - self.tarcheck_timestamp)
             if not skip_time_check and delta_time < self.tarcheckinterval:
-                # self.logging_actor.debug.remote(self.id, f"get_tar_results: Leaving early - sec. since last check {delta_time} check interval {self.tarcheckinterval}", time.asctime())
+                # self.logging_actor.debug.remote(self.id, f"get_tar_results: Leaving - last chk {delta_time} interval {self.tarcheckinterval}", time.asctime())
                 return
             self.logging_actor.debug.remote(self.id, "get_tar_results: Start to check for tar results", time.asctime())
             self.tarcheck_timestamp = now
@@ -1075,7 +1075,7 @@ class ESDriver(BaseDriver):
                     # self.logging_actor.debug.remote(self.id, f"check_for_duplicates - ranges_info {repr(ranges_info)} path - {path}", time.asctime())
                     if ranges_info:
                         for rangeInfo in ranges_info:
-                            # self.logging_actor.debug.remote(self.id, f"check_for_duplicates - rangeInfo type - {type(rangeInfo)} {repr(rangeInfo)}", time.asctime())
+                            # self.logging_actor.debug.remote(self.id, f"check_for_duplicates: rangeInfo - {type(rangeInfo)} {repr(rangeInfo)}", time.asctime())
                             eventRangeID = rangeInfo['eventRangeID']
                             path = rangeInfo['path']
                             if eventRangeID not in self.processed_event_ranges[PanDA_id]:
