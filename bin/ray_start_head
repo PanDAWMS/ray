@@ -27,4 +27,4 @@ TMP_DIR="$TMP_DIR"/"$SLURMD_NODENAME"
 echo ray tmp dir: "$TMP_DIR"
 mkdir -p "$TMP_DIR"
 
-ray start --block --head --temp-dir "$TMP_DIR" --port="$REDIS_PORT" --redis-password="$REDIS_PASSWORD" --num-cpus 1 "$@"
+ray start --block --head --temp-dir "$TMP_DIR" --port="$REDIS_PORT" --redis-password="$REDIS_PASSWORD" --num-cpus 1 --system-config='{"object_timeout_milliseconds": 30000000, "num_heartbeats_timeout": 60000}' "$@"
