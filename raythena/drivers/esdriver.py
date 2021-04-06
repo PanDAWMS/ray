@@ -95,7 +95,8 @@ class BookKeeper(object):
             for input_file in self.ranges_to_tar_by_input_file:
                 total_file_size = 0
                 file_list = []
-                self.logging_actor.debug.remote("BookKeeper", f"input file value : {input_file}", time.asctime())
+                self.logging_actor.debug.remote("BookKeeper",
+                                                f"input file value : {input_file} {len(self.ranges_to_tar_by_input_file[input_file])}", time.asctime())
                 while self.ranges_to_tar_by_input_file[input_file]:
                     event_range = self.ranges_to_tar_by_input_file[input_file].pop()
                     if total_file_size + event_range['fsize'] > self.tarmaxfilesize:
@@ -880,38 +881,46 @@ class ESDriver(BaseDriver):
         Returns:
             Dictionary - key PanDAid, item list of event ranges with information needed by Harvester
         """
+        self.logging_actor.debug.remote(self.id, "create_tar_file: Enter routine", time.asctime())
         return_val = dict()
-        # read first element in list to build temporary filename
-        file_base_name = "panda." + os.path.basename(range_list[0]['path']) + ".zip"
-        temp_file_base_name = file_base_name + ".tmpfile"
-        temp_file_path = os.path.join(self.tar_merge_es_output_dir, temp_file_base_name)
-        file_path = os.path.join(self.tar_merge_es_output_dir, file_base_name)
+        # test validity of range_list
+        if range_list and isinstance(range_list, list) and len(range_list) > 0:
+            # read first element in list to build temporary filename
+            file_base_name = "panda." + os.path.basename(range_list[0]['path']) + ".zip"
+            temp_file_base_name = file_base_name + ".tmpfile"
+            temp_file_path = os.path.join(self.tar_merge_es_output_dir, temp_file_base_name)
+            file_path = os.path.join(self.tar_merge_es_output_dir, file_base_name)
 
-        # self.tar_merge_es_output_dir zip files
-        # self.tar_merge_es_files_dir  es files
+            # self.tar_merge_es_output_dir zip files
+            # self.tar_merge_es_files_dir  es files
 
-        PanDA_id = range_list[0]['PanDAID']
+            PanDA_id = range_list[0]['PanDAID']
 
-        file_fsize = 0
-        try:
-            # create tar file looping over event ranges
-            with tarfile.open(temp_file_path, "w") as tar:
+            file_fsize = 0
+            try:
+                # create tar file looping over event ranges
+                with tarfile.open(temp_file_path, "w") as tar:
+                    for event_range in range_list:
+                        tar.add(event_range['path'])
+                file_fsize = os.path.getsize(temp_file_path)
+                # calculate alder32 checksum
+                file_chksum = self.calc_adler32(temp_file_path)
+                return_val = self.create_harvester_data(PanDA_id, file_path, file_chksum, file_fsize, range_list)
                 for event_range in range_list:
-                    tar.add(event_range['path'])
-            file_fsize = os.path.getsize(temp_file_path)
-            # calculate alder32 checksum
-            file_chksum = self.calc_adler32(temp_file_path)
-            return_val = self.create_harvester_data(PanDA_id, file_path, file_chksum, file_fsize, range_list)
-            for event_range in range_list:
-                lfn = os.path.basename(event_range["path"])
-                pfn = os.path.join(self.tar_merge_es_files_dir, lfn)
-                shutil.move(event_range["path"], pfn)
-            # rename zip file (move)
-            shutil.move(temp_file_path, file_path)
-            return return_val
-        except Exception:
-            raise
-            return return_val
+                    lfn = os.path.basename(event_range["path"])
+                    pfn = os.path.join(self.tar_merge_es_files_dir, lfn)
+                    shutil.move(event_range["path"], pfn)
+                # rename zip file (move)
+                shutil.move(temp_file_path, file_path)
+                return return_val
+            except Exception:
+                raise
+        else:
+            message = "create_tar_file: Failed  range_list and isinstance(range_list, list) and len(range_list) > 0 - test"
+            if range_list and isinstance(range_list, list):
+                message = message + f" len(range_list) = {len(range_list)}"
+            self.logging_actor.debug.remote(self.id, message, time.asctime())
+        return return_val
 
     def calc_adler32(self, file_name: str) -> str:
         """
