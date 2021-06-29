@@ -8,7 +8,7 @@ export RAYTHENA_RAY_NWORKERS=8
 
 # start ray head node
 srun -N1 -n1 -w $SLURMD_NODENAME \
-    ray start --head --redis-port=$RAYTHENA_RAY_REDIS_PORT --redis-password=$RAYTHENA_RAY_REDIS_PASSWORD --num-cpus=$RAYTHENA_RAY_NWORKERS --block &
+    ray start --head --port=$RAYTHENA_RAY_REDIS_PORT --redis-password=$RAYTHENA_RAY_REDIS_PASSWORD --num-cpus=$RAYTHENA_RAY_NWORKERS --block &
 
 # wait for head node to start ray
 ray_sync
