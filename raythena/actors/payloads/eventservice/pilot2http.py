@@ -200,7 +200,7 @@ class Pilot2HttpPayload(ESPayload):
         if str(py3pilot).lower() in ["true", "t", "y", "yes", "yea", "definately"]:
             cmd += "-3 --localpy "
 
-        cmd += f"-i PR -j {prod_source_label} --container --mute --pilot-user=atlas -t " \
+        cmd += f"-i PR -j {prod_source_label} --container --mute --pilot-user=atlas -t --es-executor-type raythena " \
             f"-d --cleanup=False -w generic --url=http://{self.host} -p {self.port} --allow-same-user=False --resource-type MCORE " \
             f"--hpc-resource {shlex.quote(self.config.payload['hpcresource'])};"
 
@@ -247,7 +247,7 @@ class Pilot2HttpPayload(ESPayload):
             raise FailedPayload(self.worker_id)
 
         queue_escaped = shlex.quote(self.config.payload['pandaqueue'])
-        cmd += f"{shlex.quote(pilotwrapper_bin)}  --piloturl local -q {queue_escaped} -r {queue_escaped} " \
+        cmd += f"{shlex.quote(pilotwrapper_bin)}  --es-executor-type raythena --piloturl local -q {queue_escaped} -r {queue_escaped} " \
             f" -s {queue_escaped} -i PR -j {prod_source_label} --container --mute --pilot-user=atlas -t " \
             f"-d --cleanup=False -w generic --url=http://{self.host} -p {self.port} --allow-same-user=False --resource-type MCORE " \
             f"--hpc-resource {shlex.quote(self.config.payload['hpcresource'])};"
