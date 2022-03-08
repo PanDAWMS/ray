@@ -26,6 +26,7 @@ class Config(object):
             "extrapostpayload": str,
             "containerengine": str,
             "containerextraargs": str,
+            "pilotversion": int,
         },
         'harvester': {
             'endpoint': str,

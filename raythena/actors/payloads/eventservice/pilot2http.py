@@ -177,12 +177,21 @@ class Pilot2HttpPayload(ESPayload):
         if extra_setup is not None:
             cmd += f"{extra_setup}{';' if not extra_setup.endswith(';') else ''}"
 
-        pilot_src = f"{shlex.quote(self.config.ray['workdir'])}/pilot2"
+        pilot_version = self.config.payload.get('pilotversion', None)
+        if pilot_version == 3:
+            pilot_base = "pilot3"
+            # pilot3 only supports python3, override conf
+            py3pilot = True
+        else:
+            pilot_base = "pilot2"
+            py3pilot = self.config.payload.get('py3pilot', None)
+
+        pilot_src = f"{shlex.quote(self.config.ray['workdir'])}/{pilot_base}"
 
         if not os.path.isdir(pilot_src):
             raise FailedPayload(self.worker_id)
 
-        cmd += f"ln -s {pilot_src} {os.path.join(os.getcwd(), 'pilot2')};"
+        cmd += f"ln -s {pilot_src} {os.path.join(os.getcwd(), pilot_base)};"
 
         prod_source_label = shlex.quote(self.current_job['prodSourceLabel'])
 
@@ -192,16 +201,16 @@ class Pilot2HttpPayload(ESPayload):
         if not os.path.isfile(pilotwrapper_bin):
             raise FailedPayload(self.worker_id)
 
-        py3pilot = self.config.payload.get('py3pilot', None)
-
         queue_escaped = shlex.quote(self.config.payload['pandaqueue'])
-        cmd += f"{shlex.quote(pilotwrapper_bin)}  --piloturl local -q {queue_escaped} -r {queue_escaped} -s {queue_escaped} "
+        cmd += f"{shlex.quote(pilotwrapper_bin)} --localpy --piloturl local -q {queue_escaped} -r {queue_escaped} -s {queue_escaped} "
 
-        if str(py3pilot).lower() in ["true", "t", "y", "yes", "yea", "definately"]:
-            cmd += "-3 --localpy "
+        if pilot_version == 3:
+            cmd += "--pilotversion 3 --pythonversion 3 "
+        elif py3pilot:
+            cmd += "--pythonversion 3 "
 
-        cmd += f"-i PR -j {prod_source_label} --container --mute --pilot-user=atlas -t " \
-            f"-d --cleanup=False -w generic --url=http://{self.host} -p {self.port} --allow-same-user=False --resource-type MCORE " \
+        cmd += f"-i PR -j {prod_source_label} --container --mute --pilot-user=atlas -t -u --es-executor-type=raythena " \
+            f"-d --cleanup=False -w generic --use-https False --allow-same-user=False --resource-type MCORE " \
             f"--hpc-resource {shlex.quote(self.config.payload['hpcresource'])};"
 
         # self.logging_actor.debug.remote(self.worker_id,f"cmd: {repr(cmd)}", time.asctime())
@@ -232,12 +241,12 @@ class Pilot2HttpPayload(ESPayload):
         if extra_setup:
             cmd += f"{extra_setup}{';' if not extra_setup.endswith(';') else ''}"
 
-        pilot_src = f"{shlex.quote(self.config.ray['workdir'])}/pilot2"
+        pilot_src = f"{shlex.quote(self.config.ray['workdir'])}/pilot3"
 
         if not os.path.isdir(pilot_src):
             raise FailedPayload(self.worker_id)
 
-        cmd += f"ln -s {pilot_src} {os.path.join(os.getcwd(), 'pilot2')};"
+        cmd += f"ln -s {pilot_src} {os.path.join(os.getcwd(), 'pilot3')};"
         prod_source_label = shlex.quote(self.current_job['prodSourceLabel'])
 
         pilotwrapper_bin = os.path.expandvars(
@@ -248,8 +257,8 @@ class Pilot2HttpPayload(ESPayload):
 
         queue_escaped = shlex.quote(self.config.payload['pandaqueue'])
         cmd += f"{shlex.quote(pilotwrapper_bin)}  --piloturl local -q {queue_escaped} -r {queue_escaped} " \
-            f" -s {queue_escaped} -i PR -j {prod_source_label} --container --mute --pilot-user=atlas -t " \
-            f"-d --cleanup=False -w generic --url=http://{self.host} -p {self.port} --allow-same-user=False --resource-type MCORE " \
+            f" -s {queue_escaped} -i PR -j {prod_source_label} --container --mute --pilot-user=atlas -t -u --es-executor-type=raythena " \
+            f"-d --cleanup=False -w generic --url=http://{self.host} -p {self.port} --use-https False --allow-same-user=False --resource-type MCORE " \
             f"--hpc-resource {shlex.quote(self.config.payload['hpcresource'])};"
 
         extra_script = self.config.payload.get('extrapostpayload', '')
