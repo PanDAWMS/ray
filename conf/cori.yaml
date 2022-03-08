@@ -11,6 +11,7 @@ payload:
   condabindir:
   virtualenv:
   py3pilot: true
+  pilotversion: 3
 
 harvester:
   cacher: $SCRATCH/harvester

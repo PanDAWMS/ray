@@ -128,4 +128,4 @@ class LoggingActor(object):
         Returns:
             None
         """
-        self.logger.log(level, f"{actor_id} | {message} | {etime}")
+        self.logger.log(level, f" {etime} | {actor_id} | {message}")
