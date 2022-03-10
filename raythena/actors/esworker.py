@@ -5,6 +5,10 @@ import shutil
 import time
 from typing import Union, Tuple, List, Dict
 
+import datetime
+import threading
+from time import sleep
+
 import ray
 
 from raythena.actors.loggingActor import LoggingActor
@@ -113,7 +117,22 @@ class ESWorker(object):
         self.payload_class = self.plugin_registry.get_plugin(payload)
         self.payload: Union[BasePayload, ESPayload] = self.payload_class(self.id, self.logging_actor,
                                                                          self.config)
+        self.start_time = -1
+        self.time_limit = -1
         self.logging_actor.info.remote(self.id, "Ray worker started", time.asctime())
+
+    def check_time(self) -> None:
+        while True:
+            curtime=datetime.datetime.now()
+            time_elapsed = curtime.hour*3600+curtime.minute*60+curtime.second - self.start_time
+            if time_elapsed <= 0:
+                time_elapsed = 24*3600 + time_elapsed
+            if  time_elapsed > self.time_limit - 900:
+                killsignal = open('pilot_kill_payload','w')
+                killsignal.close()
+                break
+            else:
+                sleep(5)
 
     def modify_job(self, job: Dict) -> Dict:
         """
@@ -158,9 +177,21 @@ class ESWorker(object):
         subdir = f"{self.id}"
         self.payload_actor_process_dir = os.path.join(self.payload_job_dir, subdir)
         self.payload_actor_output_dir = os.path.join(self.payload_job_dir, subdir, "esOutput")
+
+        time_limit_monitor = open(os.path.join(self.workdir,"RaythenaTimeMonitor.txt"))
+        start_time = time_limit_monitor.readline().split(':')
+        self.start_time = int(start_time[0])*3600+int(start_time[1])*60+int(start_time[2])
+        time_limit = time_limit_monitor.readline().split(':')
+        self.time_limit = int(time_limit[0])*3600+int(time_limit[1])*60+int(time_limit[2])
+        self.logging_actor.debug.remote(self.id,
+                                        f"Got start time {self.start_time} and time limit {self.time_limit}",
+                                        time.asctime())
+
         try:
             os.mkdir(self.payload_actor_process_dir)
             os.chdir(self.payload_actor_process_dir)
+            timer_thread = threading.Thread(name='timer', target=self.check_time, daemon=True)
+            timer_thread.start()
         except Exception:
             raise StageInFailed(self.id)
         try:
