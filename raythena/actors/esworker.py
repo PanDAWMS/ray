@@ -123,12 +123,12 @@ class ESWorker(object):
 
     def check_time(self) -> None:
         while True:
-            curtime=datetime.datetime.now()
-            time_elapsed = curtime.hour*3600+curtime.minute*60+curtime.second - self.start_time
+            curtime = datetime.datetime.now()
+            time_elapsed = curtime.hour * 3600 + curtime.minute * 60 + curtime.second - self.start_time
             if time_elapsed <= 0:
-                time_elapsed = 24*3600 + time_elapsed
-            if  time_elapsed > self.time_limit - 900:
-                killsignal = open('pilot_kill_payload','w')
+                time_elapsed = 24 * 3600 + time_elapsed
+            if time_elapsed > self.time_limit - 900:
+                killsignal = open('pilot_kill_payload', 'w')
                 killsignal.close()
                 break
             else:
@@ -178,11 +178,11 @@ class ESWorker(object):
         self.payload_actor_process_dir = os.path.join(self.payload_job_dir, subdir)
         self.payload_actor_output_dir = os.path.join(self.payload_job_dir, subdir, "esOutput")
 
-        time_limit_monitor = open(os.path.join(self.workdir,"RaythenaTimeMonitor.txt"))
+        time_limit_monitor = open(os.path.join(self.workdir, "RaythenaTimeMonitor.txt"))
         start_time = time_limit_monitor.readline().split(':')
-        self.start_time = int(start_time[0])*3600+int(start_time[1])*60+int(start_time[2])
+        self.start_time = int(start_time[0]) * 3600 + int(start_time[1]) * 60 + int(start_time[2])
         time_limit = time_limit_monitor.readline().split(':')
-        self.time_limit = int(time_limit[0])*3600+int(time_limit[1])*60+int(time_limit[2])
+        self.time_limit = int(time_limit[0]) * 3600 + int(time_limit[1]) * 60 + int(time_limit[2])
         self.logging_actor.debug.remote(self.id,
                                         f"Got start time {self.start_time} and time limit {self.time_limit}",
                                         time.asctime())

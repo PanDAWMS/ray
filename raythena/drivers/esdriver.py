@@ -765,7 +765,7 @@ class ESDriver(BaseDriver):
 
         if self.no_more_events:
             self.logging_actor.debug.remote(self.id, "on_tick no more events: send tar file results to Harvester", time.asctime())
-            while len(self.running_tar_threads)>0:
+            while len(self.running_tar_threads) > 0:
                 self.get_tar_results()
             self.logging_actor.info.remote(self.id, "no more events available and some workers are already idle. Shutting down...", time.asctime())
             self.stop()
@@ -982,7 +982,7 @@ class ESDriver(BaseDriver):
             None
         """
         self.logging_actor.debug.remote(self.id, "tar_es_output: Enter routine", time.asctime())
-        if len(self.running_tar_threads)>0:
+        if len(self.running_tar_threads) > 0:
             self.logging_actor.debug.remote(self.id, "tar_es_output: previous tar results not yet collected. Leaving early", time.asctime())
             return
         now = time.time()
@@ -1023,10 +1023,10 @@ class ESDriver(BaseDriver):
             None
 
         """
-        if len(self.running_tar_threads)==0:
+        if len(self.running_tar_threads) == 0:
             return
         self.logging_actor.debug.remote(self.id, "get_tar_results: Enter routine with {len(self.running_tar_threads)} threads", time.asctime())
-        done, not_done = concurrent.futures.wait(self.running_tar_threads,timeout=0.001,return_when=concurrent.futures.FIRST_COMPLETED)
+        done, not_done = concurrent.futures.wait(self.running_tar_threads, timeout=0.001, return_when=concurrent.futures.FIRST_COMPLETED)
         for future in done:
             try:
                 self.finished_tar_tasks.add(future)
@@ -1042,7 +1042,7 @@ class ESDriver(BaseDriver):
                 self.logging_actor.info.remote(self.id, f"get_tar_results: Caught exception {ex}", time.asctime())
                 self.logging_actor.info.remote(self.id, f"get_tar_results: Caught exception {repr(traceback.format_tb(exc_traceback))}", time.asctime())
                 # pass
-                raise            
+                raise
         self.logging_actor.debug.remote(self.id, f"get_tar_results #completed futures - {len(done)} #pending futures - {len(not_done)}", time.asctime())
         return
 
