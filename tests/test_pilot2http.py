@@ -67,7 +67,12 @@ class TestPilot2Http:
         wdir = config.ray['workdir']
         with pytest.raises(FailedPayload):
             payload._build_pilot_container_command()
-        os.makedirs(os.path.join(wdir, "pilot2"))
+        pilot_version = config.payload.get("pilotversion", 2)
+        if pilot_version == 3:
+            pilot_base = "pilot3"
+        else:
+            pilot_base = "pilot2"
+        os.makedirs(os.path.join(wdir, pilot_base))
         with pytest.raises(FailedPayload):
             payload._build_pilot_container_command()
         with open(os.path.join(wdir, "runpilot2-wrapper.sh"), 'w') as f:
