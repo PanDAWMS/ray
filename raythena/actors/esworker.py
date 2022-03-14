@@ -182,6 +182,8 @@ class ESWorker(object):
         start_time = time_limit_monitor.readline().split(':')
         self.start_time = int(start_time[0]) * 3600 + int(start_time[1]) * 60 + int(start_time[2])
         time_limit = time_limit_monitor.readline().split(':')
+        if len(time_limit) < 3:
+            time_limit = [0] + time_limit
         self.time_limit = int(time_limit[0]) * 3600 + int(time_limit[1]) * 60 + int(time_limit[2])
         self.logging_actor.debug.remote(self.id,
                                         f"Got start time {self.start_time} and time limit {self.time_limit}",
