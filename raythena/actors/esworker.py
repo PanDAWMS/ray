@@ -70,7 +70,7 @@ class ESWorker(object):
         READY_FOR_EVENTS: [EVENT_RANGES_REQUESTED],
         EVENT_RANGES_REQUESTED: [FINISHING_LOCAL_RANGES, PROCESSING],
         FINISHING_LOCAL_RANGES: [STAGE_OUT],
-        PROCESSING: [READY_FOR_EVENTS],
+        PROCESSING: [READY_FOR_EVENTS, STAGE_OUT],
         STAGE_OUT: [FINISHING],
         FINISHING: [DONE],
         DONE: [READY_FOR_JOB]
@@ -208,8 +208,8 @@ class ESWorker(object):
                 "Exception when creating the payload_actor_output_dir",
                 time.asctime()
             )
-        self.cpu_monitor = CPUMonitor(os.path.join(self.payload_actor_process_dir, "cpu_monitor.json"))
-        self.cpu_monitor.start()
+        # self.cpu_monitor = CPUMonitor(os.path.join(self.payload_actor_process_dir, "cpu_monitor.json"))
+        # self.cpu_monitor.start()
 
         self.payload.stagein()
         self.payload.start(self.modify_job(self.job))
@@ -379,7 +379,7 @@ class ESWorker(object):
         """
         self.logging_actor.info.remote(self.id, "stopping actor", time.asctime())
         self.payload.stop()
-        self.cpu_monitor.stop()
+        # self.cpu_monitor.stop()
         self.transition_state(ESWorker.DONE)
 
     def should_request_ranges(self) -> bool:

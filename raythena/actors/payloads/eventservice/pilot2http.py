@@ -434,6 +434,8 @@ class Pilot2HttpPayload(ESPayload):
             return self.job_update.get_nowait()
         except QueueEmpty:
             return None
+        finally:
+            self.logging_actor.debug.remote(self.worker_id, f"job update queue size is {self.job_update.qsize()}", time.asctime())
 
     def fetch_ranges_update(self) -> Union[None, Dict[str, str]]:
         """
@@ -443,9 +445,11 @@ class Pilot2HttpPayload(ESPayload):
             Dict holding event range update of processed events, None if no update is available
         """
         try:
-            return self.ranges_update.get_nowait()
+            return self.ranges_update.get_nowait() 
         except QueueEmpty:
             return None
+        finally:
+            self.logging_actor.debug.remote(self.worker_id, f"event ranges queue size is {self.ranges_update.qsize()}", time.asctime())
 
     def should_request_more_ranges(self) -> bool:
         """
@@ -525,6 +529,7 @@ class Pilot2HttpPayload(ESPayload):
         res = {"StatusCode": 0}
         self.logging_actor.debug.remote(
             self.worker_id, f"Finished handling {request.method} {request.path}", time.asctime())
+        self.logging_actor.debug.remote(self.worker_id, f"job update queue size is {self.job_update.qsize()}", time.asctime())
         return web.json_response(res, dumps=self.json_encoder)
 
     async def handle_get_event_ranges(self,
@@ -579,6 +584,7 @@ class Pilot2HttpPayload(ESPayload):
         res = {"StatusCode": 0}
         self.logging_actor.debug.remote(
             self.worker_id, f"Finished handling {request.method} {request.path}", time.asctime())
+        self.logging_actor.debug.remote(self.worker_id, f"event ranges queue size is {self.ranges_update.qsize()}", time.asctime())
         return web.json_response(res, dumps=self.json_encoder)
 
     async def handle_update_jobs_in_bulk(
