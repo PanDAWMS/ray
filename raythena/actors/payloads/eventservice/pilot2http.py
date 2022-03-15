@@ -445,7 +445,7 @@ class Pilot2HttpPayload(ESPayload):
             Dict holding event range update of processed events, None if no update is available
         """
         try:
-            return self.ranges_update.get_nowait() 
+            return self.ranges_update.get_nowait()
         except QueueEmpty:
             return None
         finally:

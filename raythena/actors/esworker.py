@@ -17,7 +17,7 @@ from raythena.utils.eventservice import EventRangeRequest, Messages, EventRangeU
 from raythena.utils.exception import IllegalWorkerState, StageInFailed, StageOutFailed
 from raythena.utils.plugins import PluginsRegistry
 from raythena.utils.ray import get_node_ip
-from raythena.utils.timing import CPUMonitor
+# from raythena.utils.timing import CPUMonitor
 from raythena.actors.payloads.basePayload import BasePayload
 from raythena.actors.payloads.eventservice.esPayload import ESPayload
 
@@ -67,8 +67,8 @@ class ESWorker(object):
         READY_FOR_JOB: [JOB_REQUESTED],
         JOB_REQUESTED: [STAGE_IN, DONE],
         STAGE_IN: [READY_FOR_EVENTS],
-        READY_FOR_EVENTS: [EVENT_RANGES_REQUESTED],
-        EVENT_RANGES_REQUESTED: [FINISHING_LOCAL_RANGES, PROCESSING],
+        READY_FOR_EVENTS: [EVENT_RANGES_REQUESTED, STAGE_OUT],
+        EVENT_RANGES_REQUESTED: [FINISHING_LOCAL_RANGES, PROCESSING, STAGE_OUT],
         FINISHING_LOCAL_RANGES: [STAGE_OUT],
         PROCESSING: [READY_FOR_EVENTS, STAGE_OUT],
         STAGE_OUT: [FINISHING],
@@ -447,6 +447,29 @@ class ESWorker(object):
                     shutil.move(cfile, dst)
         return ranges
 
+    def get_payload_message(self) -> Union[None, Tuple[str, int, object]]:
+        """
+        Returns:
+            A payload message (event ranges or job update) to be sent to the driver.
+        """
+        ranges_update = self.payload.fetch_ranges_update()
+        if ranges_update:
+            self.logging_actor.debug.remote(self.id,
+                                            "Started stage-out of event service files to harvester workdir", time.asctime())
+            ranges_update = self.stageout_event_service_files(ranges_update)
+            self.logging_actor.debug.remote(self.id,
+                                            "Finished stage-out of event service files", time.asctime())
+            return self.return_message(Messages.UPDATE_EVENT_RANGES,
+                                       ranges_update)
+
+        job_update = self.payload.fetch_job_update()
+        if job_update:
+            self.logging_actor.info.remote(
+                self.id,
+                f"Fetched jobupdate from payload: {job_update}", time.asctime())
+            return self.return_message(Messages.UPDATE_JOB, job_update)
+        return None
+
     def get_message(self) -> Tuple[str, int, object]:
         """
         Used by the driver to retrieve messages from the worker. This function should be called regularly to make
@@ -457,24 +480,32 @@ class ESWorker(object):
             to continue the processing
         """
         while self.state != ESWorker.DONE:
-            if self.state == ESWorker.READY_FOR_JOB:
+            payload_message = self.get_payload_message()
+            if payload_message:
+                return payload_message
+            elif self.state == ESWorker.READY_FOR_JOB:
                 # ready to get a new job
                 self.transition_state(ESWorker.JOB_REQUESTED)
                 self.logging_actor.debug.remote(
                     self.id, "Sending job request to the driver", time.asctime())
                 return self.return_message(Messages.REQUEST_NEW_JOB)
             elif self.payload.is_complete():
-                # payload process ended... Start stageout
-                # if an exception occurs when changing state, this means that the payload ended early
-                # send final job / event update
+                # payload process ended...
                 self.logging_actor.info.remote(
                     self.id,
                     f"Payload ended with return code {self.payload.return_code()}",
                     time.asctime()
                 )
-                self.transition_state(ESWorker.STAGE_OUT)
-                self.stageout()
-                return self.return_message(Messages.PROCESS_DONE)
+                # check if there are any remaining message from the payload in queue.
+                payload_message = self.get_payload_message()
+                if payload_message:
+                    # if so, return one message
+                    return payload_message
+                else:
+                    # if no more message, proceed to stage-out
+                    self.transition_state(ESWorker.STAGE_OUT)
+                    self.stageout()
+                    return self.return_message(Messages.PROCESS_DONE)
             elif self.is_event_service_job() and (
                     self.state == ESWorker.READY_FOR_EVENTS or
                     self.should_request_ranges()):
@@ -499,23 +530,6 @@ class ESWorker(object):
             elif self.state == ESWorker.DONE:
                 return self.return_message(Messages.PROCESS_DONE)
             else:
-                job_update = self.payload.fetch_job_update()
-                if job_update:
-                    self.logging_actor.info.remote(
-                        self.id,
-                        f"Fetched jobupdate from payload: {job_update}", time.asctime())
-                    return self.return_message(Messages.UPDATE_JOB, job_update)
-
-                ranges_update = self.payload.fetch_ranges_update()
-                if ranges_update:
-                    self.logging_actor.debug.remote(self.id,
-                                                    "Started stage-out of event service files to harvester workdir", time.asctime())
-                    ranges_update = self.stageout_event_service_files(ranges_update)
-                    self.logging_actor.debug.remote(self.id,
-                                                    "Finished stage-out of event service files", time.asctime())
-                    return self.return_message(Messages.UPDATE_EVENT_RANGES,
-                                               ranges_update)
-
                 time.sleep(1)  # Nothing to do, sleeping...
 
         return self.return_message(Messages.PROCESS_DONE)
