@@ -88,15 +88,15 @@ class BookKeeper(object):
         """
         return_val = False
         self.logging_actor.debug.remote("BookKeeper", f"Enter create_ranges_to_tar self.tarmaxfilesize: {self.tarmaxfilesize}", time.asctime())
-        self.logging_actor.debug.remote("BookKeeper", f" self.ranges_to_tar_by_input_file: {repr(self.ranges_to_tar_by_input_file)}", time.asctime())
+        # self.logging_actor.debug.remote("BookKeeper", f" self.ranges_to_tar_by_input_file: {repr(self.ranges_to_tar_by_input_file)}", time.asctime())
         # loop over input file names and process the list
         try:
             self.ranges_to_tar = []
             for input_file in self.ranges_to_tar_by_input_file:
                 total_file_size = 0
                 file_list = []
-                self.logging_actor.debug.remote("BookKeeper",
-                                                f"input file value : {input_file} {len(self.ranges_to_tar_by_input_file[input_file])}", time.asctime())
+                # self.logging_actor.debug.remote("BookKeeper",
+                #                                 f"input file value : {input_file} {len(self.ranges_to_tar_by_input_file[input_file])}", time.asctime())
                 while self.ranges_to_tar_by_input_file[input_file]:
                     event_range = self.ranges_to_tar_by_input_file[input_file].pop()
                     if total_file_size + event_range['fsize'] > self.tarmaxfilesize:
@@ -111,8 +111,8 @@ class BookKeeper(object):
                 self.ranges_to_tar.append(file_list)
             if len(self.ranges_to_tar) > 0:
                 return_val = True
-            self.logging_actor.debug.remote("BookKeeper", f"create_ranges_to_tar :# {len(self.ranges_to_tar)} {repr(self.ranges_to_tar)}", time.asctime())
-            self.logging_actor.debug.remote("BookKeeper", f"create_ranges_to_tar by input file: {repr(self.ranges_to_tar_by_input_file)}", time.asctime())
+            # self.logging_actor.debug.remote("BookKeeper", f"create_ranges_to_tar :# {len(self.ranges_to_tar)} {repr(self.ranges_to_tar)}", time.asctime())
+            # self.logging_actor.debug.remote("BookKeeper", f"create_ranges_to_tar by input file: {repr(self.ranges_to_tar_by_input_file)}", time.asctime())
         except Exception:
             self.logging_actor.debug.remote("BookKeeper", "create_ranges_to_tar - can not create list of ranges to tar", time.asctime())
             return_val = False
@@ -395,8 +395,8 @@ class ESDriver(BaseDriver):
         self.config.ray['workdir'] = workdir
         self.workdir = workdir
 
-        self.cpu_monitor = CPUMonitor(os.path.join(workdir, "cpu_monitor_driver.json"))
-        self.cpu_monitor.start()
+        # self.cpu_monitor = CPUMonitor(os.path.join(workdir, "cpu_monitor_driver.json"))
+        # self.cpu_monitor.start()
 
         registry = PluginsRegistry()
         self.communicator_class = registry.get_plugin(self.config.harvester['communicator'])
@@ -804,14 +804,14 @@ class ESDriver(BaseDriver):
             self.logging_actor.critical.remote(
                 self.id, "No jobs provided by communicator, stopping...", time.asctime())
             return
-        self.logging_actor.debug.remote(self.id,
-                                        f"Received reply to the job request:\n{jobs}", time.asctime())
+        # self.logging_actor.debug.remote(self.id,
+        #                                f"Received reply to the job request:\n{jobs}", time.asctime())
         self.bookKeeper.add_jobs(jobs)
 
         # sends an initial event range request
         self.request_event_ranges(block=True)
         if not self.bookKeeper.has_jobs_ready():
-            self.cpu_monitor.stop()
+            # self.cpu_monitor.stop()
             self.communicator.stop()
             self.logging_actor.critical.remote(
                 self.id, "Couldn't fetch a job with event ranges, stopping...", time.asctime())
@@ -836,7 +836,7 @@ class ESDriver(BaseDriver):
         self.requests_queue.put(JobReport())
 
         self.communicator.stop()
-        self.cpu_monitor.stop()
+        # self.cpu_monitor.stop()
 
         self.logging_actor.debug.remote(
             self.id, "Communicator and cpu_monitor stopped.", time.asctime())
@@ -996,7 +996,7 @@ class ESDriver(BaseDriver):
             # add new ranges to tar to the list
             ranges_to_tar = self.bookKeeper.get_ranges_to_tar()
             self.logging_actor.debug.remote(self.id, f"tar_es_output: # of new ranges to tar {len(ranges_to_tar)}", time.asctime())
-            self.logging_actor.debug.remote(self.id, f"tar_es_output: new ranges to tar {repr(ranges_to_tar)}", time.asctime())
+            # self.logging_actor.debug.remote(self.id, f"tar_es_output: new ranges to tar {repr(ranges_to_tar)}", time.asctime())
             self.tar_timestamp = now
             self.ranges_to_tar.extend(ranges_to_tar)
             self.logging_actor.debug.remote(self.id, f"tar_es_output: Total number of ranges to tar : {len(self.ranges_to_tar)}", time.asctime())
