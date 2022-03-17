@@ -130,6 +130,7 @@ class ESWorker(object):
             if time_elapsed > self.time_limit - 900:
                 killsignal = open('pilot_kill_payload', 'w')
                 killsignal.close()
+                self.logging_actor.info.remote(self.id, "killsignal sent to payload", time.asctime())
                 break
             else:
                 sleep(5)
@@ -151,9 +152,9 @@ class ESWorker(object):
             return job
         inFiles = [os.path.join(os.path.expandvars(self.config.harvester['endpoint']), x) for x in inputEVNTFile[0].split(",")]
         inFiles = ",".join(inFiles[0:1])
-        self.logging_actor.info.remote(self.id, f"inFiles: {inFiles}", time.asctime())
+        # self.logging_actor.info.remote(self.id, f"inFiles: {inFiles}", time.asctime())
         cmd = re.sub(r"\-\-inputEVNTFile=([\w\.\,]*) \-", f"--inputEVNTFile={inFiles} -", cmd)
-        self.logging_actor.info.remote(self.id, f"cmd: {cmd}", time.asctime())
+        # self.logging_actor.info.remote(self.id, f"cmd: {cmd}", time.asctime())
         job["jobPars"] = cmd
         return job
 
@@ -310,6 +311,7 @@ class ESWorker(object):
             Job request message
         """
         self.transition_state(ESWorker.READY_FOR_JOB)
+        self.transition_state(ESWorker.JOB_REQUESTED)
         return self.return_message(Messages.REQUEST_NEW_JOB)
 
     def receive_event_ranges(
@@ -442,9 +444,9 @@ class ESWorker(object):
                 dst = os.path.join(
                     self.payload_actor_output_dir,
                     os.path.basename(cfile) if os.path.isabs(cfile) else cfile)
-                range_update[cfile_key] = dst
                 if os.path.isfile(cfile) and not os.path.isfile(dst):
                     shutil.move(cfile, dst)
+                    range_update[cfile_key] = dst
         return ranges
 
     def get_payload_message(self) -> Union[None, Tuple[str, int, object]]:
