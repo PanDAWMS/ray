@@ -20,7 +20,7 @@ from raythena.utils.eventservice import (EventRangeRequest, PandaJobRequest,
                                          EventRange, PandaJob, JobReport)
 from raythena.utils.plugins import PluginsRegistry
 from raythena.utils.ray import (build_nodes_resource_list, get_node_ip)
-from raythena.utils.timing import CPUMonitor
+# from raythena.utils.timing import CPUMonitor
 
 EventRangeTypeHint = Dict[str, str]
 PandaJobTypeHint = Dict[str, str]
@@ -276,14 +276,14 @@ class BookKeeper(object):
                     r['PanDAID'] = panda_id
                     self.ranges_to_tar_by_input_file[file_basename].append(r)
 
-        log_message = "ranges_to_tar_by_input_file : "
-        for input_file, ranges in self.ranges_to_tar_by_input_file.items():
-            log_message += f"Input File : {input_file} number of event ranges: {len(ranges)} "
-        self.logging_actor.debug.remote("BookKeeper", log_message, time.asctime())
-        log_message = "finished_range_by_input_file : "
-        for input_file, ranges in self.finished_range_by_input_file.items():
-            log_message += f"Input File : {input_file} number of event ranges {len(ranges)} "
-        self.logging_actor.debug.remote("BookKeeper", log_message, time.asctime())
+        # log_message = "ranges_to_tar_by_input_file : "
+        # for input_file, ranges in self.ranges_to_tar_by_input_file.items():
+        #     log_message += f"Input File : {input_file} number of event ranges: {len(ranges)} "
+        # self.logging_actor.debug.remote("BookKeeper", log_message, time.asctime())
+        # log_message = "finished_range_by_input_file : "
+        # for input_file, ranges in self.finished_range_by_input_file.items():
+        #     log_message += f"Input File : {input_file} number of event ranges {len(ranges)} "
+        # self.logging_actor.debug.remote("BookKeeper", log_message, time.asctime())
         self.logging_actor.info.remote("BookKeeper",
                                        (
                                            f"\nEvent ranges status for job { panda_id}:\n"
@@ -415,6 +415,7 @@ class ESDriver(BaseDriver):
         self.terminated = list()
         self.running = True
         self.n_eventsrequest = 0
+        self.max_retries_error_failed_tasks = 3
         self.first_event_range_request = True
         self.no_more_events = False
         self.timeoutinterval = self.config.ray['timeoutinterval']
@@ -427,6 +428,7 @@ class ESDriver(BaseDriver):
         self.running_tar_threads = dict()
         self.processed_event_ranges = dict()
         self.finished_tar_tasks = set()
+        self.failed_actor_tasks_count = dict()
 
         self.tar_executor = concurrent.futures.ThreadPoolExecutor(max_workers=self.tarmaxprocesses)
 
@@ -529,7 +531,7 @@ class ESDriver(BaseDriver):
                 try:
                     actor_id, message, data = ray.get(ray_message_id)
                 except Exception as e:
-                    self.handle_actor_exception(e)
+                    self.handle_actor_exception(actor_id, e)
                 else:
                     if message == Messages.IDLE or message == Messages.REPLY_OK:
                         self.actors_message_queue.append(
@@ -763,12 +765,6 @@ class ESDriver(BaseDriver):
         self.get_tar_results()
         self.tar_es_output()
 
-        if self.no_more_events:
-            self.logging_actor.debug.remote(self.id, "on_tick no more events: send tar file results to Harvester", time.asctime())
-            while len(self.running_tar_threads) > 0:
-                self.get_tar_results()
-            self.logging_actor.info.remote(self.id, "no more events available and some workers are already idle. Shutting down...", time.asctime())
-            self.stop()
         self.bookKeeper.add_finished_event_ranges()
         self.request_event_ranges()
 
@@ -833,6 +829,16 @@ class ESDriver(BaseDriver):
             self.logging_actor.error.remote(
                 self.id, f"Error while handling actors: {e}. stopping...", time.asctime())
 
+        self.logging_actor.debug.remote(self.id, "waiting on tar threads to finish...", time.asctime())
+        while len(self.running_tar_threads) > 0:
+            self.get_tar_results()
+            time.sleep(1)
+        # check if we still had tar thread that could be started and wait on them
+        self.tar_es_output(True)
+
+        while len(self.running_tar_threads) > 0:
+            self.get_tar_results()
+            time.sleep(1)
         self.requests_queue.put(JobReport())
 
         self.communicator.stop()
@@ -858,7 +864,7 @@ class ESDriver(BaseDriver):
         self.running = False
         self.cleanup()
 
-    def handle_actor_exception(self, ex: Exception) -> None:
+    def handle_actor_exception(self, actor_id: str, ex: Exception) -> None:
         """
         Handle exception that occurred in an actor process
 
@@ -869,7 +875,15 @@ class ESDriver(BaseDriver):
             None
         """
         self.logging_actor.info.remote(self.id, f"Caught exception in actor {ex}", time.asctime())
-        pass
+        if actor_id not in self.failed_actor_tasks_count:
+            self.failed_actor_tasks_count[actor_id] = 1
+        else:
+            self.failed_actor_tasks_count[actor_id] += 1
+            if self.failed_actor_tasks_count[actor_id] < self.max_retries_error_failed_tasks:
+                self.actors_message_queue.append(self[actor_id].get_message.remote())
+                self.logging_actor.warn.remote(self.id, f"{actor_id} failed {self.failed_actor_tasks_count[actor_id]}. Retrying...", time.asctime())
+            else:
+                self.logging_actor.warn.remote(self.id, f"{actor_id} failed too many times. No longer fetching messages from it", time.asctime())
 
     def create_tar_file(self, range_list: list) -> Dict[str, List[Dict]]:
         """
@@ -897,15 +911,24 @@ class ESDriver(BaseDriver):
 
             file_fsize = 0
             try:
+                tarred_ranges_list = list()
                 # create tar file looping over event ranges
                 with tarfile.open(temp_file_path, "w") as tar:
                     for event_range in range_list:
-                        tar.add(event_range['path'])
+                        path = event_range['path']
+                        if os.path.isfile(path):
+                            tar.add(path)
+                            tarred_ranges_list.append(event_range)
+                        else:
+                            self.logging_actor.warn.remote(self.id,
+                                                           (f"Could not add event {path} to tar, file does not exists. "
+                                                            f"Event status: {event_range['eventStatus']}"),
+                                                           time.asctime())
                 file_fsize = os.path.getsize(temp_file_path)
                 # calculate alder32 checksum
                 file_chksum = self.calc_adler32(temp_file_path)
-                return_val = self.create_harvester_data(PanDA_id, file_path, file_chksum, file_fsize, range_list)
-                for event_range in range_list:
+                return_val = self.create_harvester_data(PanDA_id, file_path, file_chksum, file_fsize, tarred_ranges_list)
+                for event_range in tarred_ranges_list:
                     lfn = os.path.basename(event_range["path"])
                     pfn = os.path.join(self.tar_merge_es_files_dir, lfn)
                     shutil.move(event_range["path"], pfn)
@@ -971,12 +994,12 @@ class ESDriver(BaseDriver):
             return_dict = {PanDA_id: return_list}
         return return_dict
 
-    def tar_es_output(self) -> None:
+    def tar_es_output(self, skip_time_check = False) -> None:
         """
         Get from bookKeeper the event ranges arraigned by input file than need to put into output tar files
 
         Args:
-            None
+            skip_time_check: flag to skip time interval check
 
         Returns:
             None
@@ -986,7 +1009,7 @@ class ESDriver(BaseDriver):
             self.logging_actor.debug.remote(self.id, "tar_es_output: previous tar results not yet collected. Leaving early", time.asctime())
             return
         now = time.time()
-        if int(now - self.tar_timestamp) < self.tarinterval:
+        if not skip_time_check and int(now - self.tar_timestamp) < self.tarinterval:
             self.logging_actor.debug.remote(self.id, "tar_es_output: too soon to tar up output Leaving early", time.asctime())
             return
 
@@ -1016,9 +1039,6 @@ class ESDriver(BaseDriver):
         Checks the self.running_tar_threads dict for the Future objects. if thread is still running let it run otherwise
         get the results of running, check for duplicates and  pass information onto Harvester
 
-        Args:
-            skip_time_check: flag to skip time interval check
-
         Returns:
             None
 
@@ -1041,8 +1061,8 @@ class ESDriver(BaseDriver):
                 exc_type, exc_value, exc_traceback = sys.exc_info()
                 self.logging_actor.info.remote(self.id, f"get_tar_results: Caught exception {ex}", time.asctime())
                 self.logging_actor.info.remote(self.id, f"get_tar_results: Caught exception {repr(traceback.format_tb(exc_traceback))}", time.asctime())
-                # pass
-                raise
+                pass
+                # raise
         self.logging_actor.debug.remote(self.id, f"get_tar_results #completed futures - {len(done)} #pending futures - {len(not_done)}", time.asctime())
         return
 
