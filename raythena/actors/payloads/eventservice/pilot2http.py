@@ -431,11 +431,11 @@ class Pilot2HttpPayload(ESPayload):
             None if no job update update is available or a dict holding the update
         """
         try:
-            return self.job_update.get_nowait()
+            res = self.job_update.get_nowait()
+            self.logging_actor.debug.remote(self.worker_id, f"job update queue size is {self.job_update.qsize()}", time.asctime())
+            return res
         except QueueEmpty:
             return None
-        finally:
-            self.logging_actor.debug.remote(self.worker_id, f"job update queue size is {self.job_update.qsize()}", time.asctime())
 
     def fetch_ranges_update(self) -> Union[None, Dict[str, str]]:
         """
@@ -445,11 +445,11 @@ class Pilot2HttpPayload(ESPayload):
             Dict holding event range update of processed events, None if no update is available
         """
         try:
-            return self.ranges_update.get_nowait()
+            res = self.ranges_update.get_nowait()
+            self.logging_actor.debug.remote(self.worker_id, f"event ranges queue size is {self.ranges_update.qsize()}", time.asctime())
+            return res
         except QueueEmpty:
             return None
-        finally:
-            self.logging_actor.debug.remote(self.worker_id, f"event ranges queue size is {self.ranges_update.qsize()}", time.asctime())
 
     def should_request_more_ranges(self) -> bool:
         """
