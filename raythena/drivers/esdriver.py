@@ -10,6 +10,7 @@ import sys
 import traceback
 import ray
 
+from raythena import __version__
 from raythena.actors.esworker import ESWorker
 from raythena.actors.loggingActor import LoggingActor
 from raythena.drivers.baseDriver import BaseDriver
@@ -383,7 +384,7 @@ class ESDriver(BaseDriver):
         self.event_ranges_queue = Queue()
 
         self.logging_actor.debug.remote(self.id,
-                                        f"Driver initialized, running Ray {ray.__version__}", time.asctime())
+                                        f"Raythena version {__version__} initializing, running Ray {ray.__version__}", time.asctime())
 
         workdir = os.path.expandvars(self.config.ray.get('workdir'))
         if not workdir or not os.path.exists(workdir):
