@@ -1,12 +1,14 @@
 import logging
 
 import ray
+import time
+from socket import gethostname
 
 from raythena.utils.config import Config
 from raythena.utils.logging import configure_logger
 
 
-@ray.remote(num_cpus=1)
+@ray.remote(num_cpus=0)
 class LoggingActor(object):
     """
     Actor used to centralize logging from other workers / driver in the same log file.
@@ -22,6 +24,7 @@ class LoggingActor(object):
         self.config = config
         self.logger = logging.getLogger()
         configure_logger(self.config)
+        self.debug("logger", f"Logger running on node {gethostname()}", time.asctime())
 
     def debug(self, actor_id: str, message: str, etime: str) -> None:
         """

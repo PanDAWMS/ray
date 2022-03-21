@@ -1,6 +1,7 @@
 import os
 import time
 from queue import Queue, Empty
+from socket import gethostname
 from typing import List, Dict, Union, Any
 import concurrent.futures
 import tarfile
@@ -20,7 +21,7 @@ from raythena.utils.eventservice import (EventRangeRequest, PandaJobRequest,
                                          EventRangeUpdate, Messages, PandaJobQueue,
                                          EventRange, PandaJob, JobReport)
 from raythena.utils.plugins import PluginsRegistry
-from raythena.utils.ray import (build_nodes_resource_list, get_node_ip)
+from raythena.utils.ray import build_nodes_resource_list
 # from raythena.utils.timing import CPUMonitor
 
 EventRangeTypeHint = Dict[str, str]
@@ -321,9 +322,9 @@ class BookKeeper(object):
             f"{actor_id} finished with {len(actor_ranges)} remaining to process", time.asctime()
         )
         for rangeID in actor_ranges:
-            self.logging_actor.warn.remote(
-                "BookKeeper",
-                f"{actor_id} finished without processing range {rangeID}", time.asctime())
+            # self.logging_actor.warn.remote(
+            #     "BookKeeper",
+            #     "{actor_id} finished without processing range {rangeID}", time.asctime())
             self.jobs.get_event_ranges(panda_id).update_range_state(
                 rangeID, EventRange.READY)
         actor_ranges.clear()
@@ -365,7 +366,7 @@ class ESDriver(BaseDriver):
     any worker
     """
 
-    def __init__(self, config: Config) -> None:
+    def __init__(self, config: Config, session_dir: str) -> None:
         """
         Initialize ray custom resources, logging actor, a bookKeeper instance and other attributes.
         The harvester communicator is also initialized and an initial JobRequest is sent
@@ -373,10 +374,11 @@ class ESDriver(BaseDriver):
         Args:
             config: application config
         """
-        super().__init__(config)
-        self.id = f"Driver_node:{get_node_ip()}"
-        self.logging_actor: LoggingActor = LoggingActor.remote(self.config)
-
+        super().__init__(config, session_dir)
+        self.id = f"Driver"
+        self.config_remote = ray.put(self.config)
+        self.logging_actor: LoggingActor = LoggingActor.remote(self.config_remote)
+        self.session_log_dir = os.path.join(self.session_dir, "logs")
         self.nodes = build_nodes_resource_list(self.config, run_actor_on_head=False)
 
         self.requests_queue = Queue()
@@ -384,7 +386,7 @@ class ESDriver(BaseDriver):
         self.event_ranges_queue = Queue()
 
         self.logging_actor.debug.remote(self.id,
-                                        f"Raythena version {__version__} initializing, running Ray {ray.__version__}", time.asctime())
+                                        f"Raythena version {__version__} initializing, running Ray driver {ray.__version__} on {gethostname()}", time.asctime())
 
         workdir = os.path.expandvars(self.config.ray.get('workdir'))
         if not workdir or not os.path.exists(workdir):
@@ -506,15 +508,12 @@ class ESDriver(BaseDriver):
             actor_id = f"Actor_{i}"
             actor_args = {
                 'actor_id': actor_id,
-                'config': self.config,
-                'logging_actor': self.logging_actor
+                'config': self.config_remote,
+                'logging_actor': self.logging_actor,
+                'session_log_dir': self.session_log_dir
             }
-            actor = ESWorker.options(resources={
-                node_constraint: 1
-            }).remote(**actor_args)
+            actor = ESWorker.options(resources={node_constraint: 1}).remote(**actor_args)
             self.actors[actor_id] = actor
-            self.logging_actor.debug.remote(
-                self.id, f"Created actor {actor_id} with ip address {nodeip}", time.asctime())
 
     def handle_actors(self) -> None:
         """
@@ -582,6 +581,7 @@ class ESDriver(BaseDriver):
             time.asctime()
         )
         has_jobs = self.bookKeeper.has_jobs_ready()
+        has_jobs = False
         if has_jobs:
             self.logging_actor.info.remote(
                 self.id, f"More jobs to be processed by {actor_id}", time.asctime())
@@ -875,16 +875,16 @@ class ESDriver(BaseDriver):
         Returns:
             None
         """
-        self.logging_actor.info.remote(self.id, f"Caught exception in actor {ex}", time.asctime())
+        self.logging_actor.info.remote(self.id, f"Caught exception in {actor_id}: {ex}", time.asctime())
         if actor_id not in self.failed_actor_tasks_count:
-            self.failed_actor_tasks_count[actor_id] = 1
+            self.failed_actor_tasks_count[actor_id] = 0
+
+        self.failed_actor_tasks_count[actor_id] += 1
+        if self.failed_actor_tasks_count[actor_id] < self.max_retries_error_failed_tasks:
+            self.actors_message_queue.append(self[actor_id].get_message.remote())
+            self.logging_actor.warn.remote(self.id, f"{actor_id} failed {self.failed_actor_tasks_count[actor_id]} times. Retrying...", time.asctime())
         else:
-            self.failed_actor_tasks_count[actor_id] += 1
-            if self.failed_actor_tasks_count[actor_id] < self.max_retries_error_failed_tasks:
-                self.actors_message_queue.append(self[actor_id].get_message.remote())
-                self.logging_actor.warn.remote(self.id, f"{actor_id} failed {self.failed_actor_tasks_count[actor_id]}. Retrying...", time.asctime())
-            else:
-                self.logging_actor.warn.remote(self.id, f"{actor_id} failed too many times. No longer fetching messages from it", time.asctime())
+            self.logging_actor.warn.remote(self.id, f"{actor_id} failed too many times. No longer fetching messages from it", time.asctime())
 
     def create_tar_file(self, range_list: list) -> Dict[str, List[Dict]]:
         """
@@ -1046,7 +1046,7 @@ class ESDriver(BaseDriver):
         """
         if len(self.running_tar_threads) == 0:
             return
-        self.logging_actor.debug.remote(self.id, "get_tar_results: Enter routine with {len(self.running_tar_threads)} threads", time.asctime())
+        self.logging_actor.debug.remote(self.id, f"get_tar_results: Enter routine with {len(self.running_tar_threads)} threads", time.asctime())
         done, not_done = concurrent.futures.wait(self.running_tar_threads, timeout=0.001, return_when=concurrent.futures.FIRST_COMPLETED)
         for future in done:
             try:

@@ -7,6 +7,8 @@ from typing import Union, Tuple, List, Dict
 
 import datetime
 import threading
+
+from socket import gethostname
 from time import sleep
 
 import ray
@@ -87,7 +89,7 @@ class ESWorker(object):
     }
 
     def __init__(self, actor_id: str, config: Config,
-                 logging_actor: LoggingActor) -> None:
+                 logging_actor: LoggingActor, session_log_dir: str) -> None:
         """
         Initialize attributes, instantiate a payload and setup the workdir
 
@@ -99,6 +101,7 @@ class ESWorker(object):
         self.id = actor_id
         self.config = config
         self.logging_actor = logging_actor
+        self.session_log_dir = session_log_dir
         self.job = None
         self.transitions = ESWorker.TRANSITIONS_STANDARD
         self.node_ip = get_node_ip()
@@ -106,6 +109,7 @@ class ESWorker(object):
         self.payload_job_dir = None
         self.payload_actor_output_dir = None
         self.payload_actor_process_dir = None
+        self.actor_ray_logs_dir = None
         self.cpu_monitor = None
         self.first_event_range_request = True
         self.workdir = os.path.expandvars(
@@ -119,7 +123,8 @@ class ESWorker(object):
                                                                          self.config)
         self.start_time = -1
         self.time_limit = -1
-        self.logging_actor.info.remote(self.id, "Ray worker started", time.asctime())
+        self.elapsed = 1
+        self.logging_actor.info.remote(self.id, f"Ray worker started on node {gethostname()}", time.asctime())
 
     def check_time(self) -> None:
         while True:
@@ -127,6 +132,14 @@ class ESWorker(object):
             time_elapsed = curtime.hour * 3600 + curtime.minute * 60 + curtime.second - self.start_time
             if time_elapsed <= 0:
                 time_elapsed = 24 * 3600 + time_elapsed
+            if time_elapsed // 300 >= self.elapsed:
+                self.elapsed += 1
+                try:
+                    if os.path.isdir(self.actor_ray_logs_dir):
+                        shutil.rmtree(self.actor_ray_logs_dir)
+                    shutil.copytree(self.session_log_dir, self.actor_ray_logs_dir)
+                except Exception as e:
+                    self.logging_actor.warn.remote(self.id, f"Failed to copy ray logs to actor directory: {e}", time.asctime())
             if time_elapsed > self.time_limit - 900:
                 killsignal = open('pilot_kill_payload', 'w')
                 killsignal.close()
@@ -178,6 +191,7 @@ class ESWorker(object):
         subdir = f"{self.id}"
         self.payload_actor_process_dir = os.path.join(self.payload_job_dir, subdir)
         self.payload_actor_output_dir = os.path.join(self.payload_job_dir, subdir, "esOutput")
+        self.actor_ray_logs_dir = os.path.join(self.payload_actor_process_dir, "ray_logs")
 
         time_limit_monitor = open(os.path.join(self.workdir, "RaythenaTimeMonitor.txt"))
         start_time = time_limit_monitor.readline().split(':')
