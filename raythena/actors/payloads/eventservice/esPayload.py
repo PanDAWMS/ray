@@ -12,16 +12,16 @@ class ESPayload(BasePayload):
     Interface defining additional operations for payload handling event service jobs
     """
 
-    def __init__(self, worker_id: str, logging_actor: LoggingActor, config: Config):
+    def __init__(self, worker_id: str, config: Config):
         """
-        Setup base payload attributes
+        Setup base payload attribute
 
         Args:
             worker_id: payload worker_id
             logging_actor: remote logger
             config: application config
         """
-        super().__init__(worker_id, logging_actor, config)
+        super().__init__(worker_id, config)
 
     @abstractmethod
     def submit_new_ranges(self, event_ranges: Union[None, List[EventRange]]) -> None:

@@ -66,7 +66,7 @@ fi
 # setup ray
 source activate $HARVESTER_HOME
 
-srun -N1 -n1 -w "$SLURMD_NODENAME" $BINDIR/ray_start_head &
+srun -N1 -n1 -w "$SLURMD_NODENAME" $BINDIR/ray_start_head > $RAYTHENA_RAY_WORKDIR/headnode.log 2> $RAYTHENA_RAY_WORKDIR/headnode.err &
 pid=$!
 retsync=1
 try=1
@@ -81,7 +81,7 @@ while [[ $retsync -ne 0 ]]; do
       exit 1
     fi
     echo restarting head node init
-    srun -N1 -n1 -w "$SLURMD_NODENAME" $BINDIR/ray_start_head &
+    srun -N1 -n1 -w "$SLURMD_NODENAME" $BINDIR/ray_start_head > $RAYTHENA_RAY_WORKDIR/headnode.log 2> $RAYTHENA_RAY_WORKDIR/headnode.err &
     pid=$!
   fi
 done
@@ -106,7 +106,7 @@ while [[ $retsync -ne 0 ]]; do
   fi
 done
 
-python $SOURCEDIR/app.py
+python $SOURCEDIR/app.py > $RAYTHENA_RAY_WORKDIR/raythena.log 2> $RAYTHENA_RAY_WORKDIR/raythena.err
 
 ray stop
 

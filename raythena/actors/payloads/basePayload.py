@@ -12,7 +12,7 @@ class BasePayload(ABC):
     panda job specification and are responsible to handle the execution of the
     """
 
-    def __init__(self, worker_id: str, logging_actor: LoggingActor,
+    def __init__(self, worker_id: str,
                  config: Config) -> None:
         """
         Setup base payload attributes
@@ -23,7 +23,6 @@ class BasePayload(ABC):
             config: application config
         """
         self.worker_id = worker_id
-        self.logging_actor = logging_actor
         self.config = config
 
     @abstractmethod

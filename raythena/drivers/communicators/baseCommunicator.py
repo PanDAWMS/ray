@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from queue import Queue
 
 from raythena.utils.config import Config
-
+from raythena.actors.loggingActor import LoggingActor
 
 class BaseCommunicator(ABC):
     """

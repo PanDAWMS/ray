@@ -7,9 +7,9 @@ from queue import Queue
 
 from raythena.drivers.communicators.baseCommunicator import BaseCommunicator
 from raythena.utils.config import Config
+from raythena.actors.loggingActor import LoggingActor
 from raythena.utils.eventservice import EventRangeRequest, PandaJobRequest, PandaJobUpdate, EventRangeUpdate, JobReport
 from raythena.utils.exception import ExThread
-
 
 class HarvesterFileCommunicator(BaseCommunicator):
     """
@@ -36,6 +36,8 @@ class HarvesterFileCommunicator(BaseCommunicator):
             self.config.harvester['endpoint'])
         self.ranges_requests_count = 0
         self._parse_harvester_config()
+        self.id = "HarversterCommunicator"
+        self.logging_actor = LoggingActor(self.config, self.id)
         self.communicator_thread = ExThread(target=self.run,
                                             name="communicator-thread")
 
@@ -139,12 +141,12 @@ class HarvesterFileCommunicator(BaseCommunicator):
             with open(event_request_file_tmp, 'w') as f:
                 json.dump(request.request, f)
             shutil.move(event_request_file_tmp, self.eventrequestfile)
-            print(f"request_event_ranges: created new {self.eventrequestfile} file")
+            self.logging_actor.debug(self.id, f"request_event_ranges: created new {self.eventrequestfile} file", time.asctime())
 
         while not os.path.isfile(self.eventrangesfile):
             time.sleep(1)
 
-        print(f"request_event_ranges: found a {self.eventrangesfile} file")
+        self.logging_actor.debug(self.id, f"request_event_ranges: found a {self.eventrangesfile} file", time.asctime())
         while os.path.isfile(self.eventrangesfile):
             try:
                 with open(self.eventrangesfile, 'r') as f:
@@ -191,14 +193,16 @@ class HarvesterFileCommunicator(BaseCommunicator):
         Returns:
             None
         """
+        self.logging_actor.debug(self.id, f"Sending event ranges update to harvester...", time.asctime())
         tmp_status_dump_file = f"{self.eventstatusdumpjsonfile}.tmp"
         if os.path.isfile(self.eventstatusdumpjsonfile):
+            self.logging_actor.debug(self.id, f"Dump file already exists. Try moving...")
             try:
                 shutil.move(self.eventstatusdumpjsonfile, tmp_status_dump_file)
                 with open(tmp_status_dump_file) as f:
                     current_update = json.load(f)
-            except Exception:
-                pass
+            except Exception as e:
+                self.logging_actor.warn(self.id, f"Failed to move and load existing dump file: {e} ", time.asctime())
             else:
                 current_update = EventRangeUpdate(current_update)
                 for panda_id in current_update:
@@ -207,6 +211,7 @@ class HarvesterFileCommunicator(BaseCommunicator):
                     else:
                         request[panda_id] = current_update[panda_id]
 
+        self.logging_actor.debug(self.id, f"Writting event ranges update to temporary file", time.asctime())
         with open(tmp_status_dump_file, 'w') as f:
             json.dump(request.range_update, f)
 

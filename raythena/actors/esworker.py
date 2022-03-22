@@ -89,7 +89,7 @@ class ESWorker(object):
     }
 
     def __init__(self, actor_id: str, config: Config,
-                 logging_actor: LoggingActor, session_log_dir: str) -> None:
+                 session_log_dir: str) -> None:
         """
         Initialize attributes, instantiate a payload and setup the workdir
 
@@ -100,7 +100,7 @@ class ESWorker(object):
         """
         self.id = actor_id
         self.config = config
-        self.logging_actor = logging_actor
+        self.logging_actor = LoggingActor(self.config, self.id)
         self.session_log_dir = session_log_dir
         self.job = None
         self.transitions = ESWorker.TRANSITIONS_STANDARD
@@ -119,12 +119,11 @@ class ESWorker(object):
         self.plugin_registry = PluginsRegistry()
         payload = self.config.payload['plugin']
         self.payload_class = self.plugin_registry.get_plugin(payload)
-        self.payload: Union[BasePayload, ESPayload] = self.payload_class(self.id, self.logging_actor,
-                                                                         self.config)
+        self.payload: Union[BasePayload, ESPayload] = self.payload_class(self.id, self.config)
         self.start_time = -1
         self.time_limit = -1
         self.elapsed = 1
-        self.logging_actor.info.remote(self.id, f"Ray worker started on node {gethostname()}", time.asctime())
+        self.logging_actor.info(self.id, f"Ray worker started on node {gethostname()}", time.asctime())
 
     def check_time(self) -> None:
         while True:
@@ -139,11 +138,11 @@ class ESWorker(object):
                         shutil.rmtree(self.actor_ray_logs_dir)
                     shutil.copytree(self.session_log_dir, self.actor_ray_logs_dir)
                 except Exception as e:
-                    self.logging_actor.warn.remote(self.id, f"Failed to copy ray logs to actor directory: {e}", time.asctime())
+                    self.logging_actor.warn(self.id, f"Failed to copy ray logs to actor directory: {e}", time.asctime())
             if time_elapsed > self.time_limit - 900:
                 killsignal = open('pilot_kill_payload', 'w')
                 killsignal.close()
-                self.logging_actor.info.remote(self.id, "killsignal sent to payload", time.asctime())
+                self.logging_actor.info(self.id, "killsignal sent to payload", time.asctime())
                 break
             else:
                 sleep(5)
@@ -156,7 +155,7 @@ class ESWorker(object):
             Dict
         """
 
-        self.logging_actor.info.remote(self.id, "modify_job", time.asctime())
+        self.logging_actor.info(self.id, "modify_job", time.asctime())
         if "jobPars" not in job:
             return job
         cmd = job["jobPars"]
@@ -165,9 +164,9 @@ class ESWorker(object):
             return job
         inFiles = [os.path.join(os.path.expandvars(self.config.harvester['endpoint']), x) for x in inputEVNTFile[0].split(",")]
         inFiles = ",".join(inFiles[0:1])
-        # self.logging_actor.info.remote(self.id, f"inFiles: {inFiles}", time.asctime())
+        # self.logging_actor.info(self.id, f"inFiles: {inFiles}", time.asctime())
         cmd = re.sub(r"\-\-inputEVNTFile=([\w\.\,]*) \-", f"--inputEVNTFile={inFiles} -", cmd)
-        # self.logging_actor.info.remote(self.id, f"cmd: {cmd}", time.asctime())
+        # self.logging_actor.info(self.id, f"cmd: {cmd}", time.asctime())
         job["jobPars"] = cmd
         return job
 
@@ -181,7 +180,7 @@ class ESWorker(object):
         """
         self.payload_job_dir = os.path.join(self.workdir, self.job['PandaID'])
         if not os.path.isdir(self.payload_job_dir):
-            self.logging_actor.warn.remote(
+            self.logging_actor.warn(
                 self.id,
                 f"Specified path {self.payload_job_dir} does not exist. Using cwd {os.getcwd()}",
                 time.asctime()
@@ -200,7 +199,7 @@ class ESWorker(object):
         if len(time_limit) < 3:
             time_limit = [0] + time_limit
         self.time_limit = int(time_limit[0]) * 3600 + int(time_limit[1]) * 60 + int(time_limit[2])
-        self.logging_actor.debug.remote(self.id,
+        self.logging_actor.debug(self.id,
                                         f"Got start time {self.start_time} and time limit {self.time_limit}",
                                         time.asctime())
 
@@ -212,13 +211,13 @@ class ESWorker(object):
         except Exception:
             raise StageInFailed(self.id)
         try:
-            self.logging_actor.debug.remote(self.id,
+            self.logging_actor.debug(self.id,
                                             f"Creating output dir {self.payload_actor_output_dir}",
                                             time.asctime())
             if not os.path.isdir(self.payload_actor_output_dir):
                 os.mkdir(self.payload_actor_output_dir)
         except Exception:
-            self.logging_actor.warn.remote(
+            self.logging_actor.warn(
                 self.id,
                 "Exception when creating the payload_actor_output_dir",
                 time.asctime()
@@ -238,7 +237,7 @@ class ESWorker(object):
         Returns:
             None
         """
-        self.logging_actor.info.remote(self.id, "Performing stageout", time.asctime())
+        self.logging_actor.info(self.id, "Performing stageout", time.asctime())
         # TODO move payload out file to harvester dir, drain jobupdate and rangeupdate from payload
         self.payload.stageout()
         self.transition_state(ESWorker.FINISHING)
@@ -258,7 +257,7 @@ class ESWorker(object):
             IllegalWorkerState if the transition isn't allowed
         """
         if dest not in self.transitions[self.state]:
-            self.logging_actor.error.remote(
+            self.logging_actor.error(
                 self.id,
                 f"Illegal transition from {ESWorker.STATES_NAME[self.state]} to {ESWorker.STATES_NAME[dest]}",
                 time.asctime()
@@ -304,14 +303,14 @@ class ESWorker(object):
         if reply == Messages.REPLY_OK and self.job:
             self.transition_state(ESWorker.STAGE_IN)
             self.set_transitions()
-            self.logging_actor.debug.remote(
+            self.logging_actor.debug(
                 self.id, "Received response to job request, starting stage-in", time.asctime())
             self.stagein()
-            self.logging_actor.debug.remote(
+            self.logging_actor.debug(
                 self.id, "finished job stage-in", time.asctime())
         else:
             self.transition_state(ESWorker.DONE)
-            self.logging_actor.error.remote(
+            self.logging_actor.error(
                 self.id, "Could not fetch job. Set state to done.", time.asctime())
 
         return self.return_message(Messages.REPLY_OK)
@@ -353,7 +352,7 @@ class ESWorker(object):
                     os.path.expandvars(self.config.harvester['endpoint']),
                     crange.PFN)
         self.payload.submit_new_ranges(event_ranges)
-        self.logging_actor.debug.remote(
+        self.logging_actor.debug(
             self.id, f"Received response to event ranges request. ({len(event_ranges)} event ranges)", time.asctime())
 
         self.transition_state(ESWorker.PROCESSING)
@@ -382,7 +381,7 @@ class ESWorker(object):
         Returns:
             None
         """
-        self.logging_actor.warn.remote(self.id,
+        self.logging_actor.warn(self.id,
                                        "Received interruption from driver", time.asctime())
         self.payload.stop()
 
@@ -393,7 +392,7 @@ class ESWorker(object):
         Returns:
             None
         """
-        self.logging_actor.info.remote(self.id, "stopping actor", time.asctime())
+        self.logging_actor.info(self.id, "stopping actor", time.asctime())
         self.payload.stop()
         # self.cpu_monitor.stop()
         self.transition_state(ESWorker.DONE)
@@ -441,13 +440,13 @@ class ESWorker(object):
             return
         ranges = json.loads(ranges_update['eventRanges'][0])
         ranges = EventRangeUpdate.build_from_dict(self.job.get_id(), ranges)
-        self.logging_actor.info.remote(self.id, f"stageout_event_service_files: {ranges[self.job.get_id()]}", time.asctime())
+        self.logging_actor.info(self.id, f"stageout_event_service_files: {ranges[self.job.get_id()]}", time.asctime())
         # stage-out finished event ranges
         for range_update in ranges[self.job.get_id()]:
             if "eventStatus" not in range_update:
                 raise StageOutFailed(self.id)
             if range_update["eventStatus"] == "failed":
-                self.logging_actor.info.remote(self.id, "event range failed, will not stage-out", time.asctime())
+                self.logging_actor.info(self.id, "event range failed, will not stage-out", time.asctime())
                 continue
             if "path" in range_update and range_update["path"]:
                 cfile_key = "path"
@@ -470,17 +469,17 @@ class ESWorker(object):
         """
         ranges_update = self.payload.fetch_ranges_update()
         if ranges_update:
-            self.logging_actor.debug.remote(self.id,
+            self.logging_actor.debug(self.id,
                                             "Started stage-out of event service files to harvester workdir", time.asctime())
             ranges_update = self.stageout_event_service_files(ranges_update)
-            self.logging_actor.debug.remote(self.id,
+            self.logging_actor.debug(self.id,
                                             "Finished stage-out of event service files", time.asctime())
             return self.return_message(Messages.UPDATE_EVENT_RANGES,
                                        ranges_update)
 
         job_update = self.payload.fetch_job_update()
         if job_update:
-            self.logging_actor.info.remote(
+            self.logging_actor.info(
                 self.id,
                 f"Fetched jobupdate from payload: {job_update}", time.asctime())
             return self.return_message(Messages.UPDATE_JOB, job_update)
@@ -502,12 +501,12 @@ class ESWorker(object):
             elif self.state == ESWorker.READY_FOR_JOB:
                 # ready to get a new job
                 self.transition_state(ESWorker.JOB_REQUESTED)
-                self.logging_actor.debug.remote(
+                self.logging_actor.debug(
                     self.id, "Sending job request to the driver", time.asctime())
                 return self.return_message(Messages.REQUEST_NEW_JOB)
             elif self.payload.is_complete():
                 # payload process ended...
-                self.logging_actor.info.remote(
+                self.logging_actor.info(
                     self.id,
                     f"Payload ended with return code {self.payload.return_code()}",
                     time.asctime()
@@ -533,14 +532,14 @@ class ESWorker(object):
                     # First time request only for 'NCPU' events because
                     # Harvester gives 'NCPU * nodes' initially.
                     n_events = self.config.resources['corepernode']
-                    self.logging_actor.debug.remote(self.id,
+                    self.logging_actor.debug(self.id,
                                                     f"First event range request. Requesting {n_events} event ranges.", time.asctime())
                     self.first_event_range_request = False
                 req.add_event_request(self.job['PandaID'],
                                       n_events,
                                       self.job['taskID'], self.job['jobsetID'])
                 self.transition_state(ESWorker.EVENT_RANGES_REQUESTED)
-                self.logging_actor.debug.remote(
+                self.logging_actor.debug(
                     self.id, "Sending event ranges request to the driver", time.asctime())
                 return self.return_message(Messages.REQUEST_EVENT_RANGES, req)
             elif self.state == ESWorker.DONE:
