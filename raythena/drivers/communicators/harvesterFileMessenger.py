@@ -11,6 +11,7 @@ from raythena.actors.loggingActor import LoggingActor
 from raythena.utils.eventservice import EventRangeRequest, PandaJobRequest, PandaJobUpdate, EventRangeUpdate, JobReport
 from raythena.utils.exception import ExThread
 
+
 class HarvesterFileCommunicator(BaseCommunicator):
     """
     This class implements the harvester communication protocol using shared file messenger
@@ -201,10 +202,12 @@ class HarvesterFileCommunicator(BaseCommunicator):
             self.logging_actor.debug(self.id, "Cleanup leftover tmp file", time.asctime())
             try:
                 with open(tmp_status_dump_file) as f:
-                        current_update = json.load(f)
+                    current_update = json.load(f)
                 os.remove(tmp_status_dump_file)
             except Exception as e:
-                self.logging_actor.critical(self.id, "Failed to read and remove leftover tmp update file. Update will never get reported to harvester.", time.asctime())
+                self.logging_actor.critical(self.id,
+                                            "Failed to read and remove leftover tmp update file. Update will never get reported to harvester.",
+                                            time.asctime())
                 self.logging_actor.critical(self.id, e, time.asctime())
             else:
                 current_update = EventRangeUpdate(current_update)
@@ -212,7 +215,7 @@ class HarvesterFileCommunicator(BaseCommunicator):
                     if panda_id in request:
                         request[panda_id] += current_update[panda_id]
                     else:
-                        request[panda_id] = current_update[panda_id] 
+                        request[panda_id] = current_update[panda_id]
 
         self.merge_write_dump_file(request, tmp_status_dump_file)
 

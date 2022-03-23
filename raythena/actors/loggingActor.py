@@ -3,6 +3,7 @@ import logging
 from raythena.utils.config import Config
 from raythena.utils.logging import configure_logger
 
+
 class LoggingActor(object):
     """
     Actor used to centralize logging from other workers / driver in the same log file.

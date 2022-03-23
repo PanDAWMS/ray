@@ -364,7 +364,7 @@ class ESDriver(BaseDriver):
         self.event_ranges_queue = Queue()
 
         self.logging_actor.debug(self.id,
-                                        f"Raythena version {__version__} initializing, running Ray driver {ray.__version__} on {gethostname()}", time.asctime())
+                                 f"Raythena version {__version__} initializing, running Ray driver {ray.__version__} on {gethostname()}", time.asctime())
 
         workdir = os.path.expandvars(self.config.ray.get('workdir'))
         if not workdir or not os.path.exists(workdir):
@@ -562,8 +562,8 @@ class ESDriver(BaseDriver):
         Returns:
             None
         """
-        eventranges_update = self.bookKeeper.process_event_ranges_update(actor_id, data)
-        # self.requests_queue.put(eventranges_update)
+        _ = self.bookKeeper.process_event_ranges_update(actor_id, data)
+        # self.requests_queue.put(_)
         self.actors_message_queue.append(self[actor_id].get_message.remote())
 
     def handle_update_job(self, actor_id: str, data: Any) -> None:
@@ -844,9 +844,9 @@ class ESDriver(BaseDriver):
                             tarred_ranges_list.append(event_range)
                         else:
                             self.logging_actor.warn(self.id,
-                                                           (f"Could not add event {path} to tar, file does not exists. "
-                                                            f"Event status: {event_range['eventStatus']}"),
-                                                           time.asctime())
+                                                    (f"Could not add event {path} to tar, file does not exists. "
+                                                     f"Event status: {event_range['eventStatus']}"),
+                                                    time.asctime())
                 file_fsize = os.path.getsize(temp_file_path)
                 # calculate alder32 checksum
                 file_chksum = self.calc_adler32(temp_file_path)

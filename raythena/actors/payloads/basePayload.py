@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Union, Dict
 
-from raythena.actors.loggingActor import LoggingActor
 from raythena.utils.config import Config
 from raythena.utils.eventservice import PandaJob
 

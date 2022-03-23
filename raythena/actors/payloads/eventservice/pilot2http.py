@@ -387,8 +387,7 @@ class Pilot2HttpPayload(ESPayload):
             if pexit is None:
                 self.pilot_process.terminate()
                 pexit = self.pilot_process.wait()
-            self.logging_actor.debug(self.worker_id,
-                                            f"Payload return code: {pexit}", time.asctime())
+            self.logging_actor.debug(self.worker_id, f"Payload return code: {pexit}", time.asctime())
             asyncio.run_coroutine_threadsafe(self.notify_stop_server_task(),
                                              self.loop)
             self.server_thread.join()
