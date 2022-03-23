@@ -426,7 +426,7 @@ class Pilot2HttpPayload(ESPayload):
         """
         try:
             res = self.job_update.get_nowait()
-            self.logging_actor.debug(self.worker_id, f"job update queue size is {self.job_update.qsize()}", time.asctime())
+            # self.logging_actor.debug(self.worker_id, f"job update queue size is {self.job_update.qsize()}", time.asctime())
             return res
         except QueueEmpty:
             return None
@@ -518,7 +518,7 @@ class Pilot2HttpPayload(ESPayload):
         body = await Pilot2HttpPayload.parse_qs_body(request)
         await self.job_update.put(body)
         res = {"StatusCode": 0}
-        self.logging_actor.debug(self.worker_id, f"job update queue size is {self.job_update.qsize()}", time.asctime())
+        # self.logging_actor.debug(self.worker_id, f"job update queue size is {self.job_update.qsize()}", time.asctime())
         return web.json_response(res, dumps=self.json_encoder)
 
     async def handle_get_event_ranges(self,
@@ -627,7 +627,7 @@ class Pilot2HttpPayload(ESPayload):
         Returns:
             the TCP site holding socket information
         """
-        server = web.Server(self.http_handler)
+        server = web.Server(self.http_handler, access_log=None)
         runner = web.ServerRunner(server)
         await runner.setup()
         self.site = web.TCPSite(runner, self.host, self.port)

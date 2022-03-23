@@ -49,6 +49,7 @@ class BookKeeper(object):
         self.finished_by_time.append((time.time(), 0))
         self.monitortime = self.config.ray['monitortime']
         self.tarmaxfilesize = self.config.ray['tarmaxfilesize']
+        self.last_status_print = time.time()
 
     def get_ranges_to_tar(self) -> List[List[Dict]]:
         """
@@ -264,15 +265,19 @@ class BookKeeper(object):
                     self.finished_range_by_input_file[file_basename].append(r)
                     r['PanDAID'] = panda_id
                     self.ranges_to_tar_by_input_file[file_basename].append(r)
-
-        self.logging_actor.info("BookKeeper",
-                                       (
-                                           f"\nEvent ranges status for job { panda_id}:\n"
-                                           f"  Ready: {job_ranges.nranges_available()}\n"
-                                           f"  Assigned: {job_ranges.nranges_assigned()}\n"
-                                           f"  Failed: {job_ranges.nranges_failed()}\n"
-                                           f"  Finished: {job_ranges.nranges_done()}\n"
-                                       ), time.asctime())
+        now = time.time()
+        if now - self.last_status_print > 60:
+            self.last_status_print = now
+            message = f"Event ranges status for job { panda_id}:"
+            if job_ranges.nranges_available():
+                message = f"{message} Ready: {job_ranges.nranges_available()}"
+            if job_ranges.nranges_assigned():
+                message = f"{message} Assigned: {job_ranges.nranges_assigned()}"
+            if job_ranges.nranges_failed():
+                message = f"{message} Failed: {job_ranges.nranges_failed()}"
+            if job_ranges.nranges_done():
+                message = f"{message} Finished: {job_ranges.nranges_done()}"
+            self.logging_actor.info("BookKeeper", message, time.asctime())
 
         return event_ranges_update
 
@@ -489,8 +494,8 @@ class ESDriver(BaseDriver):
         new_messages, self.actors_message_queue = ray.wait(self.actors_message_queue, num_returns=1)
         total_sent = 0
         while new_messages and self.running:
-            self.logging_actor.debug(
-                self.id, f"Start handling messages batch of {len(new_messages)} actors", time.asctime())
+            # self.logging_actor.debug(
+            #     self.id, f"Start handling messages batch of {len(new_messages)} actors", time.asctime())
             for ray_message_id in new_messages:
                 try:
                     actor_id, message, data = ray.get(ray_message_id)
@@ -516,8 +521,8 @@ class ESDriver(BaseDriver):
                 timeoutinterval = self.timeoutinterval
             else:
                 timeoutinterval = None
-            self.logging_actor.debug(
-                self.id, "Waiting on new messages from actors", time.asctime())
+            # self.logging_actor.debug(
+            #     self.id, "Waiting on new messages from actors", time.asctime())
             new_messages, self.actors_message_queue = ray.wait(
                 self.actors_message_queue, timeout=timeoutinterval)
 
@@ -745,6 +750,12 @@ class ESDriver(BaseDriver):
         except Exception as e:
             self.logging_actor.error(
                 self.id, f"Error while handling actors: {e}. stopping...", time.asctime())
+
+        ray_logs = os.path.join(self.workdir, "ray_logs")
+        try:
+            shutil.copytree(self.session_log_dir, ray_logs)
+        except Exception as e:
+            self.logging_actor.error(self.id, f"Failed to copy ray logs to workdir: {e}", time.asctime())
 
         self.logging_actor.debug(self.id, "waiting on tar threads to finish...", time.asctime())
         while len(self.running_tar_threads) > 0:
