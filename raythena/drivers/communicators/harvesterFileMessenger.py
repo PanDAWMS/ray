@@ -194,7 +194,6 @@ class HarvesterFileCommunicator(BaseCommunicator):
         Returns:
             None
         """
-        self.logging_actor.debug(self.id, f"Incoming event ranges update: {request.range_update}", time.asctime())
         self.logging_actor.debug(self.id, f"Sending event ranges update to harvester...", time.asctime())
         tmp_status_dump_file = f"{self.eventstatusdumpjsonfile}.tmp"
 

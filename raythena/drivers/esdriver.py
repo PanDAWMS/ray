@@ -97,7 +97,10 @@ class BookKeeper(object):
                 file_list = []
                 while self.ranges_to_tar_by_input_file[input_file]:
                     event_range = self.ranges_to_tar_by_input_file[input_file].pop()
-                    if total_file_size + event_range['fsize'] > self.tarmaxfilesize:
+                    if event_range["fsize"] > self.tarmaxfilesize:
+                        # if an event is larger than max tar size, tar it alone
+                        self.ranges_to_tar.append([event_range])
+                    elif total_file_size + event_range['fsize'] > self.tarmaxfilesize:
                         # reached the size limit
                         self.ranges_to_tar_by_input_file[input_file].append(event_range)
                         self.ranges_to_tar.append(file_list)
@@ -106,7 +109,8 @@ class BookKeeper(object):
                     else:
                         total_file_size = total_file_size + event_range['fsize']
                         file_list.append(event_range)
-                self.ranges_to_tar.append(file_list)
+                if len(file_list) > 0:
+                    self.ranges_to_tar.append(file_list)
             if len(self.ranges_to_tar) > 0:
                 return_val = True
         except Exception:
@@ -268,6 +272,14 @@ class BookKeeper(object):
         now = time.time()
         if now - self.last_status_print > 60:
             self.last_status_print = now
+            self.print_status()
+        return event_ranges_update
+
+    def print_status(self) -> None:
+        for panda_id in self.jobs:
+            job_ranges = self.jobs.get_event_ranges(panda_id)
+            if not job_ranges:
+                continue
             message = f"Event ranges status for job { panda_id}:"
             if job_ranges.nranges_available():
                 message = f"{message} Ready: {job_ranges.nranges_available()}"
@@ -278,8 +290,6 @@ class BookKeeper(object):
             if job_ranges.nranges_done():
                 message = f"{message} Finished: {job_ranges.nranges_done()}"
             self.logging_actor.info("BookKeeper", message, time.asctime())
-
-        return event_ranges_update
 
     def process_actor_end(self, actor_id: str) -> None:
         """
@@ -607,7 +617,7 @@ class ESDriver(BaseDriver):
         self.actors_message_queue.append(self[actor_id].receive_event_ranges.remote(
             Messages.REPLY_OK if evt_range else
             Messages.REPLY_NO_MORE_EVENT_RANGES, evt_range))
-        self.logging_actor.info(self.id, f"Sent {total_sent} event ranges to {actor_id}", time.asctime())
+        self.logging_actor.info(self.id, f"Sennding events to {actor_id}", time.asctime())
         return total_sent
 
     def handle_job_request(self, actor_id: str) -> None:
@@ -758,10 +768,11 @@ class ESDriver(BaseDriver):
             self.logging_actor.error(self.id, f"Failed to copy ray logs to workdir: {e}", time.asctime())
 
         self.logging_actor.debug(self.id, "waiting on tar threads to finish...", time.asctime())
+        # Finish handling all currently running tar threads
         while len(self.running_tar_threads) > 0:
             self.get_tar_results()
             time.sleep(1)
-        # check if we still had tar thread that could be started and wait on them
+        # check again if we still have tar thread that could be started and wait on them
         self.tar_es_output(True)
 
         while len(self.running_tar_threads) > 0:
@@ -771,7 +782,7 @@ class ESDriver(BaseDriver):
 
         self.communicator.stop()
         # self.cpu_monitor.stop()
-
+        self.bookKeeper.print_status()
         time.sleep(5)
         self.logging_actor.debug(
             self.id, "All driver threads stopped. Quitting...", time.asctime())
