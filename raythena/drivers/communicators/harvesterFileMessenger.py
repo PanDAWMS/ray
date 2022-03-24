@@ -39,6 +39,8 @@ class HarvesterFileCommunicator(BaseCommunicator):
         self._parse_harvester_config()
         self.id = "HarvesterCommunicator"
         self.logging_actor = LoggingActor(self.config, self.id)
+        self.event_ranges_update_buffer = EventRangeUpdate()
+        self.event_ranges_update_interval = 5 * 60
         self.communicator_thread = ExThread(target=self.run,
                                             name="communicator-thread")
 
@@ -280,6 +282,8 @@ class HarvesterFileCommunicator(BaseCommunicator):
         Returns:
             None
         """
+        last_event_range_update = 0
+
         while True:
             try:
                 request = self.requests_queue.get()
@@ -290,13 +294,21 @@ class HarvesterFileCommunicator(BaseCommunicator):
                 elif isinstance(request, PandaJobUpdate):
                     self.update_job(request)
                 elif isinstance(request, EventRangeUpdate):
-                    self.update_events(request)
+                    self.event_ranges_update_buffer.merge_update(request)
+                    now = time.time()
+                    if now - last_event_range_update > self.event_ranges_update_interval:
+                        self.update_events(self.event_ranges_update_buffer)
+                        last_event_range_update = now
+                        self.event_ranges_update_buffer = EventRangeUpdate()
                 elif isinstance(request, JobReport):
                     self.create_job_report(request)
                 else:  # if any other request is received, stop the thread
                     break
             except Exception as e:
                 self.logging_actor.error(self.id, f"Exception occured while handling request: {e}", time.asctime())
+
+        if self.event_ranges_update_buffer:
+            self.update_events(self.event_ranges_update_buffer)
         self.cleanup_tmp_files()
 
     def start(self) -> None:
