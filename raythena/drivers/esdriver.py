@@ -981,7 +981,7 @@ class ESDriver(BaseDriver):
                 self.logging_actor.info(self.id, f"get_tar_results: Caught exception {repr(traceback.format_tb(exc_traceback))}", time.asctime())
                 pass
                 # raise
-        if len(final_update):
+        if final_update:
             self.requests_queue.put(final_update)
         self.logging_actor.debug(self.id, f"get_tar_results #completed futures - {len(done)} #pending futures - {len(not_done)}", time.asctime())
         return

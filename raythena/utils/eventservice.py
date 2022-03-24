@@ -566,17 +566,20 @@ class EventRangeUpdate(object):
 
     """
 
-    def __init__(self, range_update: Dict[str, List[dict]] = dict()) -> None:
+    def __init__(self, range_update: Dict[str, List[dict]] = None) -> None:
         """
         Wraps the range update dict in an object. The range update should be in the harvester-supported format.
 
         Args:
             range_update: range update
         """
-        for v in range_update.values():
-            if not isinstance(v, list):
-                raise Exception(f"Expecting type list for element {v}")
-        self.range_update = range_update
+        if not range_update:
+            self.range_update = dict()
+        else:
+            for v in range_update.values():
+                if not isinstance(v, list):
+                    raise Exception(f"Expecting type list for element {v}")
+            self.range_update = range_update
 
     def __len__(self) -> int:
         return len(self.range_update)
@@ -600,7 +603,7 @@ class EventRangeUpdate(object):
             if pandaID in self:
                 self[pandaID] += other[pandaID]
             else:
-                self.range_update[pandaID] = other[pandaID]
+                self[pandaID] = other[pandaID]
 
     @staticmethod
     def build_from_dict(panda_id: str,
