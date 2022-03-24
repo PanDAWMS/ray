@@ -209,12 +209,7 @@ class HarvesterFileCommunicator(BaseCommunicator):
                                             time.asctime())
                 self.logging_actor.critical(self.id, e, time.asctime())
             else:
-                current_update = EventRangeUpdate(current_update)
-                for panda_id in current_update:
-                    if panda_id in request:
-                        request[panda_id] += current_update[panda_id]
-                    else:
-                        request[panda_id] = current_update[panda_id]
+                request.merge_update(EventRangeUpdate(current_update))
 
         self.merge_write_dump_file(request, tmp_status_dump_file)
 
@@ -240,12 +235,7 @@ class HarvesterFileCommunicator(BaseCommunicator):
             except Exception as e:
                 self.logging_actor.error(self.id, f"Failed to move and load existing dump file: {e} ", time.asctime())
             else:
-                current_update = EventRangeUpdate(current_update)
-                for panda_id in current_update:
-                    if panda_id in request:
-                        request[panda_id] += current_update[panda_id]
-                    else:
-                        request[panda_id] = current_update[panda_id]
+                request.merge_update(EventRangeUpdate(current_update))
 
         self.logging_actor.debug(self.id, f"Writting event ranges update to temporary file", time.asctime())
         try:

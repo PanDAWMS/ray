@@ -967,13 +967,13 @@ class ESDriver(BaseDriver):
         if len(self.running_tar_threads) == 0:
             return
         done, not_done = concurrent.futures.wait(self.running_tar_threads, timeout=0.001, return_when=concurrent.futures.FIRST_COMPLETED)
+        final_update = EventRangeUpdate()
         for future in done:
             try:
                 self.finished_tar_tasks.add(future)
                 result = future.result()
                 if result and isinstance(result, dict) and self.check_for_duplicates(result):
-                    event_range = EventRangeUpdate(result)
-                    self.requests_queue.put(event_range)
+                    final_update.merge_update(EventRangeUpdate(result))
                 del self.running_tar_threads[future]
             except Exception as ex:
                 exc_type, exc_value, exc_traceback = sys.exc_info()
@@ -981,6 +981,8 @@ class ESDriver(BaseDriver):
                 self.logging_actor.info(self.id, f"get_tar_results: Caught exception {repr(traceback.format_tb(exc_traceback))}", time.asctime())
                 pass
                 # raise
+        if len(final_update):
+            self.requests_queue.put(final_update)
         self.logging_actor.debug(self.id, f"get_tar_results #completed futures - {len(done)} #pending futures - {len(not_done)}", time.asctime())
         return
 
