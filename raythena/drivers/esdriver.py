@@ -16,6 +16,7 @@ from raythena.actors.esworker import ESWorker
 from raythena.actors.loggingActor import LoggingActor
 from raythena.drivers.baseDriver import BaseDriver
 from raythena.drivers.communicators.baseCommunicator import BaseCommunicator
+from raythena.utils.exception import BaseRaythenaException
 from raythena.utils.config import Config
 from raythena.utils.eventservice import (EventRangeRequest, PandaJobRequest,
                                          EventRangeUpdate, Messages, PandaJobQueue,
@@ -228,8 +229,7 @@ class BookKeeper(object):
             self.rangesID_by_actor[actor_id] = list()
         ranges = self.jobs.get_event_ranges(
             self.actors[actor_id]).get_next_ranges(n)
-        for r in ranges:
-            self.rangesID_by_actor[actor_id].append(r.eventRangeID)
+        self.rangesID_by_actor[actor_id] += [r.eventRangeID for r in ranges]
         return ranges
 
     def process_event_ranges_update(
@@ -471,8 +471,7 @@ class ESDriver(BaseDriver):
         Returns:
             None
         """
-        for actor in self.actors.values():
-            self.actors_message_queue.append(actor.get_message.remote())
+        self.actors_message_queue += [actor.get_message.remote() for actor in self.actors.values()]
 
     def create_actors(self) -> None:
         """
@@ -486,12 +485,9 @@ class ESDriver(BaseDriver):
             nodeip = node['NodeManagerAddress']
             node_constraint = f"node:{nodeip}"
             actor_id = f"Actor_{i}"
-            actor_args = {
-                'actor_id': actor_id,
-                'config': self.config_remote,
-                'session_log_dir': self.session_log_dir
-            }
-            actor = ESWorker.options(resources={node_constraint: 1}).remote(**actor_args)
+            actor = ESWorker.options(resources={node_constraint: 1}).remote(actor_id = actor_id,
+                                                                            config = self.config_remote,
+                                                                            session_log_dir = self.session_log_dir)
             self.actors[actor_id] = actor
 
     def handle_actors(self) -> None:
@@ -509,8 +505,10 @@ class ESDriver(BaseDriver):
             for ray_message_id in new_messages:
                 try:
                     actor_id, message, data = ray.get(ray_message_id)
+                except BaseRaythenaException as e:
+                    self.handle_actor_exception(e.worker_id, e)
                 except Exception as e:
-                    self.handle_actor_exception(actor_id, e)
+                    self.logging_actor.error(self.id, f"Caught exception while fetching result from actor: {e}", time.asctime())
                 else:
                     if message == Messages.IDLE or message == Messages.REPLY_OK:
                         self.actors_message_queue.append(
@@ -617,7 +615,7 @@ class ESDriver(BaseDriver):
         self.actors_message_queue.append(self[actor_id].receive_event_ranges.remote(
             Messages.REPLY_OK if evt_range else
             Messages.REPLY_NO_MORE_EVENT_RANGES, evt_range))
-        self.logging_actor.info(self.id, f"Sennding events to {actor_id}", time.asctime())
+        self.logging_actor.info(self.id, f"Sending events to {actor_id}", time.asctime())
         return total_sent
 
     def handle_job_request(self, actor_id: str) -> None:
@@ -983,7 +981,8 @@ class ESDriver(BaseDriver):
                 # raise
         if final_update:
             self.requests_queue.put(final_update)
-        self.logging_actor.debug(self.id, f"get_tar_results #completed futures - {len(done)} #pending futures - {len(not_done)}", time.asctime())
+        if len(done):
+            self.logging_actor.debug(self.id, f"get_tar_results #completed futures - {len(done)} #pending futures - {len(not_done)}", time.asctime())
         return
 
     def check_for_duplicates(self, tar_results: dict) -> bool:

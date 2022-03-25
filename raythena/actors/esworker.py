@@ -16,7 +16,7 @@ import ray
 from raythena.actors.loggingActor import LoggingActor
 from raythena.utils.config import Config
 from raythena.utils.eventservice import EventRangeRequest, Messages, EventRangeUpdate, PandaJob, EventRange
-from raythena.utils.exception import IllegalWorkerState, StageInFailed, StageOutFailed
+from raythena.utils.exception import IllegalWorkerState, StageInFailed, StageOutFailed, WrappedException, BaseRaythenaException
 from raythena.utils.plugins import PluginsRegistry
 from raythena.utils.ray import get_node_ip
 # from raythena.utils.timing import CPUMonitor
@@ -201,22 +201,23 @@ class ESWorker(object):
             os.chdir(self.payload_actor_process_dir)
             timer_thread = threading.Thread(name='timer', target=self.check_time, daemon=True)
             timer_thread.start()
-        except Exception:
-            raise StageInFailed(self.id)
-        try:
             if not os.path.isdir(self.payload_actor_output_dir):
                 os.mkdir(self.payload_actor_output_dir)
-        except Exception:
+        except Exception as e:
             self.logging_actor.warn(
                 self.id,
-                f"Exception when creating the {self.payload_actor_output_dir}",
+                f"Exception when creating dir: {e}",
                 time.asctime()
             )
+            raise StageInFailed(self.id)
         # self.cpu_monitor = CPUMonitor(os.path.join(self.payload_actor_process_dir, "cpu_monitor.json"))
         # self.cpu_monitor.start()
-
-        self.payload.stagein()
-        self.payload.start(self.modify_job(self.job))
+        try:
+            self.payload.stagein()
+            self.payload.start(self.modify_job(self.job))
+        except Exception as e:
+            self.logging_actor.warn(self.id, f"Failed to stagein payload: {e}", time.asctime())
+            raise StageInFailed(self.id)
         self.transition_state(ESWorker.READY_FOR_EVENTS if self.
                               is_event_service_job() else ESWorker.PROCESSING)
 
@@ -292,7 +293,12 @@ class ESWorker(object):
         if reply == Messages.REPLY_OK and self.job:
             self.transition_state(ESWorker.STAGE_IN)
             self.set_transitions()
-            self.stagein()
+            try:
+                self.stagein()
+            except BaseRaythenaException:
+                raise
+            except Exception as e:
+                raise WrappedException(self.id, e)
         else:
             self.transition_state(ESWorker.DONE)
             self.logging_actor.error(
@@ -466,45 +472,52 @@ class ESWorker(object):
             Tuple depending on the current worker state indicating actions that should be performed by the driver
             to continue the processing
         """
-        while self.state != ESWorker.DONE:
-            payload_message = self.get_payload_message()
-            if payload_message:
-                return payload_message
-            elif self.state == ESWorker.READY_FOR_JOB:
-                # ready to get a new job
-                self.transition_state(ESWorker.JOB_REQUESTED)
-                return self.return_message(Messages.REQUEST_NEW_JOB)
-            elif self.payload.is_complete():
-                # check if there are any remaining message from the payload in queue.
+        def __inner__():
+            while self.state != ESWorker.DONE:
                 payload_message = self.get_payload_message()
                 if payload_message:
-                    # if so, return one message
                     return payload_message
-                else:
-                    # if no more message, proceed to stage-out
-                    self.transition_state(ESWorker.STAGE_OUT)
-                    self.stageout()
+                elif self.state == ESWorker.READY_FOR_JOB:
+                    # ready to get a new job
+                    self.transition_state(ESWorker.JOB_REQUESTED)
+                    return self.return_message(Messages.REQUEST_NEW_JOB)
+                elif self.payload.is_complete():
+                    # check if there are any remaining message from the payload in queue.
+                    payload_message = self.get_payload_message()
+                    if payload_message:
+                        # if so, return one message
+                        return payload_message
+                    else:
+                        # if no more message, proceed to stage-out
+                        self.transition_state(ESWorker.STAGE_OUT)
+                        self.stageout()
+                        return self.return_message(Messages.PROCESS_DONE)
+                elif self.is_event_service_job() and (
+                        self.state == ESWorker.READY_FOR_EVENTS or
+                        self.should_request_ranges()):
+                    req = EventRangeRequest()
+                    if not self.first_event_range_request:
+                        # n_events = self.config.resources['corepernode'] * 2
+                        n_events = self.config.resources['corepernode']
+                    else:
+                        # First time request only for 'NCPU' events because
+                        # Harvester gives 'NCPU * nodes' initially.
+                        n_events = self.config.resources['corepernode']
+                        self.first_event_range_request = False
+                    req.add_event_request(self.job['PandaID'],
+                                          n_events,
+                                          self.job['taskID'], self.job['jobsetID'])
+                    self.transition_state(ESWorker.EVENT_RANGES_REQUESTED)
+                    return self.return_message(Messages.REQUEST_EVENT_RANGES, req)
+                elif self.state == ESWorker.DONE:
                     return self.return_message(Messages.PROCESS_DONE)
-            elif self.is_event_service_job() and (
-                    self.state == ESWorker.READY_FOR_EVENTS or
-                    self.should_request_ranges()):
-                req = EventRangeRequest()
-                if not self.first_event_range_request:
-                    # n_events = self.config.resources['corepernode'] * 2
-                    n_events = self.config.resources['corepernode']
                 else:
-                    # First time request only for 'NCPU' events because
-                    # Harvester gives 'NCPU * nodes' initially.
-                    n_events = self.config.resources['corepernode']
-                    self.first_event_range_request = False
-                req.add_event_request(self.job['PandaID'],
-                                      n_events,
-                                      self.job['taskID'], self.job['jobsetID'])
-                self.transition_state(ESWorker.EVENT_RANGES_REQUESTED)
-                return self.return_message(Messages.REQUEST_EVENT_RANGES, req)
-            elif self.state == ESWorker.DONE:
-                return self.return_message(Messages.PROCESS_DONE)
-            else:
-                time.sleep(1)  # Nothing to do, sleeping...
+                    time.sleep(1)  # Nothing to do, sleeping...
 
-        return self.return_message(Messages.PROCESS_DONE)
+            return self.return_message(Messages.PROCESS_DONE)
+        try:
+            return __inner__()
+        except BaseRaythenaException:
+            raise
+        except Exception as e:
+            raise WrappedException(self.id, e)

@@ -448,16 +448,15 @@ class EventRangeQueue(object):
         file_name = self._find_file_with_enough_ranges_ready(nranges)
         if file_name:
             ids = self.rangesID_by_file[file_name][EventRange.READY][:nranges]
-            for range_id in ids:
-                res.append(self.update_range_state(range_id, EventRange.ASSIGNED))
+            res += [self.update_range_state(range_id, EventRange.ASSIGNED) for range_id in ids]
             return res
 
         for ranges in self.rangesID_by_file.values():
-            ids = ranges[EventRange.READY][:min(nranges, len(ranges[EventRange.READY]))]
-            for range_id in ids:
-                res.append(self.update_range_state(range_id, EventRange.ASSIGNED))
-                if len(res) == nranges:
-                    return res
+            remaining = nranges - len(res)
+            ids = ranges[EventRange.READY][:min(remaining, len(ranges[EventRange.READY]))]
+            res += [self.update_range_state(range_id, EventRange.ASSIGNED) for range_id in ids[:remaining]]
+            if len(res) == nranges:
+                break
         return res
 
 
