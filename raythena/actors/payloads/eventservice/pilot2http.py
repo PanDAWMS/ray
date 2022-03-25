@@ -391,7 +391,6 @@ class Pilot2HttpPayload(ESPayload):
             asyncio.run_coroutine_threadsafe(self.notify_stop_server_task(),
                                              self.loop)
             self.server_thread.join()
-            self.logging_actor.info(self.worker_id, "Communicator stopped", time.asctime())
 
     def submit_new_range(self, event_range: Union[None, EventRange]) -> asyncio.Future:
         """
@@ -439,7 +438,7 @@ class Pilot2HttpPayload(ESPayload):
         """
         try:
             res = self.ranges_update.get_nowait()
-            self.logging_actor.debug(self.worker_id, f"event ranges queue size is {self.ranges_update.qsize()}", time.asctime())
+            # self.logging_actor.debug(self.worker_id, f"event ranges queue size is {self.ranges_update.qsize()}", time.asctime())
             return res
         except QueueEmpty:
             return None
@@ -550,9 +549,9 @@ class Pilot2HttpPayload(ESPayload):
                         break
                     ranges.append(crange)
         res = {"StatusCode": status, "eventRanges": ranges}
-        self.logging_actor.info(
-            self.worker_id,
-            f"{len(res['eventRanges'])} ranges sent to pilot", time.asctime())
+        # self.logging_actor.info(
+        #     self.worker_id,
+        #     f"{len(res['eventRanges'])} ranges sent to pilot", time.asctime())
         return web.json_response(res, dumps=self.json_encoder)
 
     async def handle_update_event_ranges(
@@ -653,9 +652,6 @@ class Pilot2HttpPayload(ESPayload):
         self._start_payload()
         await self.stop_event.wait()
         if self.site:
-            self.logging_actor.debug(
-                self.worker_id,
-                f"======= Stopped http://{self.host}:{self.port}/ ======", time.asctime())
             await self.site.stop()
 
     def run(self) -> None:
