@@ -1,28 +1,30 @@
-import os
-import time
-from queue import Queue, Empty
-from socket import gethostname
-from typing import List, Dict, Union, Any
 import concurrent.futures
-import tarfile
+import os
 import shutil
-import zlib
 import sys
+import tarfile
+import time
 import traceback
-import ray
+import zlib
+from queue import Empty, Queue
+from socket import gethostname
+from typing import Any, Dict, Iterator, List, Tuple, Union
 
+import ray
 from raythena import __version__
 from raythena.actors.esworker import ESWorker
 from raythena.actors.loggingActor import LoggingActor
 from raythena.drivers.baseDriver import BaseDriver
 from raythena.drivers.communicators.baseCommunicator import BaseCommunicator
-from raythena.utils.exception import BaseRaythenaException
 from raythena.utils.config import Config
-from raythena.utils.eventservice import (EventRangeRequest, PandaJobRequest,
-                                         EventRangeUpdate, Messages, PandaJobQueue,
-                                         EventRange, PandaJob, JobReport)
+from raythena.utils.eventservice import (EventRange, EventRangeRequest,
+                                         EventRangeUpdate, JobReport, Messages,
+                                         PandaJob, PandaJobQueue,
+                                         PandaJobRequest)
+from raythena.utils.exception import BaseRaythenaException
 from raythena.utils.plugins import PluginsRegistry
 from raythena.utils.ray import build_nodes_resource_list
+
 # from raythena.utils.timing import CPUMonitor
 
 EventRangeTypeHint = Dict[str, str]
@@ -490,6 +492,24 @@ class ESDriver(BaseDriver):
                                                                             session_log_dir = self.session_log_dir)
             self.actors[actor_id] = actor
 
+    def retrieve_actore_messages(self, ready: list) -> Iterator[Tuple[str, int, object]]:
+        try:
+            messages = ray.get(ready)
+        except Exception:
+            for r in ready:
+                try:
+                    actor_id, message, data = ray.get(r)
+                except BaseRaythenaException as e:
+                    self.handle_actor_exception(e.worker_id, e)
+                except Exception as e:
+                    self.logging_actor.error(self.id, f"Caught exception while fetching result from actor: {e}", time.asctime())
+                else:
+                    yield actor_id, message, data
+        else:
+            self.logging_actor.debug(self.id, f"Start handling messages batch of {len(messages)} actors", time.asctime())
+            for actor_id, message, data in messages:
+                yield actor_id, message, data
+
     def handle_actors(self) -> None:
         """
         Main function handling messages from all ray actors.
@@ -497,45 +517,46 @@ class ESDriver(BaseDriver):
         Returns:
             None
         """
-        new_messages, self.actors_message_queue = ray.wait(self.actors_message_queue, num_returns=1)
+        new_messages, self.actors_message_queue = self.wait_on_messages()
         total_sent = 0
         while new_messages and self.running:
-            # self.logging_actor.debug(
-            #     self.id, f"Start handling messages batch of {len(new_messages)} actors", time.asctime())
-            for ray_message_id in new_messages:
-                try:
-                    actor_id, message, data = ray.get(ray_message_id)
-                except BaseRaythenaException as e:
-                    self.handle_actor_exception(e.worker_id, e)
-                except Exception as e:
-                    self.logging_actor.error(self.id, f"Caught exception while fetching result from actor: {e}", time.asctime())
-                else:
-                    if message == Messages.IDLE or message == Messages.REPLY_OK:
-                        self.actors_message_queue.append(
-                            self[actor_id].get_message.remote())
-                    elif message == Messages.REQUEST_NEW_JOB:
-                        self.handle_job_request(actor_id)
-                    elif message == Messages.REQUEST_EVENT_RANGES:
-                        total_sent = self.handle_request_event_ranges(actor_id, data, total_sent)
-                    elif message == Messages.UPDATE_JOB:
-                        self.handle_update_job(actor_id, data)
-                    elif message == Messages.UPDATE_EVENT_RANGES:
-                        self.handle_update_event_ranges(actor_id, data)
-                    elif message == Messages.PROCESS_DONE:
-                        self.handle_actor_done(actor_id)
+            for actor_id, message, data in self.retrieve_actore_messages(new_messages):
+                if message == Messages.IDLE or message == Messages.REPLY_OK:
+                    self.actors_message_queue.append(
+                        self[actor_id].get_message.remote())
+                elif message == Messages.REQUEST_NEW_JOB:
+                    self.handle_job_request(actor_id)
+                elif message == Messages.REQUEST_EVENT_RANGES:
+                    total_sent = self.handle_request_event_ranges(actor_id, data, total_sent)
+                elif message == Messages.UPDATE_JOB:
+                    self.handle_update_job(actor_id, data)
+                elif message == Messages.UPDATE_EVENT_RANGES:
+                    self.handle_update_event_ranges(actor_id, data)
+                elif message == Messages.PROCESS_DONE:
+                    self.handle_actor_done(actor_id)
             self.on_tick()
-            # check if finished any events, set timeout interval accordingly
-            if self.bookKeeper.have_finished_events():
-                timeoutinterval = self.timeoutinterval
-            else:
-                timeoutinterval = None
-            # self.logging_actor.debug(
-            #     self.id, "Waiting on new messages from actors", time.asctime())
-            new_messages, self.actors_message_queue = ray.wait(
-                self.actors_message_queue, timeout=timeoutinterval)
+            new_messages, self.actors_message_queue = self.wait_on_messages()
 
         self.logging_actor.debug(
             self.id, "Finished handling the Actors. Raythena will shutdown now.", time.asctime())
+
+    def wait_on_messages(self) -> Tuple[List, List]:
+        messages = list()
+        queue = list()
+        if self.bookKeeper.have_finished_events():
+            timeoutinterval = self.timeoutinterval
+        else:
+            timeoutinterval = None
+
+        messages, queue = ray.wait(
+            self.actors_message_queue, num_returns=max(1, len(self.actors_message_queue) // 2), timeout=1)
+        if not messages:
+            messages, queue = ray.wait(
+                self.actors_message_queue, num_returns=max(1, len(self.actors_message_queue) // 10), timeout=1)
+        if not messages:
+            messages, queue = ray.wait(
+                self.actors_message_queue, num_returns=1, timeout=timeoutinterval)
+        return messages, queue
 
     def handle_actor_done(self, actor_id: str) -> bool:
         """
@@ -615,7 +636,7 @@ class ESDriver(BaseDriver):
         self.actors_message_queue.append(self[actor_id].receive_event_ranges.remote(
             Messages.REPLY_OK if evt_range else
             Messages.REPLY_NO_MORE_EVENT_RANGES, evt_range))
-        self.logging_actor.info(self.id, f"Sending events to {actor_id}", time.asctime())
+        self.logging_actor.info(self.id, f"Sending {len(evt_range)} events to {actor_id}", time.asctime())
         return total_sent
 
     def handle_job_request(self, actor_id: str) -> None:
@@ -756,6 +777,7 @@ class ESDriver(BaseDriver):
         try:
             self.handle_actors()
         except Exception as e:
+            self.logging_actor.error(self.id, f"{traceback.format_exc()}", time.asctime())
             self.logging_actor.error(
                 self.id, f"Error while handling actors: {e}. stopping...", time.asctime())
 
@@ -817,6 +839,8 @@ class ESDriver(BaseDriver):
             self.logging_actor.warn(self.id, f"{actor_id} failed {self.failed_actor_tasks_count[actor_id]} times. Retrying...", time.asctime())
         else:
             self.logging_actor.warn(self.id, f"{actor_id} failed too many times. No longer fetching messages from it", time.asctime())
+            if actor_id not in self.terminated:
+                self.terminated.append(actor_id)
 
     def create_tar_file(self, range_list: list) -> Dict[str, List[Dict]]:
         """
