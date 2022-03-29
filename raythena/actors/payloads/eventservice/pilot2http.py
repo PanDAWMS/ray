@@ -207,7 +207,7 @@ class Pilot2HttpPayload(ESPayload):
         elif py3pilot:
             cmd += "--pythonversion 3 "
 
-        cmd += f"-i PR -j {prod_source_label} --container --mute --pilot-user=atlas -t -u --es-executor-type=raythena " \
+        cmd += f"-i PR -j {prod_source_label} --container --mute --pilot-user=atlas -t -u --es-executor-type=raythena -v 1 " \
             f"-d --cleanup=False -w generic --use-https False --allow-same-user=False --resource-type MCORE " \
             f"--hpc-resource {shlex.quote(self.config.payload['hpcresource'])};"
 
@@ -269,7 +269,7 @@ class Pilot2HttpPayload(ESPayload):
         elif py3pilot:
             cmd += "--pythonversion 3 "
 
-        cmd += f"-i PR -j {prod_source_label} --container --mute --pilot-user=atlas -t -u --es-executor-type=raythena " \
+        cmd += f"-i PR -j {prod_source_label} --container --mute --pilot-user=atlas -t -u --es-executor-type=raythena -v 1 " \
             f"-d --cleanup=False -w generic --url=http://{self.host} -p {self.port} --use-https False --allow-same-user=False --resource-type MCORE " \
             f"--hpc-resource {shlex.quote(self.config.payload['hpcresource'])};"
 
