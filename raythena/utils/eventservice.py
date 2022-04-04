@@ -430,7 +430,7 @@ class EventRangeQueue(object):
                 return file_name
         return None
 
-    def get_next_ranges(self, nranges: int) -> List['EventRange']:
+    def get_next_ranges(self, nranges: int, try_fetch_from_single_file: bool = False) -> List['EventRange']:
         """
         Dequeue event ranges. Event ranges which were dequeued are updated to the 'ASSIGNED' status
         and should be assigned to workers to be processed. In case more ranges are requested
@@ -444,12 +444,12 @@ class EventRangeQueue(object):
         """
         res = list()
         nranges = min(nranges, self.nranges_available())
-
-        file_name = self._find_file_with_enough_ranges_ready(nranges)
-        if file_name:
-            ids = self.rangesID_by_file[file_name][EventRange.READY][:nranges]
-            res += [self.update_range_state(range_id, EventRange.ASSIGNED) for range_id in ids]
-            return res
+        if try_fetch_from_single_file:
+            file_name = self._find_file_with_enough_ranges_ready(nranges)
+            if file_name:
+                ids = self.rangesID_by_file[file_name][EventRange.READY][:nranges]
+                res += [self.update_range_state(range_id, EventRange.ASSIGNED) for range_id in ids]
+                return res
 
         for ranges in self.rangesID_by_file.values():
             remaining = nranges - len(res)
