@@ -111,7 +111,6 @@ class ESWorker(object):
         self.payload_actor_process_dir = None
         self.actor_ray_logs_dir = None
         self.cpu_monitor = None
-        self.first_event_range_request = True
         self.workdir = os.path.expandvars(
             self.config.ray.get('workdir', os.getcwd()))
         if not os.path.isdir(self.workdir):
@@ -472,7 +471,7 @@ class ESWorker(object):
             Tuple depending on the current worker state indicating actions that should be performed by the driver
             to continue the processing
         """
-        def __inner__():
+        try:
             while self.state != ESWorker.DONE:
                 payload_message = self.get_payload_message()
                 if payload_message:
@@ -496,16 +495,8 @@ class ESWorker(object):
                         self.state == ESWorker.READY_FOR_EVENTS or
                         self.should_request_ranges()):
                     req = EventRangeRequest()
-                    if not self.first_event_range_request:
-                        # n_events = self.config.resources['corepernode'] * 2
-                        n_events = self.config.resources['corepernode']
-                    else:
-                        # First time request only for 'NCPU' events because
-                        # Harvester gives 'NCPU * nodes' initially.
-                        n_events = self.config.resources['corepernode']
-                        self.first_event_range_request = False
                     req.add_event_request(self.job['PandaID'],
-                                          n_events,
+                                          self.config.resources['corepernode'],
                                           self.job['taskID'], self.job['jobsetID'])
                     self.transition_state(ESWorker.EVENT_RANGES_REQUESTED)
                     return self.return_message(Messages.REQUEST_EVENT_RANGES, req)
@@ -515,8 +506,6 @@ class ESWorker(object):
                     time.sleep(1)  # Nothing to do, sleeping...
 
             return self.return_message(Messages.PROCESS_DONE)
-        try:
-            return __inner__()
         except BaseRaythenaException:
             raise
         except Exception as e:
