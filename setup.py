@@ -1,8 +1,9 @@
 from setuptools import setup, find_namespace_packages
+import raythena
 
 setup(
     name='raythena',
-    version='1.0',
+    version=raythena.__version__,
     author='Miha Muskinja',
     author_email='MihaMuskinja@lbl.gov',
     packages=find_namespace_packages(include=['raythena.*']),

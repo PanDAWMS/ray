@@ -200,6 +200,19 @@ class UnknownException(BaseRaythenaException):
         return (self.__class__, (self.worker_id, self.message))
 
 
+class WrappedException(BaseRaythenaException):
+    """
+    Raised when no other exception type applies
+    """
+
+    def __init__(self, worker_id: str, e: Exception) -> None:
+        super().__init__(worker_id, ErrorCodes.UNKNOWN, f"Wrapped exception {e}")
+        self.wrapped_exception = e
+
+    def __reduce__(self):
+        return (self.__class__, (self.worker_id, self.message))
+
+
 if __name__ == "__main__":
     import time
 

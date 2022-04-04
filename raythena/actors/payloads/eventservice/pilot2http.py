@@ -85,8 +85,7 @@ class Pilot2HttpPayload(ESPayload):
 
     """
 
-    def __init__(self, worker_id: str, logging_actor: LoggingActor,
-                 config: Config) -> None:
+    def __init__(self, worker_id: str, config: Config) -> None:
         """
         Setup initial state by creating queues, setting up the asyncio event loop, registering http endpoints
         and configuring the json encoder
@@ -96,7 +95,8 @@ class Pilot2HttpPayload(ESPayload):
             logging_actor: remote logger
             config: application config
         """
-        super().__init__(worker_id, logging_actor, config)
+        super().__init__(worker_id, config)
+        self.logging_actor = LoggingActor(self.config, self.worker_id)
         self.host = '127.0.0.1'
         self.port = 8080
         self.json_encoder = functools.partial(json.dumps, cls=ESEncoder)
@@ -138,8 +138,6 @@ class Pilot2HttpPayload(ESPayload):
         command = self._build_pilot_container_command(
         ) if self.config.payload.get('containerengine',
                                      None) else self._build_pilot_command()
-        self.logging_actor.info.remote(self.worker_id,
-                                       f"Final payload command: {command}", time.asctime())
         # using PIPE will cause the subprocess to hang because
         # we're not reading data using communicate() and the pipe buffer becomes full as pilot2
         # generates a lot of data to the stdout pipe
@@ -150,7 +148,7 @@ class Pilot2HttpPayload(ESPayload):
                                    stderr=DEVNULL,
                                    shell=True,
                                    close_fds=True)
-        self.logging_actor.info.remote(
+        self.logging_actor.info(
             self.worker_id, f"Pilot payload started with PID {self.pilot_process.pid}", time.asctime())
 
     def _build_pilot_command(self) -> str:
@@ -209,11 +207,9 @@ class Pilot2HttpPayload(ESPayload):
         elif py3pilot:
             cmd += "--pythonversion 3 "
 
-        cmd += f"-i PR -j {prod_source_label} --container --mute --pilot-user=atlas -t -u --es-executor-type=raythena " \
+        cmd += f"-i PR -j {prod_source_label} --container --mute --pilot-user=atlas -t -u --es-executor-type=raythena -v 1 " \
             f"-d --cleanup=False -w generic --use-https False --allow-same-user=False --resource-type MCORE " \
             f"--hpc-resource {shlex.quote(self.config.payload['hpcresource'])};"
-
-        # self.logging_actor.debug.remote(self.worker_id,f"cmd: {repr(cmd)}", time.asctime())
 
         extra_script = self.config.payload.get('extrapostpayload', None)
         if extra_script is not None:
@@ -273,7 +269,7 @@ class Pilot2HttpPayload(ESPayload):
         elif py3pilot:
             cmd += "--pythonversion 3 "
 
-        cmd += f"-i PR -j {prod_source_label} --container --mute --pilot-user=atlas -t -u --es-executor-type=raythena " \
+        cmd += f"-i PR -j {prod_source_label} --container --mute --pilot-user=atlas -t -u --es-executor-type=raythena -v 1 " \
             f"-d --cleanup=False -w generic --url=http://{self.host} -p {self.port} --use-https False --allow-same-user=False --resource-type MCORE " \
             f"--hpc-resource {shlex.quote(self.config.payload['hpcresource'])};"
 
@@ -306,7 +302,6 @@ class Pilot2HttpPayload(ESPayload):
         cwd = os.getcwd()
         harvester_home = os.path.expandvars(self.config.harvester.get("cacher", ''))
 
-        self.logging_actor.debug.remote(self.worker_id, "pilot2http start creating symlinks", time.asctime())
         ddm_endpoints_file = os.path.join(harvester_home, "cric_ddmendpoints.json")
         if os.path.isfile(ddm_endpoints_file):
             os.symlink(ddm_endpoints_file, os.path.join(cwd, "cric_ddmendpoints.json"))
@@ -319,7 +314,6 @@ class Pilot2HttpPayload(ESPayload):
         queuedata_file = os.path.join(harvester_home, f"{queue_escaped}_queuedata.json")
         if os.path.isfile(queuedata_file):
             os.symlink(queuedata_file, os.path.join(cwd, "queuedata.json"))
-        self.logging_actor.debug.remote(self.worker_id, "pilot2http stop creating symlinks", time.asctime())
 
     def stageout(self) -> None:
         """
@@ -393,12 +387,10 @@ class Pilot2HttpPayload(ESPayload):
             if pexit is None:
                 self.pilot_process.terminate()
                 pexit = self.pilot_process.wait()
-            self.logging_actor.debug.remote(self.worker_id,
-                                            f"Payload return code: {pexit}", time.asctime())
+            self.logging_actor.debug(self.worker_id, f"Payload return code: {pexit}", time.asctime())
             asyncio.run_coroutine_threadsafe(self.notify_stop_server_task(),
                                              self.loop)
             self.server_thread.join()
-            self.logging_actor.info.remote(self.worker_id, "Communicator stopped", time.asctime())
 
     def submit_new_range(self, event_range: Union[None, EventRange]) -> asyncio.Future:
         """
@@ -431,7 +423,9 @@ class Pilot2HttpPayload(ESPayload):
             None if no job update update is available or a dict holding the update
         """
         try:
-            return self.job_update.get_nowait()
+            res = self.job_update.get_nowait()
+            # self.logging_actor.debug(self.worker_id, f"job update queue size is {self.job_update.qsize()}", time.asctime())
+            return res
         except QueueEmpty:
             return None
 
@@ -443,7 +437,9 @@ class Pilot2HttpPayload(ESPayload):
             Dict holding event range update of processed events, None if no update is available
         """
         try:
-            return self.ranges_update.get_nowait()
+            res = self.ranges_update.get_nowait()
+            # self.logging_actor.debug(self.worker_id, f"event ranges queue size is {self.ranges_update.qsize()}", time.asctime())
+            return res
         except QueueEmpty:
             return None
 
@@ -470,8 +466,6 @@ class Pilot2HttpPayload(ESPayload):
         Returns:
             response from the handler
         """
-        self.logging_actor.debug.remote(
-            self.worker_id, f"Started handling {request.method} {request.path}", time.asctime())
         try:
             return await self.router.route(request.path, request=request)
         except Exception:
@@ -507,7 +501,6 @@ class Pilot2HttpPayload(ESPayload):
         """
         del request
         job = self.current_job if self.current_job else dict()
-        self.logging_actor.debug.remote(self.worker_id, f"Serving job {job.get_id()}", time.asctime())
         return web.json_response(job, dumps=self.json_encoder)
 
     async def handle_update_job(self, request: web.BaseRequest) -> web.Response:
@@ -523,8 +516,7 @@ class Pilot2HttpPayload(ESPayload):
         body = await Pilot2HttpPayload.parse_qs_body(request)
         await self.job_update.put(body)
         res = {"StatusCode": 0}
-        self.logging_actor.debug.remote(
-            self.worker_id, f"Finished handling {request.method} {request.path}", time.asctime())
+        # self.logging_actor.debug(self.worker_id, f"job update queue size is {self.job_update.qsize()}", time.asctime())
         return web.json_response(res, dumps=self.json_encoder)
 
     async def handle_get_event_ranges(self,
@@ -541,7 +533,6 @@ class Pilot2HttpPayload(ESPayload):
             json holding the event ranges
         """
         body = await Pilot2HttpPayload.parse_qs_body(request)
-        self.logging_actor.debug.remote(self.worker_id, f"Body: {body}", time.asctime())
         status = 0
         panda_id = body['pandaID'][0]
         ranges = list()
@@ -558,9 +549,9 @@ class Pilot2HttpPayload(ESPayload):
                         break
                     ranges.append(crange)
         res = {"StatusCode": status, "eventRanges": ranges}
-        self.logging_actor.info.remote(
-            self.worker_id,
-            f"Finished handling {request.method} {request.path}. {len(res['eventRanges'])} ranges sent to pilot", time.asctime())
+        # self.logging_actor.info(
+        #     self.worker_id,
+        #     f"{len(res['eventRanges'])} ranges sent to pilot", time.asctime())
         return web.json_response(res, dumps=self.json_encoder)
 
     async def handle_update_event_ranges(
@@ -577,8 +568,7 @@ class Pilot2HttpPayload(ESPayload):
         body = await Pilot2HttpPayload.parse_qs_body(request)
         await self.ranges_update.put(body)
         res = {"StatusCode": 0}
-        self.logging_actor.debug.remote(
-            self.worker_id, f"Finished handling {request.method} {request.path}", time.asctime())
+        # self.logging_actor.debug(self.worker_id, f"event ranges queue size is {self.ranges_update.qsize()}", time.asctime())
         return web.json_response(res, dumps=self.json_encoder)
 
     async def handle_update_jobs_in_bulk(
@@ -635,14 +625,11 @@ class Pilot2HttpPayload(ESPayload):
         Returns:
             the TCP site holding socket information
         """
-        server = web.Server(self.http_handler)
+        server = web.Server(self.http_handler, access_log=None)
         runner = web.ServerRunner(server)
         await runner.setup()
         self.site = web.TCPSite(runner, self.host, self.port)
         await self.site.start()
-        self.logging_actor.debug.remote(
-            self.worker_id,
-            f"======= Serving on http://{self.host}:{self.port}/ ======", time.asctime())
         return self.site
 
     async def notify_stop_server_task(self) -> None:
@@ -665,9 +652,6 @@ class Pilot2HttpPayload(ESPayload):
         self._start_payload()
         await self.stop_event.wait()
         if self.site:
-            self.logging_actor.debug.remote(
-                self.worker_id,
-                f"======= Stopped http://{self.host}:{self.port}/ ======", time.asctime())
             await self.site.stop()
 
     def run(self) -> None:
