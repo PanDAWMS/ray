@@ -1,10 +1,11 @@
 import logging
+import time
 
 from raythena.utils.config import Config
 from raythena.utils.logging import configure_logger
 
 
-class LoggingActor(object):
+class Logger(object):
     """
     Actor used to centralize logging from other workers / driver in the same log file.
     """
@@ -19,9 +20,9 @@ class LoggingActor(object):
         self.config = config
         self.id = id
         self.logger = logging.getLogger(self.id)
-        configure_logger(self.config)
+        configure_logger(self.config, False)
 
-    def debug(self, actor_id: str, message: str, etime: str) -> None:
+    def debug(self, message: str) -> None:
         """
         Debug log entry
         Args:
@@ -33,9 +34,9 @@ class LoggingActor(object):
         Returns:
             None
         """
-        self.log(logging.DEBUG, actor_id, message, etime)
+        self.log(logging.DEBUG, message)
 
-    def info(self, actor_id: str, message: str, etime: str) -> None:
+    def info(self, message: str) -> None:
         """
         Info log entry
         Args:
@@ -47,9 +48,9 @@ class LoggingActor(object):
         Returns:
             None
         """
-        self.log(logging.INFO, actor_id, message, etime)
+        self.log(logging.INFO, message)
 
-    def warning(self, actor_id: str, message: str, etime: str) -> None:
+    def warning(self, message: str) -> None:
         """
         Warning log entry
         Args:
@@ -60,9 +61,9 @@ class LoggingActor(object):
         Returns:
             None
         """
-        self.log(logging.WARNING, actor_id, message, etime)
+        self.log(logging.WARNING, message)
 
-    def warn(self, actor_id: str, message: str, etime: str) -> None:
+    def warn(self, message: str) -> None:
         """
         Warning log entry
         Args:
@@ -73,9 +74,9 @@ class LoggingActor(object):
         Returns:
             None
         """
-        self.log(logging.WARN, actor_id, message, etime)
+        self.log(logging.WARN, message)
 
-    def error(self, actor_id: str, message: str, etime: str) -> None:
+    def error(self, message: str) -> None:
         """
         Error log entry
         Args:
@@ -86,9 +87,9 @@ class LoggingActor(object):
         Returns:
             None
         """
-        self.log(logging.ERROR, actor_id, message, etime)
+        self.log(logging.ERROR, message)
 
-    def fatal(self, actor_id: str, message: str, etime: str) -> None:
+    def fatal(self, message: str) -> None:
         """
         Fatal log entry
         Args:
@@ -99,9 +100,9 @@ class LoggingActor(object):
         Returns:
             None
         """
-        self.log(logging.FATAL, actor_id, message, etime)
+        self.log(logging.FATAL, message)
 
-    def critical(self, actor_id: str, message: str, etime: str) -> None:
+    def critical(self, message: str) -> None:
         """
         Critical log entry
         Args:
@@ -112,18 +113,16 @@ class LoggingActor(object):
         Returns:
             None
         """
-        self.log(logging.CRITICAL, actor_id, message, etime)
+        self.log(logging.CRITICAL, message)
 
-    def log(self, level: int, actor_id: str, message: str, etime: str) -> None:
+    def log(self, level: int, message: str) -> None:
         """
         Log the message to file
         Args:
             level: log level
-            actor_id: worker_id of the producer
             message: Message to log
-            etime: log entry timestamp
 
         Returns:
             None
         """
-        self.logger.log(level, f" {etime} | {actor_id} | {message}")
+        self.logger.log(level, f" {time.asctime()} | {self.id} | {message}")

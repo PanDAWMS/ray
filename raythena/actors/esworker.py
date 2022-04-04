@@ -13,7 +13,7 @@ from time import sleep
 
 import ray
 
-from raythena.actors.loggingActor import LoggingActor
+from raythena.actors.logger import Logger
 from raythena.utils.config import Config
 from raythena.utils.eventservice import EventRangeRequest, Messages, EventRangeUpdate, PandaJob, EventRange
 from raythena.utils.exception import IllegalWorkerState, StageInFailed, StageOutFailed, WrappedException, BaseRaythenaException
@@ -100,7 +100,7 @@ class ESWorker(object):
         """
         self.id = actor_id
         self.config = config
-        self.logging_actor = LoggingActor(self.config, self.id)
+        self._logger = Logger(self.config, self.id)
         self.session_log_dir = session_log_dir
         self.job = None
         self.transitions = ESWorker.TRANSITIONS_STANDARD
@@ -122,7 +122,7 @@ class ESWorker(object):
         self.start_time = -1
         self.time_limit = -1
         self.elapsed = 1
-        self.logging_actor.info(self.id, f"Ray worker started on node {gethostname()}", time.asctime())
+        self._logger.info(f"Ray worker started on node {gethostname()}")
 
     def check_time(self) -> None:
         while True:
@@ -137,11 +137,11 @@ class ESWorker(object):
                         shutil.rmtree(self.actor_ray_logs_dir)
                     shutil.copytree(self.session_log_dir, self.actor_ray_logs_dir)
                 except Exception as e:
-                    self.logging_actor.warn(self.id, f"Failed to copy ray logs to actor directory: {e}", time.asctime())
+                    self._logger.warn(f"Failed to copy ray logs to actor directory: {e}")
             if time_elapsed > self.time_limit - 900:
                 killsignal = open('pilot_kill_payload', 'w')
                 killsignal.close()
-                self.logging_actor.info(self.id, "killsignal sent to payload", time.asctime())
+                self._logger.info("killsignal sent to payload")
                 break
             else:
                 sleep(5)
@@ -175,11 +175,7 @@ class ESWorker(object):
         """
         self.payload_job_dir = os.path.join(self.workdir, self.job['PandaID'])
         if not os.path.isdir(self.payload_job_dir):
-            self.logging_actor.warn(
-                self.id,
-                f"Specified path {self.payload_job_dir} does not exist. Using cwd {os.getcwd()}",
-                time.asctime()
-            )
+            self._logger.warn(f"Specified path {self.payload_job_dir} does not exist. Using cwd {os.getcwd()}")
             self.payload_job_dir = self.workdir
 
         subdir = f"{self.id}"
@@ -203,11 +199,7 @@ class ESWorker(object):
             if not os.path.isdir(self.payload_actor_output_dir):
                 os.mkdir(self.payload_actor_output_dir)
         except Exception as e:
-            self.logging_actor.warn(
-                self.id,
-                f"Exception when creating dir: {e}",
-                time.asctime()
-            )
+            self._logger.warn(f"Exception when creating dir: {e}")
             raise StageInFailed(self.id)
         # self.cpu_monitor = CPUMonitor(os.path.join(self.payload_actor_process_dir, "cpu_monitor.json"))
         # self.cpu_monitor.start()
@@ -215,7 +207,7 @@ class ESWorker(object):
             self.payload.stagein()
             self.payload.start(self.modify_job(self.job))
         except Exception as e:
-            self.logging_actor.warn(self.id, f"Failed to stagein payload: {e}", time.asctime())
+            self._logger.warn(f"Failed to stagein payload: {e}")
             raise StageInFailed(self.id)
         self.transition_state(ESWorker.READY_FOR_EVENTS if self.
                               is_event_service_job() else ESWorker.PROCESSING)
@@ -246,11 +238,7 @@ class ESWorker(object):
             IllegalWorkerState if the transition isn't allowed
         """
         if dest not in self.transitions[self.state]:
-            self.logging_actor.error(
-                self.id,
-                f"Illegal transition from {ESWorker.STATES_NAME[self.state]} to {ESWorker.STATES_NAME[dest]}",
-                time.asctime()
-            )
+            self._logger.error(f"Illegal transition from {ESWorker.STATES_NAME[self.state]} to {ESWorker.STATES_NAME[dest]}")
             raise IllegalWorkerState(worker_id=self.id,
                                      src_state=ESWorker.STATES_NAME[self.state],
                                      dst_state=ESWorker.STATES_NAME[dest])
@@ -300,8 +288,7 @@ class ESWorker(object):
                 raise WrappedException(self.id, e)
         else:
             self.transition_state(ESWorker.DONE)
-            self.logging_actor.error(
-                self.id, "Could not fetch job. Set state to done.", time.asctime())
+            self._logger.error("Could not fetch job. Set state to done.")
 
         return self.return_message(Messages.REPLY_OK)
 
@@ -430,7 +417,7 @@ class ESWorker(object):
             if "eventStatus" not in range_update:
                 raise StageOutFailed(self.id)
             if range_update["eventStatus"] == "failed":
-                self.logging_actor.warn(self.id, "event range failed, will not stage-out", time.asctime())
+                self._logger.warn("event range failed, will not stage-out")
                 continue
             if "path" in range_update and range_update["path"]:
                 cfile_key = "path"
