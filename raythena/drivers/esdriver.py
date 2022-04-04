@@ -11,7 +11,6 @@ from socket import gethostname
 from typing import Any, Dict, Iterator, List, Tuple, Union
 
 import ray
-from raythena import __version__
 from raythena.actors.esworker import ESWorker
 from raythena.actors.loggingActor import LoggingActor
 from raythena.drivers.baseDriver import BaseDriver
@@ -376,7 +375,7 @@ class ESDriver(BaseDriver):
         self.event_ranges_queue = Queue()
 
         self.logging_actor.debug(self.id,
-                                 f"Raythena version {__version__} initializing, running Ray driver {ray.__version__} on {gethostname()}", time.asctime())
+                                 f"Raythena version initializing, running Ray {ray.__version__} on {gethostname()}", time.asctime())
 
         workdir = os.path.expandvars(self.config.ray.get('workdir'))
         if not workdir or not os.path.exists(workdir):
