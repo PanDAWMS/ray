@@ -365,7 +365,7 @@ class ESDriver(BaseDriver):
             config: application config
         """
         super().__init__(config, session_dir)
-        self.id = f"Driver"
+        self.id = "Driver"
         self.config_remote = ray.put(self.config)
         self.logging_actor: LoggingActor = LoggingActor(self.config, self.id)
         self.session_log_dir = os.path.join(self.session_dir, "logs")

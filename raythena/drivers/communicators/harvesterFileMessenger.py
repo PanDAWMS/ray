@@ -196,7 +196,7 @@ class HarvesterFileCommunicator(BaseCommunicator):
         Returns:
             None
         """
-        self.logging_actor.debug(self.id, f"Sending event ranges update to harvester...", time.asctime())
+        self.logging_actor.debug(self.id, "Sending event ranges update to harvester...", time.asctime())
         tmp_status_dump_file = f"{self.eventstatusdumpjsonfile}.tmp"
 
         if os.path.isfile(tmp_status_dump_file):
@@ -229,7 +229,7 @@ class HarvesterFileCommunicator(BaseCommunicator):
 
     def merge_write_dump_file(self, request: EventRangeUpdate, tmp_status_dump_file: str) -> None:
         if os.path.isfile(self.eventstatusdumpjsonfile):
-            self.logging_actor.debug(self.id, f"Dump file already exists, merge with upcoming update", time.asctime())
+            self.logging_actor.debug(self.id, "Dump file already exists, merge with upcoming update", time.asctime())
             try:
                 shutil.move(self.eventstatusdumpjsonfile, tmp_status_dump_file)
                 with open(tmp_status_dump_file) as f:
@@ -239,7 +239,7 @@ class HarvesterFileCommunicator(BaseCommunicator):
             else:
                 request.merge_update(EventRangeUpdate(current_update))
 
-        self.logging_actor.debug(self.id, f"Writting event ranges update to temporary file", time.asctime())
+        self.logging_actor.debug(self.id, "Writting event ranges update to temporary file", time.asctime())
         try:
             with open(tmp_status_dump_file, 'w') as f:
                 json.dump(request.range_update, f)
