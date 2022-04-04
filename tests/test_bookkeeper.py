@@ -1,6 +1,5 @@
 import pytest
 
-from raythena.actors.loggingActor import LoggingActor
 from raythena.drivers.esdriver import BookKeeper
 
 

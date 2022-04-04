@@ -4,7 +4,6 @@ import time
 import pytest
 import requests
 
-from raythena.actors.loggingActor import LoggingActor
 from raythena.actors.payloads.eventservice.pilot2http import Pilot2HttpPayload
 from raythena.utils.eventservice import PandaJob, EventRange
 from raythena.utils.exception import FailedPayload
