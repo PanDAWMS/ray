@@ -6,7 +6,8 @@ setup(
     version=raythena.__version__,
     author='Miha Muskinja',
     author_email='MihaMuskinja@lbl.gov',
-    packages=find_namespace_packages(include=['raythena']),
+    packages=find_namespace_packages(where='raythena'),
+    package_dir={"": "raythena"},
     scripts=[
         'bin/ray_start_head',
         'bin/ray_start_worker',
