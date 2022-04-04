@@ -2,7 +2,6 @@ import asyncio
 import functools
 import json
 import os
-import time
 import shlex
 import stat
 from asyncio import Queue, QueueEmpty, Event
