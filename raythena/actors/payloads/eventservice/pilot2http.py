@@ -568,7 +568,7 @@ class Pilot2HttpPayload(ESPayload):
         body = await Pilot2HttpPayload.parse_qs_body(request)
         await self.ranges_update.put(body)
         res = {"StatusCode": 0}
-        self.logging_actor.debug(self.worker_id, f"event ranges queue size is {self.ranges_update.qsize()}", time.asctime())
+        # self.logging_actor.debug(self.worker_id, f"event ranges queue size is {self.ranges_update.qsize()}", time.asctime())
         return web.json_response(res, dumps=self.json_encoder)
 
     async def handle_update_jobs_in_bulk(

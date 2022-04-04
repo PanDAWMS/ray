@@ -787,14 +787,11 @@ class ESDriver(BaseDriver):
         except Exception as e:
             self.logging_actor.error(self.id, f"Failed to copy ray logs to workdir: {e}", time.asctime())
 
-        self.logging_actor.debug(self.id, "waiting on tar threads to finish...", time.asctime())
-        # Finish handling all currently running tar threads
-        while len(self.running_tar_threads) > 0:
-            self.get_tar_results()
-            time.sleep(1)
-        # check again if we still have tar thread that could be started and wait on them
+        self.logging_actor.debug(self.id, "Starting new tar tasks", time.asctime())
+        # Workers might have sent event ranges update since last check, create remaining tasks regardless of tar interval
         self.tar_es_output(True)
 
+        self.logging_actor.debug(self.id, "Waiting on tar tasks to finish...", time.asctime())
         while len(self.running_tar_threads) > 0:
             self.get_tar_results()
             time.sleep(1)
@@ -955,8 +952,6 @@ class ESDriver(BaseDriver):
         Returns:
             None
         """
-        if len(self.running_tar_threads) > 0:
-            return
         now = time.time()
         if not skip_time_check and int(now - self.tar_timestamp) < self.tarinterval:
             return
@@ -969,13 +964,13 @@ class ESDriver(BaseDriver):
             self.ranges_to_tar.extend(ranges_to_tar)
 
             try:
-                self.running_tar_threads = {self.tar_executor.submit(self.create_tar_file, range_list): range_list for range_list in self.ranges_to_tar}
+                self.running_tar_threads.update({self.tar_executor.submit(self.create_tar_file, range_list): range_list for range_list in self.ranges_to_tar})
                 self.ranges_to_tar = list()
             except Exception as exc:
                 self.logging_actor.warn(self.id, f"tar_es_output: Exception {exc} when submitting tar subprocess", time.asctime())
                 pass
 
-            self.logging_actor.debug(self.id, f"tar_es_output: #threads submitted : {len(self.running_tar_threads)}", time.asctime())
+            self.logging_actor.debug(self.id, f"tar_es_output: #tasks in queue : {len(self.running_tar_threads)}", time.asctime())
 
     def get_tar_results(self) -> None:
         """
