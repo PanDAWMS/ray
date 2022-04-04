@@ -46,8 +46,7 @@ class TestPilot2Http:
                 break
 
     def setup_payload(self, config):
-        logging_actor = LoggingActor.remote(config)
-        return MockPayload("a1", logging_actor, config)
+        return MockPayload("a1", config)
 
     @pytest.fixture
     def payload(self, tmpdir, config, sample_job):

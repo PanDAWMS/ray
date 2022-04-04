@@ -8,8 +8,7 @@ from raythena.drivers.esdriver import BookKeeper
 class TestBookKeeper:
 
     def test_add_jobs(self, is_eventservice, config, sample_multijobs, njobs):
-        logging_actor = LoggingActor.remote(config)
-        bookKeeper = BookKeeper(logging_actor, config)
+        bookKeeper = BookKeeper(config)
         bookKeeper.add_jobs(sample_multijobs)
         assert len(bookKeeper.jobs) == njobs
         for pandaID in bookKeeper.jobs:
@@ -17,8 +16,7 @@ class TestBookKeeper:
 
     def test_assign_job_to_actor(elf, is_eventservice, config, sample_multijobs,
                                  njobs, sample_ranges, nevents):
-        logging_actor = LoggingActor.remote(config)
-        bookKeeper = BookKeeper(logging_actor, config)
+        bookKeeper = BookKeeper(config)
         bookKeeper.add_jobs(sample_multijobs)
         actor_id = "a1"
         if not is_eventservice:
@@ -47,8 +45,7 @@ class TestBookKeeper:
         if not is_eventservice:
             pytest.skip()
 
-        logging_actor = LoggingActor.remote(config)
-        bookKeeper = BookKeeper(logging_actor, config)
+        bookKeeper = BookKeeper(config)
         bookKeeper.add_jobs(sample_multijobs)
 
         assert not bookKeeper.has_jobs_ready()
@@ -82,8 +79,7 @@ class TestBookKeeper:
             pytest.skip()
         worker_ids = [f"w_{i}" for i in range(10)]
 
-        logging_actor = LoggingActor.remote(config)
-        bookKeeper = BookKeeper(logging_actor, config)
+        bookKeeper = BookKeeper(config)
         bookKeeper.add_jobs(sample_multijobs)
         bookKeeper.add_event_ranges(sample_ranges)
 
@@ -106,10 +102,9 @@ class TestBookKeeper:
         if not is_eventservice:
             pytest.skip("No eventservice jobs")
 
-        logging_actor = LoggingActor.remote(config)
         actor_id = "a1"
 
-        bookKeeper = BookKeeper(logging_actor, config)
+        bookKeeper = BookKeeper(config)
         bookKeeper.add_jobs(sample_multijobs)
         bookKeeper.add_event_ranges(sample_ranges)
 
@@ -127,11 +122,10 @@ class TestBookKeeper:
         if not is_eventservice:
             pytest.skip("No eventservice jobs")
 
-        logging_actor = LoggingActor.remote(config)
         actor_id_1 = "a1"
         actor_id_2 = "a2"
 
-        bookKeeper = BookKeeper(logging_actor, config)
+        bookKeeper = BookKeeper(config)
         bookKeeper.add_jobs(sample_multijobs)
         bookKeeper.add_event_ranges(sample_ranges)
 
