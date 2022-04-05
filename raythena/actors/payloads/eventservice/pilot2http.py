@@ -12,7 +12,7 @@ from urllib.parse import parse_qs
 import uvloop
 from aiohttp import web
 
-from raythena.actors.logger import Logger
+from raythena.utils.logging import make_logger
 from raythena.actors.payloads.eventservice.esPayload import ESPayload
 from raythena.utils.config import Config
 from raythena.utils.eventservice import ESEncoder
@@ -95,7 +95,7 @@ class Pilot2HttpPayload(ESPayload):
             config: application config
         """
         super().__init__(worker_id, config)
-        self._logger = Logger(self.config, self.worker_id)
+        self._logger = make_logger(self.config, self.worker_id)
         self.host = '127.0.0.1'
         self.port = 8080
         self.json_encoder = functools.partial(json.dumps, cls=ESEncoder)

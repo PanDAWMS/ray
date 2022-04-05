@@ -7,7 +7,7 @@ from queue import Queue
 
 from raythena.drivers.communicators.baseCommunicator import BaseCommunicator
 from raythena.utils.config import Config
-from raythena.actors.logger import Logger
+from raythena.utils.logging import make_logger
 from raythena.utils.eventservice import EventRangeRequest, PandaJobRequest, PandaJobUpdate, EventRangeUpdate, JobReport
 from raythena.utils.exception import ExThread
 
@@ -38,7 +38,7 @@ class HarvesterFileCommunicator(BaseCommunicator):
         self.ranges_requests_count = 0
         self._parse_harvester_config()
         self.id = "HarvesterCommunicator"
-        self._logger = Logger(self.config, self.id)
+        self._logger = make_logger(self.config, self.id)
         self.event_ranges_update_buffer = EventRangeUpdate()
         self.event_ranges_update_interval = 5 * 60
         self.communicator_thread = ExThread(target=self.run,

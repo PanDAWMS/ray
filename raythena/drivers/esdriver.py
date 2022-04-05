@@ -12,7 +12,7 @@ from typing import Any, Dict, Iterator, List, Tuple, Union
 
 import ray
 from raythena.actors.esworker import ESWorker
-from raythena.actors.logger import Logger
+from raythena.utils.logging import make_logger
 from raythena.drivers.baseDriver import BaseDriver
 from raythena.drivers.communicators.baseCommunicator import BaseCommunicator
 from raythena.utils.config import Config
@@ -38,7 +38,7 @@ class BookKeeper(object):
     def __init__(self, config: Config) -> None:
         self.jobs = PandaJobQueue()
         self.config = config
-        self._logger = Logger(self.config, "BookKeeper")
+        self._logger = make_logger(self.config, "BookKeeper")
         self.actors: Dict[str, Union[str, None]] = dict()
         self.rangesID_by_actor: Dict[str, List[str]] = dict()
         self.finished_range_by_input_file: Dict[str, List[Dict]] = dict()
@@ -363,7 +363,7 @@ class ESDriver(BaseDriver):
         super().__init__(config, session_dir)
         self.id = "Driver"
         self.config_remote = ray.put(self.config)
-        self._logger: Logger = Logger(self.config, self.id)
+        self._logger = make_logger(self.config, self.id)
         self.session_log_dir = os.path.join(self.session_dir, "logs")
         self.nodes = build_nodes_resource_list(self.config, run_actor_on_head=False)
 

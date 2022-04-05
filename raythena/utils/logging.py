@@ -1,11 +1,21 @@
 import logging
 import sys
-import os
+from time import gmtime
 
 from raythena.utils.config import Config
 
+_initialized = False
 
-def configure_logger(config: Config, file_logging: bool = True) -> None:
+
+def make_logger(config: Config, name: str, filepath: str = None):
+    global _initialized
+    if not _initialized:
+        configure_logger(config, filepath)
+        _initialized = True
+    return logging.getLogger(name)
+
+
+def configure_logger(config: Config, filepath: str) -> None:
     """
     Configure the logging format and handlers.
 
@@ -16,24 +26,22 @@ def configure_logger(config: Config, file_logging: bool = True) -> None:
     Returns:
         None
     """
-    if config.logging['level'].lower() == 'debug':
-        log_level = logging.DEBUG
-    else:
-        log_level = config.logging['level'].upper()
-
+    log_level = config.logging.get('level', 'warning').upper()
+    logging.Formatter.converter = gmtime
     handlers = list()
-    ch = logging.StreamHandler(sys.stdout)
-    handlers.append(ch)
-    if file_logging:
-        logdir = os.path.expandvars(config.ray.get('workdir', os.getcwd()))
-        if not os.path.isdir(logdir):
-            logdir = os.getcwd()
-        log_file = os.path.join(logdir, config.logging['logfile'])
-        fh = logging.FileHandler(log_file, mode='w')
+    if filepath:
+        fh = logging.FileHandler(filepath, mode='w')
         handlers.append(fh)
-
+    else:
+        ch = logging.StreamHandler(sys.stdout)
+        handlers.append(ch)
+    if logging.DEBUG == logging.getLevelName(log_level):
+        fmt = "{asctime} | {levelname:8} | {name}:{funcName} | {message}"
+    else:
+        fmt = "{asctime} | {levelname:8} | {name} | {message}"
     logging.basicConfig(
-        format="{levelname} | {message}",
+        format=fmt,
         style='{',
+        datefmt="%Y-%m-%d %H:%M:%S",
         level=logging.getLevelName(log_level),
         handlers=handlers)

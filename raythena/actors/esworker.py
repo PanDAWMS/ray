@@ -13,7 +13,7 @@ from time import sleep
 
 import ray
 
-from raythena.actors.logger import Logger
+from raythena.utils.logging import make_logger
 from raythena.utils.config import Config
 from raythena.utils.eventservice import EventRangeRequest, Messages, EventRangeUpdate, PandaJob, EventRange
 from raythena.utils.exception import IllegalWorkerState, StageInFailed, StageOutFailed, WrappedException, BaseRaythenaException
@@ -100,7 +100,7 @@ class ESWorker(object):
         """
         self.id = actor_id
         self.config = config
-        self._logger = Logger(self.config, self.id)
+        self._logger = make_logger(self.config, self.id)
         self.session_log_dir = session_log_dir
         self.job = None
         self.transitions = ESWorker.TRANSITIONS_STANDARD
