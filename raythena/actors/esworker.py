@@ -117,6 +117,9 @@ class ESWorker(object):
             self.workdir = os.getcwd()
         self.plugin_registry = PluginsRegistry()
         payload = self.config.payload['plugin']
+        self.pilot_kill_file = os.path.expandvars(self.config.payload.get('pilotkillfile', 'pilot_kill_payload'))
+        self.pilot_kill_time = self.config.payload.get('pilotkilltime', 600)
+        self.time_monitor_file = os.path.expandvars(self.config.payload.get('timemonitorfile', 'RaythenaTimeMonitor.txt'))
         self.payload_class = self.plugin_registry.get_plugin(payload)
         self.payload: Union[BasePayload, ESPayload] = self.payload_class(self.id, self.config)
         self.start_time = -1
@@ -138,8 +141,8 @@ class ESWorker(object):
                         shutil.copytree(self.session_log_dir, self.actor_ray_logs_dir)
                 except Exception as e:
                     self._logger.warn(f"Failed to copy ray logs to actor directory: {e}")
-            if time_elapsed > self.time_limit - 900:
-                killsignal = open('pilot_kill_payload', 'w')
+            if time_elapsed > self.time_limit - self.pilot_kill_time:
+                killsignal = open(self.pilot_kill_file, 'w')
                 killsignal.close()
                 self._logger.info("killsignal sent to payload")
                 break
@@ -182,14 +185,18 @@ class ESWorker(object):
         self.payload_actor_process_dir = os.path.join(self.payload_job_dir, subdir)
         self.payload_actor_output_dir = os.path.join(self.payload_job_dir, subdir, "esOutput")
         self.actor_ray_logs_dir = os.path.join(self.payload_actor_process_dir, "ray_logs")
-
-        time_limit_monitor = open(os.path.join(self.workdir, "RaythenaTimeMonitor.txt"))
-        start_time = time_limit_monitor.readline().split(':')
-        self.start_time = int(start_time[0]) * 3600 + int(start_time[1]) * 60 + int(start_time[2])
-        time_limit = time_limit_monitor.readline().split(':')
-        if len(time_limit) < 3:
-            time_limit = [0] + time_limit
-        self.time_limit = int(time_limit[0]) * 3600 + int(time_limit[1]) * 60 + int(time_limit[2])
+        try:
+            time_limit_monitor = open(os.path.join(self.workdir, self.time_monitor_file))
+            start_time = time_limit_monitor.readline().split(':')
+            self.start_time = int(start_time[0]) * 3600 + int(start_time[1]) * 60 + int(start_time[2])
+            time_limit = time_limit_monitor.readline().split(':')
+            if len(time_limit) < 3:
+                time_limit = [0] + time_limit
+            self.time_limit = int(time_limit[0]) * 3600 + int(time_limit[1]) * 60 + int(time_limit[2])
+            timer_thread = threading.Thread(name='timer', target=self.check_time, daemon=True)
+            timer_thread.start()
+        except Exception as e:
+            self._logger.warning(f"Failed to setup timer thread... will run until job ends")
 
         try:
             os.mkdir(self.payload_actor_process_dir)
@@ -200,8 +207,7 @@ class ESWorker(object):
                 disable_stdout_logging()
 
             self._logger.info(f"Ray worker started on node {gethostname()}")
-            timer_thread = threading.Thread(name='timer', target=self.check_time, daemon=True)
-            timer_thread.start()
+
             if not os.path.isdir(self.payload_actor_output_dir):
                 os.mkdir(self.payload_actor_output_dir)
         except Exception as e:

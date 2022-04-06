@@ -12,6 +12,9 @@ payload:
   virtualenv:
   py3pilot: true
   pilotversion: 3
+  pilotkillfile: pilot_kill_payload
+  pilotkilltime: 900
+  timemonitorfile: jobtimeout.txt
 
 harvester:
   cacher: $SCRATCH/harvester

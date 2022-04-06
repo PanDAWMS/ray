@@ -70,8 +70,9 @@ echo "Running 128 workers per Athena"
 #export RAY_BACKEND_LOG_LEVEL=debug
 
 # Create a file with current timestamp and job time limit
-date "+%H:%M:%S" > $RAYTHENA_RAY_WORKDIR/RaythenaTimeMonitor.txt
-squeue -h -j $SLURM_JOBID -o "%l" >> $RAYTHENA_RAY_WORKDIR/RaythenaTimeMonitor.txt
+export TIME_MONITOR_FILE=jobtimeout.txt
+date "+%H:%M:%S" > $RAYTHENA_RAY_WORKDIR/$TIME_MONITOR_FILE
+squeue -h -j $SLURM_JOBID -o "%l" >> $RAYTHENA_RAY_WORKDIR/$TIME_MONITOR_FILE
 
 cp $pilot_wrapper_bin $RAYTHENA_RAY_WORKDIR
 tar xzf $pilot_tar_file -C$RAYTHENA_RAY_WORKDIR

@@ -27,6 +27,9 @@ class Config(object):
             "containerengine": str,
             "containerextraargs": str,
             "pilotversion": int,
+            "pilotkillfile": str,
+            "pilotkilltime": int,
+            "timemonitorfile": str,
         },
         'harvester': {
             'endpoint': str,

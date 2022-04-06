@@ -9,6 +9,9 @@ payload:
   containerengine: docker
   containerextraargs: run
   pilotversion: 2
+  pilotkillfile: pilot_kill_payload
+  pilotkilltime: 900
+  timemonitorfile: jobtimeout.txt
 
 harvester:
   endpoint: .
