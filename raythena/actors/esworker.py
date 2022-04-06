@@ -196,7 +196,7 @@ class ESWorker(object):
             timer_thread = threading.Thread(name='timer', target=self.check_time, daemon=True)
             timer_thread.start()
         except Exception as e:
-            self._logger.warning(f"Failed to setup timer thread... will run until job ends")
+            self._logger.warning(f"Failed to setup timer thread: {e}")
 
         try:
             os.mkdir(self.payload_actor_process_dir)
