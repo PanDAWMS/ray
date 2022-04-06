@@ -2,7 +2,6 @@ import asyncio
 import functools
 import json
 import os
-import time
 import shlex
 import stat
 from asyncio import Queue, QueueEmpty, Event
@@ -13,7 +12,7 @@ from urllib.parse import parse_qs
 import uvloop
 from aiohttp import web
 
-from raythena.actors.loggingActor import LoggingActor
+from raythena.utils.logging import make_logger
 from raythena.actors.payloads.eventservice.esPayload import ESPayload
 from raythena.utils.config import Config
 from raythena.utils.eventservice import ESEncoder
@@ -96,7 +95,7 @@ class Pilot2HttpPayload(ESPayload):
             config: application config
         """
         super().__init__(worker_id, config)
-        self.logging_actor = LoggingActor(self.config, self.worker_id)
+        self._logger = make_logger(self.config, self.worker_id)
         self.host = '127.0.0.1'
         self.port = 8080
         self.json_encoder = functools.partial(json.dumps, cls=ESEncoder)
@@ -148,8 +147,7 @@ class Pilot2HttpPayload(ESPayload):
                                    stderr=DEVNULL,
                                    shell=True,
                                    close_fds=True)
-        self.logging_actor.info(
-            self.worker_id, f"Pilot payload started with PID {self.pilot_process.pid}", time.asctime())
+        self._logger.info(f"Pilot payload started with PID {self.pilot_process.pid}")
 
     def _build_pilot_command(self) -> str:
         """
@@ -387,7 +385,7 @@ class Pilot2HttpPayload(ESPayload):
             if pexit is None:
                 self.pilot_process.terminate()
                 pexit = self.pilot_process.wait()
-            self.logging_actor.debug(self.worker_id, f"Payload return code: {pexit}", time.asctime())
+            self._logger.debug(f"Payload return code: {pexit}")
             asyncio.run_coroutine_threadsafe(self.notify_stop_server_task(),
                                              self.loop)
             self.server_thread.join()
@@ -424,7 +422,7 @@ class Pilot2HttpPayload(ESPayload):
         """
         try:
             res = self.job_update.get_nowait()
-            # self.logging_actor.debug(self.worker_id, f"job update queue size is {self.job_update.qsize()}", time.asctime())
+            # self._logger.debug(f"job update queue size is {self.job_update.qsize()}")
             return res
         except QueueEmpty:
             return None
@@ -438,7 +436,7 @@ class Pilot2HttpPayload(ESPayload):
         """
         try:
             res = self.ranges_update.get_nowait()
-            # self.logging_actor.debug(self.worker_id, f"event ranges queue size is {self.ranges_update.qsize()}", time.asctime())
+            # self._logger.debug(f"event ranges queue size is {self.ranges_update.qsize()}")
             return res
         except QueueEmpty:
             return None
@@ -516,7 +514,7 @@ class Pilot2HttpPayload(ESPayload):
         body = await Pilot2HttpPayload.parse_qs_body(request)
         await self.job_update.put(body)
         res = {"StatusCode": 0}
-        # self.logging_actor.debug(self.worker_id, f"job update queue size is {self.job_update.qsize()}", time.asctime())
+        # self._logger.debug(f"job update queue size is {self.job_update.qsize()}")
         return web.json_response(res, dumps=self.json_encoder)
 
     async def handle_get_event_ranges(self,
@@ -549,9 +547,7 @@ class Pilot2HttpPayload(ESPayload):
                         break
                     ranges.append(crange)
         res = {"StatusCode": status, "eventRanges": ranges}
-        # self.logging_actor.info(
-        #     self.worker_id,
-        #     f"{len(res['eventRanges'])} ranges sent to pilot", time.asctime())
+        # self._logger.info(f"{len(res['eventRanges'])} ranges sent to pilot")
         return web.json_response(res, dumps=self.json_encoder)
 
     async def handle_update_event_ranges(
@@ -568,7 +564,7 @@ class Pilot2HttpPayload(ESPayload):
         body = await Pilot2HttpPayload.parse_qs_body(request)
         await self.ranges_update.put(body)
         res = {"StatusCode": 0}
-        # self.logging_actor.debug(self.worker_id, f"event ranges queue size is {self.ranges_update.qsize()}", time.asctime())
+        # self._logger.debug(f"event ranges queue size is {self.ranges_update.qsize()}")
         return web.json_response(res, dumps=self.json_encoder)
 
     async def handle_update_jobs_in_bulk(
