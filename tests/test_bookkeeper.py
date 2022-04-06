@@ -103,18 +103,24 @@ class TestBookKeeper:
 
         actor_id = "a1"
 
-        bookKeeper = BookKeeper(config)
-        bookKeeper.add_jobs(sample_multijobs)
-        bookKeeper.add_event_ranges(sample_ranges)
+        def __inner__(range_update, failed=False):
+            bookKeeper = BookKeeper(config)
+            bookKeeper.add_jobs(sample_multijobs)
+            bookKeeper.add_event_ranges(sample_ranges)
 
-        for i in range(njobs):
-            job = bookKeeper.assign_job_to_actor(actor_id)
-            _ = bookKeeper.fetch_event_ranges(actor_id, nevents)
-            bookKeeper.process_event_ranges_update(actor_id, sample_rangeupdate)
-            assert job.event_ranges_queue.nranges_done() == nevents
-            assert not bookKeeper.is_flagged_no_more_events(job['PandaID'])
+            for i in range(njobs):
+                job = bookKeeper.assign_job_to_actor(actor_id)
+                _ = bookKeeper.fetch_event_ranges(actor_id, nevents)
+                bookKeeper.process_event_ranges_update(actor_id, range_update)
+                if failed:
+                    assert job.event_ranges_queue.nranges_failed() == nevents
+                else:
+                    assert job.event_ranges_queue.nranges_done() == nevents
+                assert not bookKeeper.is_flagged_no_more_events(job['PandaID'])
 
-        assert not bookKeeper.assign_job_to_actor(actor_id)
+            assert not bookKeeper.assign_job_to_actor(actor_id)
+        __inner__(sample_rangeupdate)
+        __inner__(sample_failed_rangeupdate, True)
 
     def test_process_actor_end(self, is_eventservice, config, njobs,
                                sample_multijobs, nevents, sample_ranges):
