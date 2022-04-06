@@ -38,4 +38,5 @@ resources:
 
 logging:
   level: debug
-  logfile: raythena.log
+  driverlogfile: raythena.log
+  workerlogfile: esworker.log

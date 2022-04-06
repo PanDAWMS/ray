@@ -70,11 +70,12 @@ def setup_ray(config: Config) -> dict:
     Returns:
         dict of cluster params
     """
+    log_to_driver = True if not config.logging.get('workerlogfile', None) else False
     if is_external_cluster(config):
         ray_url = f"{config.ray['headip']}:{config.ray['redisport']}"
-        return ray.init(address=ray_url, _redis_password=config.ray['redispassword'])
+        return ray.init(address=ray_url, _redis_password=config.ray['redispassword'], log_to_driver=log_to_driver)
     else:
-        return ray.init(_system_config={"num_heartbeats_timeout": 60000})
+        return ray.init(_system_config={"num_heartbeats_timeout": 60000}, log_to_driver=log_to_driver)
 
 
 def shutdown_ray(config: Config) -> None:

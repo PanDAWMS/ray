@@ -13,7 +13,7 @@ from time import sleep
 
 import ray
 
-from raythena.utils.logging import make_logger
+from raythena.utils.logging import disable_stdout_logging, make_logger, log_to_file
 from raythena.utils.config import Config
 from raythena.utils.eventservice import EventRangeRequest, Messages, EventRangeUpdate, PandaJob, EventRange
 from raythena.utils.exception import IllegalWorkerState, StageInFailed, StageOutFailed, WrappedException, BaseRaythenaException
@@ -122,7 +122,6 @@ class ESWorker(object):
         self.start_time = -1
         self.time_limit = -1
         self.elapsed = 1
-        self._logger.info(f"Ray worker started on node {gethostname()}")
 
     def check_time(self) -> None:
         while True:
@@ -194,6 +193,12 @@ class ESWorker(object):
         try:
             os.mkdir(self.payload_actor_process_dir)
             os.chdir(self.payload_actor_process_dir)
+            worker_logfile = self.config.logging.get('workerlogfile', None)
+            if worker_logfile:
+                log_to_file(self.config.logging.get('level', 'warning').upper(), os.path.join(self.payload_actor_process_dir, os.path.basename(worker_logfile)))
+                disable_stdout_logging()
+
+            self._logger.info(f"Ray worker started on node {gethostname()}")
             timer_thread = threading.Thread(name='timer', target=self.check_time, daemon=True)
             timer_thread.start()
             if not os.path.isdir(self.payload_actor_output_dir):

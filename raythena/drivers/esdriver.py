@@ -12,7 +12,7 @@ from typing import Any, Dict, Iterator, List, Tuple, Union
 
 import ray
 from raythena.actors.esworker import ESWorker
-from raythena.utils.logging import make_logger
+from raythena.utils.logging import disable_stdout_logging, log_to_file, make_logger
 from raythena.drivers.baseDriver import BaseDriver
 from raythena.drivers.communicators.baseCommunicator import BaseCommunicator
 from raythena.utils.config import Config
@@ -371,14 +371,18 @@ class ESDriver(BaseDriver):
         self.jobs_queue = Queue()
         self.event_ranges_queue = Queue()
 
-        self._logger.debug(f"Raythena version initializing, running Ray {ray.__version__} on {gethostname()}")
-
         workdir = os.path.expandvars(self.config.ray.get('workdir'))
         if not workdir or not os.path.exists(workdir):
-            self._logger.warn(f"ray workdir '{workdir}' doesn't exist... using cwd {os.getcwd()}")
             workdir = os.getcwd()
         self.config.ray['workdir'] = workdir
         self.workdir = workdir
+        logfile = self.config.logging.get("driverlogfile", None)
+        if logfile:
+            log_to_file(self.config.logging.get("level", None), logfile)
+            # TODO removing stdout on the root logger will also disable ray logging and collected stdout from actors
+            disable_stdout_logging()
+
+        self._logger.debug(f"Raythena initializing, running Ray {ray.__version__} on {gethostname()}")
 
         # self.cpu_monitor = CPUMonitor(os.path.join(workdir, "cpu_monitor_driver.json"))
         # self.cpu_monitor.start()
@@ -560,6 +564,7 @@ class ESDriver(BaseDriver):
         else:
             self.terminated.append(actor_id)
             self.bookKeeper.process_actor_end(actor_id)
+            self._logger.info(f"{actor_id} stopped")
             # do not get new messages from this actor
         return has_jobs
 

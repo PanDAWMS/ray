@@ -52,7 +52,8 @@ class Config(object):
         },
         'logging': {
             'level': str,
-            'logfile': str,
+            'driverlogfile': str,
+            'workerlogfile': str,
         }
     }
 
