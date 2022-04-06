@@ -34,4 +34,6 @@ resources:
 
 logging:
   level: debug
-  logfile: raythena.log
+  driverlogfile:
+  workerlogfile:
+  copyraylogs: false
