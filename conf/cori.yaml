@@ -40,3 +40,4 @@ logging:
   level: debug
   driverlogfile: raythena.log
   workerlogfile: esworker.log
+  copyraylogs: false

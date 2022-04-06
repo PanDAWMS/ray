@@ -54,6 +54,7 @@ class Config(object):
             'level': str,
             'driverlogfile': str,
             'workerlogfile': str,
+            'copyraylogs': bool
         }
     }
 

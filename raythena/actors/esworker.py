@@ -132,9 +132,10 @@ class ESWorker(object):
             if time_elapsed // 300 >= self.elapsed:
                 self.elapsed += 1
                 try:
-                    if os.path.isdir(self.actor_ray_logs_dir):
-                        shutil.rmtree(self.actor_ray_logs_dir)
-                    shutil.copytree(self.session_log_dir, self.actor_ray_logs_dir)
+                    if self.config.logging.get('copyraylogs', False):
+                        if os.path.isdir(self.actor_ray_logs_dir):
+                            shutil.rmtree(self.actor_ray_logs_dir)
+                        shutil.copytree(self.session_log_dir, self.actor_ray_logs_dir)
                 except Exception as e:
                     self._logger.warn(f"Failed to copy ray logs to actor directory: {e}")
             if time_elapsed > self.time_limit - 900:

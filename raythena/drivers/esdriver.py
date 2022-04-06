@@ -235,7 +235,7 @@ class BookKeeper(object):
 
     def process_event_ranges_update(
         self, actor_id: str, event_ranges_update: Union[dict, EventRangeUpdate]
-    ) -> Union[EventRangeUpdate, None]:
+    ) -> Union[Tuple[EventRangeUpdate, EventRangeUpdate], None]:
         """
         Update the event ranges status according to the range update.
 
@@ -255,12 +255,14 @@ class BookKeeper(object):
                 panda_id, event_ranges_update)
         self.jobs.process_event_ranges_update(event_ranges_update)
         job_ranges = self.jobs.get_event_ranges(panda_id)
-
+        actor_ranges = self.rangesID_by_actor[actor_id]
+        failed_events_list = []
+        failed_events = {panda_id: failed_events_list}
         for r in event_ranges_update[panda_id]:
-            if 'eventRangeID' in r and r['eventRangeID'] in self.rangesID_by_actor[actor_id]:
+            if 'eventRangeID' in r and r['eventRangeID'] in actor_ranges:
                 range_id = r['eventRangeID']
+                actor_ranges.remove(range_id)
                 if r['eventStatus'] == EventRange.DONE:
-                    self.rangesID_by_actor[actor_id].remove(range_id)
                     event_range = job_ranges[range_id]
                     file_basename = os.path.basename(event_range.PFN)
                     if file_basename not in self.finished_range_by_input_file:
@@ -270,18 +272,22 @@ class BookKeeper(object):
                     self.finished_range_by_input_file[file_basename].append(r)
                     r['PanDAID'] = panda_id
                     self.ranges_to_tar_by_input_file[file_basename].append(r)
+                elif r['eventStatus'] in [EventRange.FAILED, EventRange.FATAL]:
+                    self._logger.info(f"Received failed event from {actor_id}: {r}")
+                    failed_events_list.append(r)
         now = time.time()
         if now - self.last_status_print > 60:
             self.last_status_print = now
             self.print_status()
-        return event_ranges_update
+        failed_events = EventRangeUpdate(failed_events) if failed_events_list else None
+        return event_ranges_update, failed_events
 
     def print_status(self) -> None:
         for panda_id in self.jobs:
             job_ranges = self.jobs.get_event_ranges(panda_id)
             if not job_ranges:
                 continue
-            message = f"Event ranges status for job { panda_id}:"
+            message = f"Event ranges status for job {panda_id}:"
             if job_ranges.nranges_available():
                 message = f"{message} Ready: {job_ranges.nranges_available()}"
             if job_ranges.nranges_assigned():
@@ -309,7 +315,7 @@ class BookKeeper(object):
         actor_ranges = self.rangesID_by_actor.get(actor_id, None)
         if not actor_ranges:
             return
-        self._logger.warn(f"{actor_id} finished with {len(actor_ranges)} remaining to process")
+        self._logger.info(f"{actor_id} finished with {len(actor_ranges)} events remaining to process")
         for rangeID in actor_ranges:
             self.jobs.get_event_ranges(panda_id).update_range_state(
                 rangeID, EventRange.READY)
@@ -579,8 +585,9 @@ class ESDriver(BaseDriver):
         Returns:
             None
         """
-        _ = self.bookKeeper.process_event_ranges_update(actor_id, data)
-        # self.requests_queue.put(_)
+        _, failed_events = self.bookKeeper.process_event_ranges_update(actor_id, data)
+        if failed_events:
+            self.requests_queue.put(failed_events)
         self.actors_message_queue.append(self[actor_id].get_message.remote())
 
     def handle_update_job(self, actor_id: str, data: Any) -> None:
@@ -689,7 +696,7 @@ class ESDriver(BaseDriver):
                     self._logger.debug(f"got event ranges for job {pandaID}: {len(ranges_list)}")
                 if self.first_event_range_request:
                     self.first_event_range_request = False
-                    if (n_received_events < int(job['coreCount']) * len(self.nodes)):
+                    if n_received_events == 0:
                         self.stop()
                 self.bookKeeper.add_event_ranges(ranges)
                 self.n_eventsrequest -= 1
@@ -765,11 +772,12 @@ class ESDriver(BaseDriver):
             self._logger.error(f"{traceback.format_exc()}")
             self._logger.error(f"Error while handling actors: {e}. stopping...")
 
-        ray_logs = os.path.join(self.workdir, "ray_logs")
-        try:
-            shutil.copytree(self.session_log_dir, ray_logs)
-        except Exception as e:
-            self._logger.error(f"Failed to copy ray logs to workdir: {e}")
+        if self.config.logging.get('copyraylogs', False):
+            ray_logs = os.path.join(self.workdir, "ray_logs")
+            try:
+                shutil.copytree(self.session_log_dir, ray_logs)
+            except Exception as e:
+                self._logger.error(f"Failed to copy ray logs to workdir: {e}")
 
         self._logger.debug("Starting new tar tasks")
         # Workers might have sent event ranges update since last check, create remaining tasks regardless of tar interval
