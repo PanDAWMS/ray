@@ -1,44 +1,52 @@
 #!/bin/bash 
-#SBATCH -q debug
-#SBATCH --time 0:30:00
-#DPB #SBATCH -q premium
-#DPB #SBATCH --time 2:00:00
-#DPB #SBATCH -q regular
-#DPB #SBATCH --time 6:00:00
-#DPB #SBATCH -q flex
-#DPB #SBATCH --time-min=02:00:00
-#DPB #SBATCH --time 4:00:00
-#SBATCH --image=custom:atlas_athena_21.0.15_DBRelease-31.8.1:latest
-#DPB #SBATCH --module=cvmfs
+#JE SBATCH -q debug
+#JE SBATCH --time 30:00
+#JE #SBATCH -q premium
+#JE #SBATCH --time 2:00:00
+#SBATCH -q regular
+#SBATCH --time 2:00:00
+#JE #SBATCH -q flex
+#JE #SBATCH --time-min=02:00:00
+#JE #SBATCH --time 4:00:00
+#SBATCH --image=docker:atlas/athena:21.0.15_31.8.1
+#SBATCH --module=cvmfs
 #SBATCH -A m2616
-#SBATCH -L SCRATCH,project
-#DPB SBATCH -C haswell
-#DPB SBATCH --cpus-per-task 32
+#SBATCH -L SCRATCH
+#JE SBATCH -C haswell
+#JE SBATCH --cpus-per-task 32
 #SBATCH -C knl,quad,cache
 #SBATCH --cpus-per-task 136
 #SBATCH -N {nNode}
 
+# Brackets are substituted by harvester at runtime
 export HARVESTER_WORKER_ID={workerID}
 export HARVESTER_ACCESS_POINT={accessPoint}
 export HARVESTER_NNODE={nNode}
 
 # for testing without harvester, needs evnt files present in the workdir
-# export HARVESTER_ACCESS_POINT=/global/cscratch1/sd/$USER/raythena/workdir
-# export HARVESTER_WORKDIR=$HARVESTER_ACCESS_POINT
-# export HARVESTER_NNODE=$SLURM_NNODES
+#export HARVESTER_ACCESS_POINT=/global/cscratch1/sd/tsulaia/tmp-raythena
+#export HARVESTER_WORKDIR=$HARVESTER_ACCESS_POINT
+#export HARVESTER_NNODE=$SLURM_NNODES
 
 export HARVESTER_HOME=/global/common/software/atlas/harvester
 
 export PANDA_QUEUE=NERSC_Cori_p2_ES_Test
 export container_setup=/release_setup.sh
 export HARVESTER_CONTAINER_RELEASE_SETUP_FILE=$container_setup
-export pilot_wrapper_bin=/global/common/software/atlas/raythena/runpilot2-wrapper.sh
-export pilot_tar_file=/global/common/software/atlas/raythena/pilot2.tar.gz
-export HARVESTER_PILOT_CONFIG=/global/common/software/atlas/raythena/default.cfg
+# could get pilot and pilotwrapper from cvmfs
+export pilot_wrapper_bin=/global/common/software/atlas/raythena-pilot/runpilot2-wrapper.sh
+export pilot_tar_file=/global/common/software/atlas/raythena-pilot/pilot3.tar.gz
+export HARVESTER_PILOT_CONFIG=/global/common/software/atlas/raythena-pilot/default.cfg
+export PILOT_LOGFILE=RaythenaActor.log.tgz
 
-export SOURCEDIR=/global/common/software/atlas/raythena/ray
+# staged by harvester cacher module
+export pilot_cric_pandaqueues_file=/global/cscratch1/sd/$USER/harvester/cric_pandaqueues.json
+export pilot_queuedata_file=/global/cscratch1/sd/$USER/harvester/NERSC_Cori_p2_ES_Test_queuedata.json
+export pilot_ddmendpoints_file=/global/cscratch1/sd/$USER/harvester/cric_ddmendpoints.json
+
+export SOURCEDIR=/global/common/software/atlas/harvester
 export BINDIR=$SOURCEDIR/bin
-export CONFDIR=$SOURCEDIR/conf
+export CONFDIR=/global/common/software/atlas/raythena-pilot
 
 export RAYTHENA_HARVESTER_ENDPOINT=$HARVESTER_ACCESS_POINT
 export RAYTHENA_RAY_WORKDIR=$HARVESTER_ACCESS_POINT
@@ -52,12 +60,23 @@ RAYTHENA_RAY_HEAD_IP=$(hostname -i)
 export RAYTHENA_RAY_HEAD_IP
 export RAYTHENA_PANDA_QUEUE=$PANDA_QUEUE
 export NWORKERS=$((HARVESTER_NNODE - 1))
-export RAYTHENA_CORE_PER_NODE=$SLURM_CPUS_PER_TASK
+export RAYTHENA_CORE_PER_NODE=128
+
+export ATHENA_PROC_NUMBER_JOB=128
+export ATHENA_PROC_NUMBER=128
+export ATHENA_CORE_NUMBER=128
+echo "Running 128 workers per Athena"
+
+#export RAY_BACKEND_LOG_LEVEL=debug
+
+# Create a file with current timestamp and job time limit
+date "+%H:%M:%S" > $RAYTHENA_RAY_WORKDIR/RaythenaTimeMonitor.txt
+squeue -h -j $SLURM_JOBID -o "%l" >> $RAYTHENA_RAY_WORKDIR/RaythenaTimeMonitor.txt
 
 cp $pilot_wrapper_bin $RAYTHENA_RAY_WORKDIR
 tar xzf $pilot_tar_file -C$RAYTHENA_RAY_WORKDIR
 
-export RAY_TMP_DIR=/tmp/raytmp/$SLURM_JOB_ID
+export RAY_TMP_DIR=/tmp/ray/$SLURM_JOB_ID
 
 if [[ ! -d $RAY_TMP_DIR ]]; then
   mkdir -p "$RAY_TMP_DIR"
@@ -106,12 +125,8 @@ while [[ $retsync -ne 0 ]]; do
   fi
 done
 
-python $SOURCEDIR/app.py > $RAYTHENA_RAY_WORKDIR/raythena.log 2> $RAYTHENA_RAY_WORKDIR/raythena.err
+python $BINDIR/app.py > $RAYTHENA_RAY_WORKDIR/raythena.log 2> $RAYTHENA_RAY_WORKDIR/raythena.err
 
 ray stop
-
-if [[ -f core ]]; then
-  rm core
-fi
 
 wait
