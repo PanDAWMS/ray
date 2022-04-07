@@ -454,7 +454,7 @@ class EventRangeQueue(object):
         for ranges in self.rangesID_by_file.values():
             remaining = nranges - len(res)
             ids = ranges[EventRange.READY][:min(remaining, len(ranges[EventRange.READY]))]
-            res += [self.update_range_state(range_id, EventRange.ASSIGNED) for range_id in ids[:remaining]]
+            res += [self.update_range_state(range_id, EventRange.ASSIGNED) for range_id in ids]
             if len(res) == nranges:
                 break
         return res
