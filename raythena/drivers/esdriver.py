@@ -6,6 +6,7 @@ import tarfile
 import time
 import traceback
 import zlib
+from math import ceil
 from queue import Empty, Queue
 from socket import gethostname
 from typing import Any, Dict, Iterator, List, Tuple, Union
@@ -195,6 +196,9 @@ class BookKeeper(object):
         """
         job_id, _ = self.jobs.next_job_id_to_process()
         return job_id is not None
+
+    def get_actor_job(self, actor_id: str):
+        return self.actors.get(actor_id, None)
 
     def assign_job_to_actor(self, actor_id: str) -> Union[PandaJob, None]:
         """
@@ -422,6 +426,9 @@ class ESDriver(BaseDriver):
         self.processed_event_ranges = dict()
         self.finished_tar_tasks = set()
         self.failed_actor_tasks_count = dict()
+        self.min_events = 0
+        self.available_events_per_actor = 0
+        self.n_actors = len(self.nodes)
 
         self.tar_executor = concurrent.futures.ThreadPoolExecutor(max_workers=self.tarmaxprocesses)
 
@@ -485,6 +492,7 @@ class ESDriver(BaseDriver):
                                                                             config = self.config_remote,
                                                                             session_log_dir = self.session_log_dir)
             self.actors[actor_id] = actor
+        self.min_events = self.n_actors * self.config.resources.get('corepernode', 0)
 
     def retrieve_actore_messages(self, ready: list) -> Iterator[Tuple[str, int, object]]:
         try:
@@ -615,15 +623,19 @@ class ESDriver(BaseDriver):
         Returns:
             Update number of ranges sent to actors
         """
-        panda_id = self.bookKeeper.actors[actor_id]
-        n_ranges = data[panda_id]['nRanges']
+        panda_id = self.bookKeeper.get_actor_job(actor_id)
+
+        # get the min between requested ranges and what is available for each actor
+        n_ranges = min(data[panda_id]['nRanges'], self.available_events_per_actor)
+
         evt_range = self.bookKeeper.fetch_event_ranges(
             actor_id, n_ranges)
-        # did not fetch enough event and harvester might have more, needs to get more events now
+        # did not fetch enough events and harvester might have more, needs to get more events now
         while (len(evt_range) < n_ranges and
                not self.bookKeeper.is_flagged_no_more_events(
                    panda_id)):
             self.request_event_ranges(block=True)
+            n_ranges = min(data[panda_id]['nRanges'], self.available_events_per_actor)
             evt_range += self.bookKeeper.fetch_event_ranges(
                 actor_id, n_ranges - len(evt_range))
         if evt_range:
@@ -673,9 +685,7 @@ class ESDriver(BaseDriver):
                     continue
                 n_available_ranges = self.bookKeeper.n_ready(pandaID)
                 job = self.bookKeeper.jobs[pandaID]
-                # each pilot will request for 'coreCount * 2' event ranges
-                # and we use an additional safety factor of 2
-                n_events = int(job['coreCount']) * len(self.nodes) * 2 * 2
+                n_events = self.config.resources.get('corepernode', 64) * self.n_actors
                 if n_available_ranges < n_events:
                     event_request.add_event_request(pandaID,
                                                     n_events,
@@ -699,6 +709,7 @@ class ESDriver(BaseDriver):
                     if n_received_events == 0:
                         self.stop()
                 self.bookKeeper.add_event_ranges(ranges)
+                self.available_events_per_actor = max(1, ceil(self.bookKeeper.n_ready(pandaID) / self.n_actors))
                 self.n_eventsrequest -= 1
             except Empty:
                 pass
