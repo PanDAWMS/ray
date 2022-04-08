@@ -15,7 +15,7 @@ setup(
         'example/standalone_ray_test_hello_world.py',
     ],
     data_files=[
-        ('conf', ['conf/cori.yaml', 'conf/incontainer.yaml'])
+        ('conf', ['conf/cori.yaml'])
     ],
     install_requires=[
         'ray[default]',
