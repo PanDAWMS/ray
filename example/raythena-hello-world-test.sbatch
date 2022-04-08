@@ -54,7 +54,7 @@ export RAYTHENA_RAY_HEAD_IP=$REDIS_IP
 export RAYTHENA_RAY_REDIS_PORT=$REDIS_PORT
 
 # define the location of the Raythena code - fetched from git
-export RAYTHENA_DIR=${HARVESTER_DIR}/ray
+# export RAYTHENA_DIR=${HARVESTER_DIR}/ray
 
 echo 
 env | sort
@@ -83,7 +83,7 @@ sleep 30
 #${RAYTHENA_DIR}/bin/ray_sync --wait-workers --nworkers `expr $SLURM_JOB_NUM_NODES - 1`
 
 # execute command to show ray works
-${RAYTHENA_DIR}/example/standalone_ray_v1_test_hello_world_simple.py --redis-ip $REDIS_IP --redis-port $REDIS_PORT --redis-password $REDIS_PASSWORD 
+standalone_ray_test_hello_world.py --redis-ip $REDIS_IP --redis-port $REDIS_PORT --redis-password $REDIS_PASSWORD 
 #${RAYTHENA_DIR}/example/standalone_ray_v1_ping_pong_simple.py
 
 # exit code

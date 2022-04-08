@@ -33,9 +33,8 @@ export HARVESTER_HOME=/global/common/software/atlas/harvester
 export PANDA_QUEUE=NERSC_Cori_p2_ES_Test
 export container_setup=/release_setup.sh
 export HARVESTER_CONTAINER_RELEASE_SETUP_FILE=$container_setup
-# could get pilot and pilotwrapper from cvmfs
-export pilot_wrapper_bin=/global/common/software/atlas/raythena-pilot/runpilot2-wrapper.sh
-export pilot_tar_file=/global/common/software/atlas/raythena-pilot/pilot3.tar.gz
+export pilot_wrapper_bin=/cvmfs/atlas.cern.ch/repo/sw/PandaPilotWrapper/latest/runpilot2-wrapper.sh
+export pilot_tar_file=/cvmfs/atlas.cern.ch/repo/sw/PandaPilot/tar/pilot3-3.2.2.22.tar.gz
 export HARVESTER_PILOT_CONFIG=/global/common/software/atlas/raythena-pilot/default.cfg
 export PILOT_LOGFILE=RaythenaActor.log.tgz
 
