@@ -511,8 +511,9 @@ class Pilot2HttpPayload(ESPayload):
         Returns:
             Status code
         """
-        body = await Pilot2HttpPayload.parse_qs_body(request)
-        await self.job_update.put(body)
+        _ = await Pilot2HttpPayload.parse_qs_body(request)
+        # Do not send job update as the driver is not doing anything with them
+        # await self.job_update.put(body)
         res = {"StatusCode": 0}
         # self._logger.debug(f"job update queue size is {self.job_update.qsize()}")
         return web.json_response(res, dumps=self.json_encoder)

@@ -194,7 +194,7 @@ class BookKeeper(object):
         Returns:
             True if a job is ready to be processed by a worker
         """
-        job_id, _ = self.jobs.next_job_id_to_process()
+        job_id = self.jobs.next_job_id_to_process()
         return job_id is not None
 
     def get_actor_job(self, actor_id: str):
@@ -210,7 +210,7 @@ class BookKeeper(object):
         Returns:
             job worker_id of assigned job, None if no job is available
         """
-        job_id, nranges = self.jobs.next_job_id_to_process()
+        job_id = self.jobs.next_job_id_to_process()
         if job_id:
             self.actors[actor_id] = job_id
         return self.jobs[job_id] if job_id else None
@@ -428,6 +428,7 @@ class ESDriver(BaseDriver):
         self.failed_actor_tasks_count = dict()
         self.min_events = 0
         self.available_events_per_actor = 0
+        self.total_tar_tasks = 0
         self.n_actors = len(self.nodes)
 
         self.tar_executor = concurrent.futures.ThreadPoolExecutor(max_workers=self.tarmaxprocesses)
@@ -965,12 +966,13 @@ class ESDriver(BaseDriver):
 
             try:
                 self.running_tar_threads.update({self.tar_executor.submit(self.create_tar_file, range_list): range_list for range_list in self.ranges_to_tar})
+                self.total_tar_tasks += len(self.ranges_to_tar)
                 self.ranges_to_tar = list()
             except Exception as exc:
                 self._logger.warn(f"tar_es_output: Exception {exc} when submitting tar subprocess")
                 pass
 
-            self._logger.debug(f"tar_es_output: #tasks in queue : {len(self.running_tar_threads)}")
+            self._logger.debug(f"tar_es_output: #tasks in queue : {len(self.running_tar_threads)}, #total tasks submitted since launch: {self.total_tar_tasks}")
 
     def get_tar_results(self) -> None:
         """

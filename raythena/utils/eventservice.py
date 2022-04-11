@@ -1,7 +1,7 @@
 import json
 import os
 
-from typing import Union, Tuple, Dict, List, Iterator
+from typing import Union, Dict, List, Iterator
 
 
 # Messages sent by ray actor to the driver
@@ -104,36 +104,30 @@ class PandaJobQueue(object):
         Returns:
             PandaJob to process, None if no jobs are available
         """
-        job_id, ranges_avail = self.next_job_id_to_process()
+        job_id = self.next_job_id_to_process()
 
         if job_id is None:
             return None
         return self.jobs[job_id]
 
-    def next_job_id_to_process(self) -> Tuple[Union[str, None], int]:
+    def next_job_id_to_process(self) -> Union[str, None]:
         """
         Retrieve the job worker_id and number of events available for the next job to process.
         Event service jobs with the most events available are chosen first, followed by non event-service jobs.
 
         Returns:
-            Tuple of (job worker_id, nb event ranges) or (None, 0)
+            job worker_id or None
         """
-        max_job_id = None
-        max_avail = 0
 
         if len(self.jobs) == 0:
-            return max_job_id, max_avail
+            return None
 
         for jobID, job in self.jobs.items():
-            if (('eventService' not in job or
-                 job['eventService'].lower() == "false") and
-                    jobID not in self.distributed_jobs_ids):
+            if jobID in self.distributed_jobs_ids:
+                continue
+            elif 'eventService' not in job or job['eventService'].lower() == "false":
                 self.distributed_jobs_ids.append(jobID)
-                return jobID, 0
-            if job.nranges_available() > max_avail:
-                max_avail = job.nranges_available()
-                max_job_id = jobID
-        return max_job_id, max_avail
+            return jobID
 
     def has_job(self, panda_id: str) -> bool:
         """
@@ -250,6 +244,9 @@ class EventRangeQueue(object):
         """
         self.event_ranges_by_id: Dict[str, EventRange] = dict()
         self.rangesID_by_file: Dict[str, Dict[str, List[str]]] = dict()
+        self.event_ranges_count = dict()
+        for s in EventRange.STATES:
+            self.event_ranges_count[s] = 0
 
     def __iter__(self) -> Iterator[str]:
         return iter(self.event_ranges_by_id)
@@ -268,6 +265,7 @@ class EventRangeQueue(object):
         if k in self.event_ranges_by_id:
             self.rangesID_by_file[self._get_file_from_id(k)][v.status].remove(k)
             self.event_ranges_by_id.pop(k)
+            self.event_ranges_count[v.status] -= 1
         self.append(v)
 
     def __contains__(self, k: str) -> bool:
@@ -310,8 +308,10 @@ class EventRangeQueue(object):
         file_name = self._get_file_from_id(range_id)
 
         self.rangesID_by_file[file_name][event_range.status].remove(range_id)
+        self.event_ranges_count[event_range.status] -= 1
         event_range.status = new_state
         self.rangesID_by_file[file_name][event_range.status].append(range_id)
+        self.event_ranges_count[event_range.status] += 1
         return event_range
 
     def update_ranges(self, ranges_update: List[Dict]) -> None:
@@ -336,10 +336,7 @@ class EventRangeQueue(object):
             self.update_range_state(range_id, range_status)
 
     def _get_ranges_count(self, state: str) -> int:
-        count = 0
-        for ranges in self.rangesID_by_file.values():
-            count += len(ranges[state])
-        return count
+        return self.event_ranges_count[state]
 
     def nranges_remaining(self) -> int:
         """
@@ -410,6 +407,7 @@ class EventRangeQueue(object):
 
         self.rangesID_by_file[file_name][event_range.status].append(
             event_range.eventRangeID)
+        self.event_ranges_count[event_range.status] += 1
 
     def concat(self, ranges: List[Union[dict, 'EventRange']]) -> None:
         """
