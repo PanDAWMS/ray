@@ -37,12 +37,12 @@ def config(config_path):
 
 @pytest.fixture
 def nevents():
-    return 100
+    return 9
 
 
 @pytest.fixture
 def njobs():
-    return 3
+    return 1
 
 
 @pytest.fixture(params=[True, False])
