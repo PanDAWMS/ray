@@ -118,7 +118,7 @@ class TestPilot2Http:
         res = requests.post('http://127.0.0.1:8080/server/panda/updateJob',
                             data=data).json()
         assert res['StatusCode'] == 0
-        # Disabled as job update are currently not forwarded to the driver
+        # Disabled as job update are currently not forwarded to the driver
         # job_update = payload.fetch_job_update()
         # assert job_update['pilotErrorCode'][0] == data['pilotErrorCode']
 
