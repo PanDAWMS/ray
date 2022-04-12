@@ -314,6 +314,21 @@ class EventRangeQueue(object):
         self.event_ranges_count[event_range.status] += 1
         return event_range
 
+    def assign_ready_ranges(self, n_ranges=1) -> List['EventRange']:
+        res = []
+        n_ranges = min(self.nranges_available(), n_ranges)
+        for ranges in self.rangesID_by_file.values():
+            while ranges[EventRange.READY] and len(res) < n_ranges:
+                range_id = ranges[EventRange.READY].pop()
+                ranges[EventRange.ASSIGNED].append(range_id)
+                self.event_ranges_by_id[range_id].status = EventRange.ASSIGNED
+                res.append(self.event_ranges_by_id[range_id])
+            if len(res) == n_ranges:
+                break
+        self.event_ranges_count[EventRange.READY] -= len(res)
+        self.event_ranges_count[EventRange.ASSIGNED] += len(res)
+        return res
+
     def update_ranges(self, ranges_update: List[Dict]) -> None:
         """
         Process a range update sent by the payload by updating the range status to the new status. It is only
@@ -428,7 +443,7 @@ class EventRangeQueue(object):
                 return file_name
         return None
 
-    def get_next_ranges(self, nranges: int, try_fetch_from_single_file: bool = False) -> List['EventRange']:
+    def get_next_ranges(self, nranges: int) -> List['EventRange']:
         """
         Dequeue event ranges. Event ranges which were dequeued are updated to the 'ASSIGNED' status
         and should be assigned to workers to be processed. In case more ranges are requested
@@ -440,22 +455,7 @@ class EventRangeQueue(object):
         Returns:
             The list of event ranges assigned
         """
-        res = list()
-        nranges = min(nranges, self.nranges_available())
-        if try_fetch_from_single_file:
-            file_name = self._find_file_with_enough_ranges_ready(nranges)
-            if file_name:
-                ids = self.rangesID_by_file[file_name][EventRange.READY][:nranges]
-                res += [self.update_range_state(range_id, EventRange.ASSIGNED) for range_id in ids]
-                return res
-
-        for ranges in self.rangesID_by_file.values():
-            remaining = nranges - len(res)
-            ids = ranges[EventRange.READY][:min(remaining, len(ranges[EventRange.READY]))]
-            res += [self.update_range_state(range_id, EventRange.ASSIGNED) for range_id in ids]
-            if len(res) == nranges:
-                break
-        return res
+        return self.assign_ready_ranges(n_ranges=nranges)
 
 
 class PandaJobUpdate(object):

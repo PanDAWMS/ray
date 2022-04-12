@@ -234,7 +234,7 @@ class BookKeeper(object):
             self.rangesID_by_actor[actor_id] = list()
         ranges = self.jobs.get_event_ranges(
             self.actors[actor_id]).get_next_ranges(n)
-        self.rangesID_by_actor[actor_id] += [r.eventRangeID for r in ranges]
+        self.rangesID_by_actor[actor_id].extend(map(lambda e: e.eventRangeID, ranges))
         return ranges
 
     def process_event_ranges_update(
