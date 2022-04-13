@@ -215,6 +215,72 @@ class PandaJobQueue(object):
         return res
 
 
+class RandomDeleteStack:
+
+    def __init__(self, initial_capacity=1) -> None:
+        self._stack = [None] * initial_capacity
+        self._len = 0
+        self._capacity = initial_capacity
+
+    def __len__(self):
+        return self._len
+
+    def __iter__(self):
+        for i in range(len(self)):
+            yield self[i]
+
+    def _index_check(self, k):
+        if not isinstance(k, int):
+            raise TypeError("Expected integer index")
+        if k >= len(self):
+            raise IndexError("Index out of bound")
+
+    def __getitem__(self, k):
+        self._index_check(k)
+        return self._stack[k]
+
+    def __setitem__(self, k, v):
+        self._index_check(k)
+        self._stack[k] = v
+
+    def __delitem__(self, k):
+        self._index_check(k)
+        if not len(self):
+            raise IndexError("Empty stack")
+        self._len -= 1
+        self._stack[k] = self._stack[len(self)]
+
+    def _grow(self, grow_size=None):
+        if not grow_size:
+            grow_size = self._capacity
+        self._stack.extend([None] * grow_size)
+        self._capacity = len(self._stack)
+
+    def append(self, elt):
+        if len(self) == self._capacity:
+            self._grow()
+        self._stack[len(self)] = elt
+        self._len += 1
+
+    def extend(self, elts):
+        for elt in elts:
+            self.append(elt)
+
+    def remove(self, elt):
+        for i in range(len(self)):
+            if self._stack[i] == elt:
+                del self[i]
+                return
+        raise ValueError(f"{elt} not found")
+
+    def pop(self):
+        if not len(self):
+            raise IndexError("Empty list")
+        obj = self[self._len - 1]
+        self._len -= 1
+        return obj
+
+
 class EventRangeQueue(object):
     """
     Each PandaJob has an eventRangeQueue that should be filled from a reply to an event ranges request:
@@ -245,7 +311,7 @@ class EventRangeQueue(object):
         self.event_ranges_count = dict()
         for s in EventRange.STATES:
             self.event_ranges_count[s] = 0
-            self.rangesID_by_state[s] = list()
+            self.rangesID_by_state[s] = RandomDeleteStack()
 
     def __iter__(self) -> Iterator[str]:
         return iter(self.event_ranges_by_id)
@@ -325,8 +391,8 @@ class EventRangeQueue(object):
             self.event_ranges_by_id[range_id].status = EventRange.ASSIGNED
             res[n] = self.event_ranges_by_id[range_id]
 
-        self.event_ranges_count[EventRange.READY] = len(ready)
-        self.event_ranges_count[EventRange.ASSIGNED] = len(assigned)
+        self.event_ranges_count[EventRange.READY] -= n_ranges
+        self.event_ranges_count[EventRange.ASSIGNED] += n_ranges
         return res
 
     def update_ranges(self, ranges_update: List[Dict]) -> None:
@@ -418,7 +484,7 @@ class EventRangeQueue(object):
     def add_new_event_ranges(self, ranges: List['EventRange']):
         # PRE: all ranges in the list are in state ready
         self.rangesID_by_state[EventRange.READY].extend(map(lambda e: e.eventRangeID, ranges))
-        self.event_ranges_count[EventRange.READY] = len(self.rangesID_by_state[EventRange.READY])
+        self.event_ranges_count[EventRange.READY] += len(ranges)
         for r in ranges:
             self.event_ranges_by_id[r.eventRangeID] = r
 
@@ -1008,6 +1074,11 @@ class EventRange(object):
             json dump of self.to_dict()
         """
         return json.dumps(self.to_dict())
+
+    def __eq__(self, o: object) -> bool:
+        if not isinstance(o, EventRange):
+            return False
+        return self.eventRangeID == o.eventRangeID
 
     def to_dict(self) -> dict:
         """
