@@ -313,19 +313,20 @@ class EventRangeQueue(object):
         return event_range
 
     def assign_ready_ranges(self, n_ranges=1) -> List['EventRange']:
-        res = []
         n_ranges = min(self.nranges_available(), n_ranges)
+        if not n_ranges:
+            return list()
+        res = [None] * n_ranges
         ready = self.rangesID_by_state[EventRange.READY]
-        ranges_ids = ready[-n_ranges:]
-        rem = len(ready) - len(ranges_ids)
-        ready[:] = ready[:rem]
-        self.rangesID_by_state[EventRange.ASSIGNED].extend(ranges_ids)
-        for i, range_id in enumerate(ranges_ids):
+        assigned = self.rangesID_by_state[EventRange.ASSIGNED]
+        for n in range(n_ranges):
+            range_id = ready.pop()
+            assigned.append(range_id)
             self.event_ranges_by_id[range_id].status = EventRange.ASSIGNED
-            ranges_ids[i] = self.event_ranges_by_id[range_id]
-        res.extend(ranges_ids)
-        self.event_ranges_count[EventRange.READY] -= len(res)
-        self.event_ranges_count[EventRange.ASSIGNED] += len(res)
+            res[n] = self.event_ranges_by_id[range_id]
+
+        self.event_ranges_count[EventRange.READY] = len(ready)
+        self.event_ranges_count[EventRange.ASSIGNED] = len(assigned)
         return res
 
     def update_ranges(self, ranges_update: List[Dict]) -> None:

@@ -111,6 +111,8 @@ class TestBookKeeper:
             for i in range(njobs):
                 job = bookKeeper.assign_job_to_actor(actor_id)
                 _ = bookKeeper.fetch_event_ranges(actor_id, nevents)
+                print(job.event_ranges_queue.rangesID_by_state)
+                assert job.event_ranges_queue.nranges_assigned() == nevents
                 bookKeeper.process_event_ranges_update(actor_id, range_update)
                 if failed:
                     assert job.event_ranges_queue.nranges_failed() == nevents
