@@ -147,7 +147,7 @@ class TestBookKeeper:
             assert not events
             assert job.event_ranges_queue.nranges_failed() == nevents - n_success
             assert job.event_ranges_queue.nranges_done() == n_success
-            print(job.event_ranges_queue.rangesID_by_file)
+            print(job.event_ranges_queue.rangesID_by_state)
             print(bookKeeper.rangesID_by_actor)
             assert not bookKeeper.is_flagged_no_more_events(job['PandaID'])
         assert bookKeeper.assign_job_to_actor(actor_id)
