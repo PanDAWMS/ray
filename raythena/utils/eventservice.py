@@ -392,7 +392,6 @@ class EventRangeQueue(object):
         return event_range
 
     def assign_ready_ranges(self, n_ranges=1) -> List['EventRange']:
-        print(f"Request for {n_ranges}, available: {self.nranges_available()}, list len: {len(self.rangesID_by_state[EventRange.READY])}")
         n_ranges = min(self.nranges_available(), n_ranges)
         if not n_ranges:
             return list()
