@@ -24,7 +24,7 @@ from raythena.actors.payloads.basePayload import BasePayload
 from raythena.actors.payloads.eventservice.esPayload import ESPayload
 
 
-@ray.remote(num_cpus=1)
+@ray.remote(num_cpus=1, max_restarts=1, max_task_retries=3)
 class ESWorker(object):
     """
     Actor running on HPC compute node. Each actor will start a payload plugin which handle the job processing as well
@@ -89,7 +89,7 @@ class ESWorker(object):
     }
 
     def __init__(self, actor_id: str, config: Config,
-                 session_log_dir: str) -> None:
+                 session_log_dir: str, job: PandaJob = None, event_ranges: List[EventRange] = None) -> None:
         """
         Initialize attributes, instantiate a payload and setup the workdir
 
@@ -103,7 +103,7 @@ class ESWorker(object):
         self._logger = make_logger(self.config, self.id)
         self.session_log_dir = session_log_dir
         self.job = None
-        self.transitions = ESWorker.TRANSITIONS_STANDARD
+        self.transitions = ESWorker.TRANSITIONS_EVENTSERVICE
         self.node_ip = get_node_ip()
         self.state = ESWorker.READY_FOR_JOB
         self.payload_job_dir = None
@@ -125,6 +125,12 @@ class ESWorker(object):
         self.start_time = -1
         self.time_limit = -1
         self.elapsed = 1
+        if job:
+            self.transition_state(ESWorker.JOB_REQUESTED)
+            self.receive_job(Messages.REPLY_OK, job)
+            if event_ranges:
+                self.transition_state(ESWorker.EVENT_RANGES_REQUESTED)
+                self.receive_event_ranges(Messages.REPLY_OK, event_ranges)
 
     def check_time(self) -> None:
         while True:
