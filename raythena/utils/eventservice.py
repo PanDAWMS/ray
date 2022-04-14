@@ -270,11 +270,11 @@ class RandomDeleteStack:
         self._capacity = len(self._stack)
 
     def append(self, elt):
+        if elt in self._item_idx_lookup:
+            raise ValueError("Duplicate value")
         if len(self) == self._capacity:
             self._grow()
         self._stack[len(self)] = elt
-        if elt in self._item_idx_lookup:
-            raise ValueError("Duplicate value")
         self._item_idx_lookup[elt] = len(self)
         self._len += 1
 
@@ -392,6 +392,7 @@ class EventRangeQueue(object):
         return event_range
 
     def assign_ready_ranges(self, n_ranges=1) -> List['EventRange']:
+        print(f"Request for {n_ranges}, available: {self.nranges_available()}, list len: {len(self.rangesID_by_state[EventRange.READY])}")
         n_ranges = min(self.nranges_available(), n_ranges)
         if not n_ranges:
             return list()

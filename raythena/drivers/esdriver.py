@@ -12,6 +12,7 @@ from socket import gethostname
 from typing import Any, Dict, Iterator, List, Tuple, Union
 
 import ray
+from ray.exceptions import RayActorError
 from raythena.actors.esworker import ESWorker
 from raythena.utils.logging import disable_stdout_logging, log_to_file, make_logger
 from raythena.drivers.baseDriver import BaseDriver
@@ -504,6 +505,8 @@ class ESDriver(BaseDriver):
                     actor_id, message, data = ray.get(r)
                 except BaseRaythenaException as e:
                     self.handle_actor_exception(e.worker_id, e)
+                except RayActorError as e:
+                    self._logger.error(f"RayActorError: {e.error_msg}")
                 except Exception as e:
                     self._logger.error(f"Caught exception while fetching result from actor: {e}")
                 else:
@@ -636,9 +639,9 @@ class ESDriver(BaseDriver):
                not self.bookKeeper.is_flagged_no_more_events(
                    panda_id)):
             self.request_event_ranges(block=True)
-            n_ranges = min(data[panda_id]['nRanges'], self.available_events_per_actor)
+            n_ranges = max(0, min(data[panda_id]['nRanges'], self.available_events_per_actor) - len(evt_range))
             evt_range += self.bookKeeper.fetch_event_ranges(
-                actor_id, n_ranges - len(evt_range))
+                actor_id, n_ranges)
         if evt_range:
             total_sent += len(evt_range)
         self.actors_message_queue.append(self[actor_id].receive_event_ranges.remote(
