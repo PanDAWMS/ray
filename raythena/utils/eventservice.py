@@ -216,11 +216,18 @@ class PandaJobQueue(object):
 
 
 class RandomDeleteStack:
+    """
+    Custom stack with O(1) random deletion of elements by index or value with no memory reallocation.
+    PRE: Can only hold unique elements (unique event range id) and the element type must be hashable.
 
-    def __init__(self, initial_capacity=1) -> None:
+    Currently only used to hold str.
+    """
+
+    def __init__(self, initial_capacity=25000) -> None:
         self._stack = [None] * initial_capacity
         self._len = 0
         self._capacity = initial_capacity
+        self._item_idx_lookup = dict()
 
     def __len__(self):
         return self._len
@@ -241,6 +248,10 @@ class RandomDeleteStack:
 
     def __setitem__(self, k, v):
         self._index_check(k)
+        if v in self._item_idx_lookup:
+            raise ValueError("Duplicate value")
+        del self._item_idx_lookup[self._stack[k]]
+        self._item_idx_lookup[v] = k
         self._stack[k] = v
 
     def __delitem__(self, k):
@@ -248,7 +259,9 @@ class RandomDeleteStack:
         if not len(self):
             raise IndexError("Empty stack")
         self._len -= 1
+        del self._item_idx_lookup[self._stack[k]]
         self._stack[k] = self._stack[len(self)]
+        self._item_idx_lookup[self._stack[k]] = k
 
     def _grow(self, grow_size=None):
         if not grow_size:
@@ -260,6 +273,9 @@ class RandomDeleteStack:
         if len(self) == self._capacity:
             self._grow()
         self._stack[len(self)] = elt
+        if elt in self._item_idx_lookup:
+            raise ValueError("Duplicate value")
+        self._item_idx_lookup[elt] = len(self)
         self._len += 1
 
     def extend(self, elts):
@@ -267,16 +283,13 @@ class RandomDeleteStack:
             self.append(elt)
 
     def remove(self, elt):
-        for i in range(len(self)):
-            if self._stack[i] == elt:
-                del self[i]
-                return
-        raise ValueError(f"{elt} not found")
+        del self[self._item_idx_lookup[elt]]
 
     def pop(self):
         if not len(self):
             raise IndexError("Empty list")
         obj = self[self._len - 1]
+        del self._item_idx_lookup[obj]
         self._len -= 1
         return obj
 
