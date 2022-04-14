@@ -431,7 +431,7 @@ class ESDriver(BaseDriver):
         self.available_events_per_actor = 0
         self.total_tar_tasks = 0
         self.n_actors = len(self.nodes)
-
+        self.remote_jobdef_byid = dict()
         self.tar_executor = concurrent.futures.ThreadPoolExecutor(max_workers=self.tarmaxprocesses)
 
         # create the output directories if needed
@@ -485,18 +485,31 @@ class ESDriver(BaseDriver):
         Returns:
             None
         """
-
+        core_per_node = self.config.resources.get('corepernode', os.cpu_count())
+        events_per_actor = min(self.available_events_per_actor, core_per_node)
         for i, node in enumerate(self.nodes):
             nodeip = node['NodeManagerAddress']
             node_constraint = f"node:{nodeip}"
             actor_id = f"Actor_{i}"
-            actor = ESWorker.options(resources={node_constraint: 1}).remote(actor_id = actor_id,
-                                                                            config = self.config_remote,
-                                                                            session_log_dir = self.session_log_dir)
-            self.actors[actor_id] = actor
-        self.min_events = self.n_actors * self.config.resources.get('corepernode', 0)
+            kwargs = {
+                'actor_id': actor_id,
+                'config': self.config_remote,
+                'session_log_dir': self.session_log_dir
+            }
+            job = self.bookKeeper.assign_job_to_actor(actor_id)
+            if job:
+                job_remote = self.remote_jobdef_byid[job['PandaID']]
+                kwargs['job'] = job_remote
+                event_ranges = self.bookKeeper.fetch_event_ranges(actor_id, events_per_actor)
+                if event_ranges:
+                    kwargs['event_ranges'] = event_ranges
+                    self._logger.debug(f"Prefetched job {job['PandaID']} and {len(event_ranges)} event ranges for {actor_id}")
 
-    def retrieve_actore_messages(self, ready: list) -> Iterator[Tuple[str, int, object]]:
+            actor = ESWorker.options(resources={node_constraint: 1}).remote(**kwargs)
+            self.actors[actor_id] = actor
+        self.min_events = self.n_actors * core_per_node
+
+    def retrieve_actors_messages(self, ready: list) -> Iterator[Tuple[str, int, object]]:
         try:
             messages = ray.get(ready)
         except Exception:
@@ -526,7 +539,7 @@ class ESDriver(BaseDriver):
         new_messages, self.actors_message_queue = self.wait_on_messages()
         total_sent = 0
         while new_messages and self.running:
-            for actor_id, message, data in self.retrieve_actore_messages(new_messages):
+            for actor_id, message, data in self.retrieve_actors_messages(new_messages):
                 if message == Messages.IDLE or message == Messages.REPLY_OK:
                     self.actors_message_queue.append(
                         self[actor_id].get_message.remote())
@@ -666,7 +679,7 @@ class ESDriver(BaseDriver):
 
         self.actors_message_queue.append(self[actor_id].receive_job.remote(
             Messages.REPLY_OK
-            if job else Messages.REPLY_NO_MORE_JOBS, job))
+            if job else Messages.REPLY_NO_MORE_JOBS, self.remote_jobdef_byid[job['PandaID']]))
 
     def request_event_ranges(self, block: bool = False) -> None:
         """
@@ -776,11 +789,12 @@ class ESDriver(BaseDriver):
             cjob = self.bookKeeper.jobs[pandaID]
             os.makedirs(
                 os.path.join(self.config.ray['workdir'], cjob['PandaID']))
+            self.remote_jobdef_byid[pandaID] = ray.put(cjob)
 
         self.create_actors()
 
         self.start_actors()
-
+        self.request_event_ranges()
         try:
             self.handle_actors()
         except Exception as e:
