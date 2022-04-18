@@ -1,7 +1,7 @@
 import json
 import os
 
-from typing import Union, Dict, List, Iterator
+from typing import Set, Union, Dict, List, Iterator
 
 
 # Messages sent by ray actor to the driver
@@ -320,11 +320,11 @@ class EventRangeQueue(object):
         Init the queue
         """
         self.event_ranges_by_id: Dict[str, EventRange] = dict()
-        self.rangesID_by_state: Dict[str, List[str]] = dict()
+        self.rangesID_by_state: Dict[str, Set[str]] = dict()
         self.event_ranges_count = dict()
         for s in EventRange.STATES:
             self.event_ranges_count[s] = 0
-            self.rangesID_by_state[s] = RandomDeleteStack()
+            self.rangesID_by_state[s] = set()
 
     def __iter__(self) -> Iterator[str]:
         return iter(self.event_ranges_by_id)
@@ -387,7 +387,7 @@ class EventRangeQueue(object):
         self.rangesID_by_state[event_range.status].remove(range_id)
         self.event_ranges_count[event_range.status] -= 1
         event_range.status = new_state
-        self.rangesID_by_state[event_range.status].append(range_id)
+        self.rangesID_by_state[event_range.status].add(range_id)
         self.event_ranges_count[event_range.status] += 1
         return event_range
 
@@ -400,7 +400,7 @@ class EventRangeQueue(object):
         assigned = self.rangesID_by_state[EventRange.ASSIGNED]
         for n in range(n_ranges):
             range_id = ready.pop()
-            assigned.append(range_id)
+            assigned.add(range_id)
             self.event_ranges_by_id[range_id].status = EventRange.ASSIGNED
             res[n] = self.event_ranges_by_id[range_id]
 
@@ -491,12 +491,12 @@ class EventRangeQueue(object):
             event_range = EventRange.build_from_dict(event_range)
 
         self.event_ranges_by_id[event_range.eventRangeID] = event_range
-        self.rangesID_by_state[event_range.status].append(event_range.eventRangeID)
+        self.rangesID_by_state[event_range.status].add(event_range.eventRangeID)
         self.event_ranges_count[event_range.status] += 1
 
     def add_new_event_ranges(self, ranges: List['EventRange']):
         # PRE: all ranges in the list are in state ready
-        self.rangesID_by_state[EventRange.READY].extend(map(lambda e: e.eventRangeID, ranges))
+        self.rangesID_by_state[EventRange.READY].update(map(lambda e: e.eventRangeID, ranges))
         self.event_ranges_count[EventRange.READY] += len(ranges)
         for r in ranges:
             self.event_ranges_by_id[r.eventRangeID] = r

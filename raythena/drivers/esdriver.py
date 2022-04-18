@@ -9,7 +9,7 @@ import zlib
 from math import ceil
 from queue import Empty, Queue
 from socket import gethostname
-from typing import Any, Dict, Iterator, List, Tuple, Union
+from typing import Any, Dict, Iterator, List, Set, Tuple, Union
 
 import ray
 from ray.exceptions import RayActorError
@@ -42,7 +42,7 @@ class BookKeeper(object):
         self.config = config
         self._logger = make_logger(self.config, "BookKeeper")
         self.actors: Dict[str, Union[str, None]] = dict()
-        self.rangesID_by_actor: Dict[str, List[str]] = dict()
+        self.rangesID_by_actor: Dict[str, Set[str]] = dict()
         self.finished_range_by_input_file: Dict[str, List[Dict]] = dict()
         self.ranges_to_tar_by_input_file: Dict[str, List[Dict]] = dict()
         self.ranges_to_tar: List[List[Dict]] = list()
@@ -232,10 +232,10 @@ class BookKeeper(object):
         if actor_id not in self.actors or not self.actors[actor_id]:
             return list()
         if actor_id not in self.rangesID_by_actor:
-            self.rangesID_by_actor[actor_id] = list()
+            self.rangesID_by_actor[actor_id] = set()
         ranges = self.jobs.get_event_ranges(
             self.actors[actor_id]).get_next_ranges(n)
-        self.rangesID_by_actor[actor_id].extend(map(lambda e: e.eventRangeID, ranges))
+        self.rangesID_by_actor[actor_id].update(map(lambda e: e.eventRangeID, ranges))
         return ranges
 
     def process_event_ranges_update(
