@@ -8,7 +8,7 @@ import ray
 from redis.exceptions import ConnectionError
 
 
-def wait_on_head(max_tries: int = 20) -> None:
+def wait_on_head() -> None:
     """
     Repeatedly tries to connect to the ray cluster by using the same environment variables that raythena uses. Exits
     once it successfully connected to the cluster.
@@ -25,7 +25,8 @@ def wait_on_head(max_tries: int = 20) -> None:
             "Set RAYTHENA_RAY_REDIS_PASSWORD, RAYTHENA_RAY_REDIS_PORT, RAYTHENA_RAY_HEAD_IP vars"
         )
         exit(1)
-    tries = 0
+    timeout = 300
+    max_time = time.time() + timeout
     while not ray.is_initialized():
         try:
             print(
@@ -34,8 +35,7 @@ def wait_on_head(max_tries: int = 20) -> None:
             ray.init(address=f"{ray_ip}:{redis_port}",_redis_password=redis_password)
         except (ConnectionError, ValueError):
             time.sleep(1)
-            tries += 1
-            if tries >= max_tries:
+            if time.time() >= max_time:
                 exit(1)
 
 
@@ -68,15 +68,14 @@ def wait_workers(nwait: int = 1) -> None:
         None
     """
     # wait for all workers to connect
-    max_tries = max(30 * nwait, 5 * 60)
-    tries = 0
     alive = 0
+    timeout = 300
+    max_time = time.time() + timeout
     while alive < nwait + 1:
         alive, dead = count_nodes()
         print(f"{alive - 1}/{nwait} workers connected ({dead} workers marked as dead)... ")
         time.sleep(1)
-        tries += 1
-        if tries >= max_tries:
+        if time.time() > max_time:
             exit(1)
     alive, dead = count_nodes()
     print(f"{alive - 1}/{nwait} workers connected ({dead} workers marked as dead)... ")

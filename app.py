@@ -82,8 +82,8 @@ def cli(*args, **kwargs):
         signal.signal(signal.SIGUSR1, functools.partial(cleanup, config, driver))
         signal.signal(signal.SIGBUS, functools.partial(cleanup, config, driver))
         driver.run()
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Caught exception in driver process {e}")
     finally:
         shutdown_ray(config)
 
