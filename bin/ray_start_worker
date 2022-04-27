@@ -24,4 +24,4 @@ if [[ -z "$HEAD_IP" ]] || [[ -z "$REDIS_PORT" ]] || [[ -z "$TMP_DIR" ]]; then
     exit 1
 fi
 
-ray start --address="$HEAD_IP":"$REDIS_PORT" --redis-password="$REDIS_PASSWORD" --temp-dir "$TMP_DIR" --block --num-cpus 1 "$@"
+ray start --address="$HEAD_IP":"$REDIS_PORT" --include-dashboard false --redis-password="$REDIS_PASSWORD" --temp-dir "$TMP_DIR" --block --num-cpus 1 "$@"
