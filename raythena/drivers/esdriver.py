@@ -416,6 +416,10 @@ class ESDriver(BaseDriver):
         self.max_retries_error_failed_tasks = 3
         self.first_event_range_request = True
         self.no_more_events = False
+        self.cache_size_factor = self.config.ray.get('cachesizefactor', 3)
+        self.cores_per_node = self.config.resources.get('corepernode', os.cpu_count())
+        self.n_actors = len(self.nodes)
+        self.events_cache_size = self.cores_per_node * self.n_actors * self.cache_size_factor
         self.timeoutinterval = self.config.ray['timeoutinterval']
         self.tar_timestamp = time.time()
         self.tarinterval = self.config.ray['tarinterval']
@@ -427,10 +431,8 @@ class ESDriver(BaseDriver):
         self.processed_event_ranges = dict()
         self.finished_tar_tasks = set()
         self.failed_actor_tasks_count = dict()
-        self.min_events = 0
         self.available_events_per_actor = 0
         self.total_tar_tasks = 0
-        self.n_actors = len(self.nodes)
         self.remote_jobdef_byid = dict()
         self.tar_executor = concurrent.futures.ThreadPoolExecutor(max_workers=self.tarmaxprocesses)
 
@@ -485,8 +487,7 @@ class ESDriver(BaseDriver):
         Returns:
             None
         """
-        core_per_node = self.config.resources.get('corepernode', os.cpu_count())
-        events_per_actor = min(self.available_events_per_actor, core_per_node)
+        events_per_actor = min(self.available_events_per_actor, self.cores_per_node)
         for i, node in enumerate(self.nodes):
             nodeip = node['NodeManagerAddress']
             node_constraint = f"node:{nodeip}"
@@ -507,7 +508,6 @@ class ESDriver(BaseDriver):
 
             actor = ESWorker.options(resources={node_constraint: 1}).remote(**kwargs)
             self.actors[actor_id] = actor
-        self.min_events = self.n_actors * core_per_node
 
     def retrieve_actors_messages(self, ready: list) -> Iterator[Tuple[str, int, object]]:
         try:
@@ -702,15 +702,14 @@ class ESDriver(BaseDriver):
                     continue
                 n_available_ranges = self.bookKeeper.n_ready(pandaID)
                 job = self.bookKeeper.jobs[pandaID]
-                n_events = self.config.resources.get('corepernode', 64) * self.n_actors
-                if n_available_ranges < n_events:
+                if n_available_ranges < self.events_cache_size:
                     event_request.add_event_request(pandaID,
-                                                    n_events,
+                                                    self.events_cache_size,
                                                     job['taskID'],
                                                     job['jobsetID'])
 
             if len(event_request) > 0:
-                self._logger.debug(f"Sending event ranges request to harvester for {n_events} events")
+                self._logger.debug(f"Sending event ranges request to harvester for {self.events_cache_size} events")
                 self.requests_queue.put(event_request)
                 self.n_eventsrequest += 1
 

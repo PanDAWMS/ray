@@ -28,6 +28,7 @@ ray:
   redispassword:
   driver: esdriver:ESDriver
   workdir: $SCRATCH/raythena/workdir
+  cachesizefactor: 4
   monitortime: 300
   timeoutinterval: 600
   tarinterval: 60

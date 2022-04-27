@@ -48,6 +48,7 @@ class Config(object):
             'tarmaxfilesize': int,
             'tarmaxprocesses': int,
             'tarcheckinterval': int,
+            'cachesizefactor': int,
         },
         'resources': {
             'corepernode': int,
