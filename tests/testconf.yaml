@@ -9,6 +9,9 @@ payload:
   containerengine: docker
   containerextraargs: run
   pilotversion: 2
+  pilotkillfile: pilot_kill_payload
+  pilotkilltime: 900
+  timemonitorfile: jobtimeout.txt
 
 harvester:
   endpoint: .
@@ -20,6 +23,7 @@ ray:
   redisport:
   redispassword:
   driver: esdriver:ESDriver
+  cachesizefactor: 1
   workdir: .
   monitortime: 300
   timeoutinterval: 600
@@ -34,4 +38,6 @@ resources:
 
 logging:
   level: debug
-  logfile: raythena.log
+  driverlogfile:
+  workerlogfile:
+  copyraylogs: false

@@ -1,6 +1,5 @@
 import pytest
 
-from raythena.actors.loggingActor import LoggingActor
 from raythena.drivers.esdriver import BookKeeper
 
 
@@ -8,8 +7,7 @@ from raythena.drivers.esdriver import BookKeeper
 class TestBookKeeper:
 
     def test_add_jobs(self, is_eventservice, config, sample_multijobs, njobs):
-        logging_actor = LoggingActor.remote(config)
-        bookKeeper = BookKeeper(logging_actor, config)
+        bookKeeper = BookKeeper(config)
         bookKeeper.add_jobs(sample_multijobs)
         assert len(bookKeeper.jobs) == njobs
         for pandaID in bookKeeper.jobs:
@@ -17,8 +15,7 @@ class TestBookKeeper:
 
     def test_assign_job_to_actor(elf, is_eventservice, config, sample_multijobs,
                                  njobs, sample_ranges, nevents):
-        logging_actor = LoggingActor.remote(config)
-        bookKeeper = BookKeeper(logging_actor, config)
+        bookKeeper = BookKeeper(config)
         bookKeeper.add_jobs(sample_multijobs)
         actor_id = "a1"
         if not is_eventservice:
@@ -40,18 +37,17 @@ class TestBookKeeper:
                 job = job_tmp
             bookKeeper.fetch_event_ranges(actor_id, nevents)
             assert bookKeeper.assign_job_to_actor(
-                actor_id)['PandaID'] != job['PandaID']
+                actor_id)['PandaID'] == job['PandaID']
 
     def test_add_event_ranges(self, is_eventservice, config, sample_multijobs,
                               njobs, nevents, sample_ranges):
         if not is_eventservice:
             pytest.skip()
 
-        logging_actor = LoggingActor.remote(config)
-        bookKeeper = BookKeeper(logging_actor, config)
+        bookKeeper = BookKeeper(config)
         bookKeeper.add_jobs(sample_multijobs)
 
-        assert not bookKeeper.has_jobs_ready()
+        assert bookKeeper.has_jobs_ready()
 
         for pandaID in sample_multijobs:
             assert not bookKeeper.is_flagged_no_more_events(pandaID)
@@ -82,8 +78,7 @@ class TestBookKeeper:
             pytest.skip()
         worker_ids = [f"w_{i}" for i in range(10)]
 
-        logging_actor = LoggingActor.remote(config)
-        bookKeeper = BookKeeper(logging_actor, config)
+        bookKeeper = BookKeeper(config)
         bookKeeper.add_jobs(sample_multijobs)
         bookKeeper.add_event_ranges(sample_ranges)
 
@@ -106,32 +101,68 @@ class TestBookKeeper:
         if not is_eventservice:
             pytest.skip("No eventservice jobs")
 
-        logging_actor = LoggingActor.remote(config)
         actor_id = "a1"
 
-        bookKeeper = BookKeeper(logging_actor, config)
+        def __inner__(range_update, failed=False):
+            bookKeeper = BookKeeper(config)
+            bookKeeper.add_jobs(sample_multijobs)
+            bookKeeper.add_event_ranges(sample_ranges)
+
+            for i in range(njobs):
+                job = bookKeeper.assign_job_to_actor(actor_id)
+                _ = bookKeeper.fetch_event_ranges(actor_id, nevents)
+                print(job.event_ranges_queue.rangesID_by_state)
+                assert job.event_ranges_queue.nranges_assigned() == nevents
+                bookKeeper.process_event_ranges_update(actor_id, range_update)
+                if failed:
+                    assert job.event_ranges_queue.nranges_failed() == nevents
+                else:
+                    assert job.event_ranges_queue.nranges_done() == nevents
+                assert not bookKeeper.is_flagged_no_more_events(job['PandaID'])
+
+            assert bookKeeper.assign_job_to_actor(actor_id)
+        __inner__(sample_rangeupdate)
+        __inner__(sample_failed_rangeupdate, True)
+
+        bookKeeper = BookKeeper(config)
         bookKeeper.add_jobs(sample_multijobs)
         bookKeeper.add_event_ranges(sample_ranges)
-
-        for i in range(njobs):
+        for _ in range(njobs):
             job = bookKeeper.assign_job_to_actor(actor_id)
-            _ = bookKeeper.fetch_event_ranges(actor_id, nevents)
-            bookKeeper.process_event_ranges_update(actor_id, sample_rangeupdate)
-            assert job.event_ranges_queue.nranges_done() == nevents
-            assert not bookKeeper.is_flagged_no_more_events(job['PandaID'])
+            print(bookKeeper.jobs.get_event_ranges(job.get_id()).event_ranges_count)
+            ranges = bookKeeper.fetch_event_ranges(actor_id, nevents)
+            assert len(ranges) == nevents
+            assert bookKeeper.rangesID_by_actor[actor_id]
+            bookKeeper.process_event_ranges_update(actor_id, sample_failed_rangeupdate)
+            assert not bookKeeper.rangesID_by_actor[actor_id]
 
-        assert not bookKeeper.assign_job_to_actor(actor_id)
+            assert job.event_ranges_queue.nranges_failed() == nevents
+            assert not bookKeeper.rangesID_by_actor[actor_id]
+            n_success = len(sample_rangeupdate[0]['eventRanges']) // 2
+            sample_rangeupdate[0]['eventRanges'] = sample_rangeupdate[0]['eventRanges'][:n_success]
+            bookKeeper.process_event_ranges_update(actor_id, sample_rangeupdate[0]['eventRanges'])
+            assert not bookKeeper.rangesID_by_actor[actor_id]
+
+            assert job.event_ranges_queue.nranges_done() == n_success
+            events = bookKeeper.fetch_event_ranges(actor_id, nevents)
+            assert not bookKeeper.rangesID_by_actor[actor_id]
+            assert not events
+            assert job.event_ranges_queue.nranges_failed() == nevents - n_success
+            assert job.event_ranges_queue.nranges_done() == n_success
+            print(job.event_ranges_queue.rangesID_by_state)
+            print(bookKeeper.rangesID_by_actor)
+            assert not bookKeeper.is_flagged_no_more_events(job['PandaID'])
+        assert bookKeeper.assign_job_to_actor(actor_id)
 
     def test_process_actor_end(self, is_eventservice, config, njobs,
                                sample_multijobs, nevents, sample_ranges):
         if not is_eventservice:
             pytest.skip("No eventservice jobs")
 
-        logging_actor = LoggingActor.remote(config)
         actor_id_1 = "a1"
         actor_id_2 = "a2"
 
-        bookKeeper = BookKeeper(logging_actor, config)
+        bookKeeper = BookKeeper(config)
         bookKeeper.add_jobs(sample_multijobs)
         bookKeeper.add_event_ranges(sample_ranges)
 
@@ -151,7 +182,7 @@ class TestBookKeeper:
 
         ranges_2 = bookKeeper.fetch_event_ranges(actor_id_2, nevents)
         assert len(ranges_2) == bookKeeper.n_ready(pandaID) == 0
-        assert bookKeeper.assign_job_to_actor(actor_id_2)['PandaID'] != pandaID
+        assert bookKeeper.assign_job_to_actor(actor_id_2)['PandaID'] == pandaID
 
         bookKeeper.process_actor_end(actor_id_1)
         assert bookKeeper.n_ready(pandaID) == nevents

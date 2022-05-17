@@ -4,7 +4,6 @@ import time
 import pytest
 import requests
 
-from raythena.actors.loggingActor import LoggingActor
 from raythena.actors.payloads.eventservice.pilot2http import Pilot2HttpPayload
 from raythena.utils.eventservice import PandaJob, EventRange
 from raythena.utils.exception import FailedPayload
@@ -46,8 +45,7 @@ class TestPilot2Http:
                 break
 
     def setup_payload(self, config):
-        logging_actor = LoggingActor.remote(config)
-        return MockPayload("a1", logging_actor, config)
+        return MockPayload("a1", config)
 
     @pytest.fixture
     def payload(self, tmpdir, config, sample_job):
@@ -120,8 +118,9 @@ class TestPilot2Http:
         res = requests.post('http://127.0.0.1:8080/server/panda/updateJob',
                             data=data).json()
         assert res['StatusCode'] == 0
-        job_update = payload.fetch_job_update()
-        assert job_update['pilotErrorCode'][0] == data['pilotErrorCode']
+        # Disabled as job update are currently not forwarded to the driver
+        # job_update = payload.fetch_job_update()
+        # assert job_update['pilotErrorCode'][0] == data['pilotErrorCode']
 
     def test_rangesUpdate(self, payload, config, is_eventservice, sample_job,
                           sample_ranges, nevents):

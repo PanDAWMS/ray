@@ -209,7 +209,7 @@ class TestPandaJobQueue:
         assert len(pandajob_queue) == len(pandajob_queue_fromdict) == njobs
         job = pandajob_queue.next_job_to_process()
         if is_eventservice:
-            assert not job
+            assert job
         else:
             for i in range(1, njobs):
                 next_job = pandajob_queue.next_job_to_process()
@@ -279,7 +279,7 @@ class TestPandaJobQueue:
         assert ranges_queue.nranges_remaining(
         ) == ranges_queue.nranges_available() == 0
         job_2 = pandajob_queue.next_job_to_process()
-        assert job['PandaID'] != job_2['PandaID']
+        assert job['PandaID'] == job_2['PandaID']
 
 
 class TestPandaJob:

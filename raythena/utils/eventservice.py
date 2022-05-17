@@ -1,7 +1,7 @@
 import json
 import os
 
-from typing import Union, Tuple, Dict, List, Iterator
+from typing import Set, Union, Dict, List, Iterator
 
 
 # Messages sent by ray actor to the driver
@@ -104,36 +104,30 @@ class PandaJobQueue(object):
         Returns:
             PandaJob to process, None if no jobs are available
         """
-        job_id, ranges_avail = self.next_job_id_to_process()
+        job_id = self.next_job_id_to_process()
 
         if job_id is None:
             return None
         return self.jobs[job_id]
 
-    def next_job_id_to_process(self) -> Tuple[Union[str, None], int]:
+    def next_job_id_to_process(self) -> Union[str, None]:
         """
         Retrieve the job worker_id and number of events available for the next job to process.
         Event service jobs with the most events available are chosen first, followed by non event-service jobs.
 
         Returns:
-            Tuple of (job worker_id, nb event ranges) or (None, 0)
+            job worker_id or None
         """
-        max_job_id = None
-        max_avail = 0
 
         if len(self.jobs) == 0:
-            return max_job_id, max_avail
+            return None
 
         for jobID, job in self.jobs.items():
-            if (('eventService' not in job or
-                 job['eventService'].lower() == "false") and
-                    jobID not in self.distributed_jobs_ids):
+            if jobID in self.distributed_jobs_ids:
+                continue
+            elif 'eventService' not in job or job['eventService'].lower() == "false":
                 self.distributed_jobs_ids.append(jobID)
-                return jobID, 0
-            if job.nranges_available() > max_avail:
-                max_avail = job.nranges_available()
-                max_job_id = jobID
-        return max_job_id, max_avail
+            return jobID
 
     def has_job(self, panda_id: str) -> bool:
         """
@@ -203,10 +197,8 @@ class PandaJobQueue(object):
             if not ranges:
                 self[pandaID].no_more_ranges = True
             else:
-                ranges_obj = list()
-                for range_dict in ranges:
-                    ranges_obj.append(EventRange.build_from_dict(range_dict))
-                self.get_event_ranges(pandaID).concat(ranges_obj)
+                ranges_obj = [EventRange.build_from_dict(range_dict) for range_dict in ranges]
+                self.get_event_ranges(pandaID).add_new_event_ranges(ranges_obj)
 
     @staticmethod
     def build_from_dict(jobs_dict: dict) -> 'PandaJobQueue':
@@ -221,6 +213,85 @@ class PandaJobQueue(object):
         res = PandaJobQueue()
         res.add_jobs(jobs_dict)
         return res
+
+
+class RandomDeleteStack:
+    """
+    Custom stack with O(1) random deletion of elements by index or value with no memory reallocation.
+    PRE: Can only hold unique elements (unique event range id) and the element type must be hashable.
+
+    Currently only used to hold str.
+    """
+
+    def __init__(self, initial_capacity=25000) -> None:
+        self._stack = [None] * initial_capacity
+        self._len = 0
+        self._capacity = initial_capacity
+        self._item_idx_lookup = dict()
+
+    def __len__(self):
+        return self._len
+
+    def __iter__(self):
+        for i in range(len(self)):
+            yield self[i]
+
+    def _index_check(self, k):
+        if not isinstance(k, int):
+            raise TypeError("Expected integer index")
+        if k >= len(self):
+            raise IndexError("Index out of bound")
+
+    def __getitem__(self, k):
+        self._index_check(k)
+        return self._stack[k]
+
+    def __setitem__(self, k, v):
+        self._index_check(k)
+        if v in self._item_idx_lookup:
+            raise ValueError("Duplicate value")
+        del self._item_idx_lookup[self._stack[k]]
+        self._item_idx_lookup[v] = k
+        self._stack[k] = v
+
+    def __delitem__(self, k):
+        self._index_check(k)
+        if not len(self):
+            raise IndexError("Empty stack")
+        self._len -= 1
+        del self._item_idx_lookup[self._stack[k]]
+        self._stack[k] = self._stack[len(self)]
+        self._item_idx_lookup[self._stack[k]] = k
+
+    def _grow(self, grow_size=None):
+        if not grow_size:
+            grow_size = self._capacity
+        self._stack.extend([None] * grow_size)
+        self._capacity = len(self._stack)
+
+    def append(self, elt):
+        if elt in self._item_idx_lookup:
+            raise ValueError("Duplicate value")
+        if len(self) == self._capacity:
+            self._grow()
+        self._stack[len(self)] = elt
+        self._item_idx_lookup[elt] = len(self)
+        self._len += 1
+
+    def extend(self, elts):
+        for elt in elts:
+            self.append(elt)
+
+    def remove(self, elt):
+        del self[self._item_idx_lookup[elt]]
+
+    def pop(self):
+        if not len(self):
+            raise IndexError("Empty list")
+        obj = self[self._len - 1]
+        del self._item_idx_lookup[obj]
+        self._len -= 1
+        return obj
 
 
 class EventRangeQueue(object):
@@ -249,7 +320,11 @@ class EventRangeQueue(object):
         Init the queue
         """
         self.event_ranges_by_id: Dict[str, EventRange] = dict()
-        self.rangesID_by_file: Dict[str, Dict[str, List[str]]] = dict()
+        self.rangesID_by_state: Dict[str, Set[str]] = dict()
+        self.event_ranges_count = dict()
+        for s in EventRange.STATES:
+            self.event_ranges_count[s] = 0
+            self.rangesID_by_state[s] = set()
 
     def __iter__(self) -> Iterator[str]:
         return iter(self.event_ranges_by_id)
@@ -266,8 +341,9 @@ class EventRangeQueue(object):
         if k != v.eventRangeID:
             raise Exception(f"Specified key '{k}' should be equals to the event range id '{v.eventRangeID}' ")
         if k in self.event_ranges_by_id:
-            self.rangesID_by_file[self._get_file_from_id(k)][v.status].remove(k)
+            self.rangesID_by_state[v.status].remove(k)
             self.event_ranges_by_id.pop(k)
+            self.event_ranges_count[v.status] -= 1
         self.append(v)
 
     def __contains__(self, k: str) -> bool:
@@ -307,12 +383,30 @@ class EventRangeQueue(object):
                 f"Trying to update non-existing eventrange {range_id}")
 
         event_range = self.event_ranges_by_id[range_id]
-        file_name = self._get_file_from_id(range_id)
 
-        self.rangesID_by_file[file_name][event_range.status].remove(range_id)
+        self.rangesID_by_state[event_range.status].remove(range_id)
+        self.event_ranges_count[event_range.status] -= 1
         event_range.status = new_state
-        self.rangesID_by_file[file_name][event_range.status].append(range_id)
+        self.rangesID_by_state[event_range.status].add(range_id)
+        self.event_ranges_count[event_range.status] += 1
         return event_range
+
+    def assign_ready_ranges(self, n_ranges=1) -> List['EventRange']:
+        n_ranges = min(self.nranges_available(), n_ranges)
+        if not n_ranges:
+            return list()
+        res = [None] * n_ranges
+        ready = self.rangesID_by_state[EventRange.READY]
+        assigned = self.rangesID_by_state[EventRange.ASSIGNED]
+        for n in range(n_ranges):
+            range_id = ready.pop()
+            assigned.add(range_id)
+            self.event_ranges_by_id[range_id].status = EventRange.ASSIGNED
+            res[n] = self.event_ranges_by_id[range_id]
+
+        self.event_ranges_count[EventRange.READY] -= n_ranges
+        self.event_ranges_count[EventRange.ASSIGNED] += n_ranges
+        return res
 
     def update_ranges(self, ranges_update: List[Dict]) -> None:
         """
@@ -330,16 +424,12 @@ class EventRangeQueue(object):
             range_id = r['eventRangeID']
             range_status = r['eventStatus']
             if range_id not in self.event_ranges_by_id or \
-                    range_id in self.rangesID_by_file[self._get_file_from_id(range_id)][EventRange.READY]:
-                raise Exception(
-                )
+                    range_id in self.rangesID_by_state[EventRange.READY]:
+                raise Exception()
             self.update_range_state(range_id, range_status)
 
     def _get_ranges_count(self, state: str) -> int:
-        count = 0
-        for ranges in self.rangesID_by_file.values():
-            count += len(ranges[state])
-        return count
+        return self.event_ranges_count[state]
 
     def nranges_remaining(self) -> int:
         """
@@ -399,17 +489,17 @@ class EventRangeQueue(object):
         """
         if isinstance(event_range, dict):
             event_range = EventRange.build_from_dict(event_range)
+
         self.event_ranges_by_id[event_range.eventRangeID] = event_range
-        file_name = self._get_file_from_id(event_range.eventRangeID)
+        self.rangesID_by_state[event_range.status].add(event_range.eventRangeID)
+        self.event_ranges_count[event_range.status] += 1
 
-        if file_name not in self.rangesID_by_file:
-            files_ranges_states = dict()
-            self.rangesID_by_file[file_name] = files_ranges_states
-            for state in EventRange.STATES:
-                files_ranges_states[state] = list()
-
-        self.rangesID_by_file[file_name][event_range.status].append(
-            event_range.eventRangeID)
+    def add_new_event_ranges(self, ranges: List['EventRange']):
+        # PRE: all ranges in the list are in state ready
+        self.rangesID_by_state[EventRange.READY].update(map(lambda e: e.eventRangeID, ranges))
+        self.event_ranges_count[EventRange.READY] += len(ranges)
+        for r in ranges:
+            self.event_ranges_by_id[r.eventRangeID] = r
 
     def concat(self, ranges: List[Union[dict, 'EventRange']]) -> None:
         """
@@ -424,12 +514,6 @@ class EventRangeQueue(object):
         for r in ranges:
             self.append(r)
 
-    def _find_file_with_enough_ranges_ready(self, nranges: int) -> Union[None, str]:
-        for file_name, ranges in self.rangesID_by_file.items():
-            if len(ranges[EventRange.READY]) >= nranges:
-                return file_name
-        return None
-
     def get_next_ranges(self, nranges: int) -> List['EventRange']:
         """
         Dequeue event ranges. Event ranges which were dequeued are updated to the 'ASSIGNED' status
@@ -442,23 +526,7 @@ class EventRangeQueue(object):
         Returns:
             The list of event ranges assigned
         """
-        res = list()
-        nranges = min(nranges, self.nranges_available())
-
-        file_name = self._find_file_with_enough_ranges_ready(nranges)
-        if file_name:
-            ids = self.rangesID_by_file[file_name][EventRange.READY][:nranges]
-            for range_id in ids:
-                res.append(self.update_range_state(range_id, EventRange.ASSIGNED))
-            return res
-
-        for ranges in self.rangesID_by_file.values():
-            ids = ranges[EventRange.READY][:min(nranges, len(ranges[EventRange.READY]))]
-            for range_id in ids:
-                res.append(self.update_range_state(range_id, EventRange.ASSIGNED))
-                if len(res) == nranges:
-                    return res
-        return res
+        return self.assign_ready_ranges(n_ranges=nranges)
 
 
 class PandaJobUpdate(object):
@@ -566,17 +634,20 @@ class EventRangeUpdate(object):
 
     """
 
-    def __init__(self, range_update: Dict[str, List[dict]]) -> None:
+    def __init__(self, range_update: Dict[str, List[dict]] = None) -> None:
         """
         Wraps the range update dict in an object. The range update should be in the harvester-supported format.
 
         Args:
             range_update: range update
         """
-        for v in range_update.values():
-            if not isinstance(v, list):
-                raise Exception(f"Expecting type list for element {v}")
-        self.range_update = range_update
+        if not range_update:
+            self.range_update = dict()
+        else:
+            for v in range_update.values():
+                if not isinstance(v, list):
+                    raise Exception(f"Expecting type list for element {v}")
+            self.range_update = range_update
 
     def __len__(self) -> int:
         return len(self.range_update)
@@ -594,6 +665,13 @@ class EventRangeUpdate(object):
         if not isinstance(v, list):
             raise Exception(f"Expecting type list for element {v}")
         self.range_update[k] = v
+
+    def merge_update(self, other: 'EventRangeUpdate') -> None:
+        for pandaID in other:
+            if pandaID in self:
+                self[pandaID] += other[pandaID]
+            else:
+                self[pandaID] = other[pandaID]
 
     @staticmethod
     def build_from_dict(panda_id: str,
@@ -1009,6 +1087,11 @@ class EventRange(object):
             json dump of self.to_dict()
         """
         return json.dumps(self.to_dict())
+
+    def __eq__(self, o: object) -> bool:
+        if not isinstance(o, EventRange):
+            return False
+        return self.eventRangeID == o.eventRangeID
 
     def to_dict(self) -> dict:
         """

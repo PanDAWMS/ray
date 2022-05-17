@@ -7,6 +7,7 @@ from queue import Queue
 
 from raythena.drivers.communicators.baseCommunicator import BaseCommunicator
 from raythena.utils.config import Config
+from raythena.utils.logging import make_logger
 from raythena.utils.eventservice import EventRangeRequest, PandaJobRequest, PandaJobUpdate, EventRangeUpdate, JobReport
 from raythena.utils.exception import ExThread
 
@@ -36,6 +37,10 @@ class HarvesterFileCommunicator(BaseCommunicator):
             self.config.harvester['endpoint'])
         self.ranges_requests_count = 0
         self._parse_harvester_config()
+        self.id = "HarvesterCommunicator"
+        self._logger = make_logger(self.config, self.id)
+        self.event_ranges_update_buffer = EventRangeUpdate()
+        self.event_ranges_update_interval = 5 * 60
         self.communicator_thread = ExThread(target=self.run,
                                             name="communicator-thread")
 
@@ -139,12 +144,12 @@ class HarvesterFileCommunicator(BaseCommunicator):
             with open(event_request_file_tmp, 'w') as f:
                 json.dump(request.request, f)
             shutil.move(event_request_file_tmp, self.eventrequestfile)
-            print(f"request_event_ranges: created new {self.eventrequestfile} file")
+            self._logger.debug(f"request_event_ranges: created new {self.eventrequestfile} file")
 
         while not os.path.isfile(self.eventrangesfile):
             time.sleep(1)
 
-        print(f"request_event_ranges: found a {self.eventrangesfile} file")
+        self._logger.debug(f"request_event_ranges: found a {self.eventrangesfile} file")
         while os.path.isfile(self.eventrangesfile):
             try:
                 with open(self.eventrangesfile, 'r') as f:
@@ -191,30 +196,67 @@ class HarvesterFileCommunicator(BaseCommunicator):
         Returns:
             None
         """
+        self._logger.debug("Sending event ranges update to harvester...")
         tmp_status_dump_file = f"{self.eventstatusdumpjsonfile}.tmp"
+
+        if os.path.isfile(tmp_status_dump_file):
+            self._logger.debug("Cleanup leftover tmp file")
+            try:
+                with open(tmp_status_dump_file) as f:
+                    current_update = json.load(f)
+                os.remove(tmp_status_dump_file)
+            except Exception as e:
+                self._logger.critical("Failed to read and remove leftover tmp update file. Update will never get reported to harvester.")
+                self._logger.critical(e)
+            else:
+                request.merge_update(EventRangeUpdate(current_update))
+
+        self.merge_write_dump_file(request, tmp_status_dump_file)
+
+        now = time.time()
+        # eventstatusdumpjsonfile might be created by harvester, if this is the case, retry to merge it
+        while os.path.isfile(self.eventstatusdumpjsonfile):
+            self.merge_write_dump_file(request, tmp_status_dump_file)
+            if time.time() - now > 60:
+                break
+            time.sleep(1)
+        try:
+            shutil.move(tmp_status_dump_file, self.eventstatusdumpjsonfile)
+        except Exception as e:
+            self._logger.critical(f"Failed to move temporary event status file to harvester dump file: {e}")
+
+    def merge_write_dump_file(self, request: EventRangeUpdate, tmp_status_dump_file: str) -> None:
         if os.path.isfile(self.eventstatusdumpjsonfile):
+            self._logger.debug("Dump file already exists, merge with upcoming update")
             try:
                 shutil.move(self.eventstatusdumpjsonfile, tmp_status_dump_file)
                 with open(tmp_status_dump_file) as f:
                     current_update = json.load(f)
-            except Exception:
-                pass
+            except Exception as e:
+                self._logger.error(f"Failed to move and load existing dump file: {e} ")
+            else:
+                request.merge_update(EventRangeUpdate(current_update))
+
+        self._logger.debug("Writting event ranges update to temporary file")
+        try:
+            with open(tmp_status_dump_file, 'w') as f:
+                json.dump(request.range_update, f)
+        except Exception as e:
+            self._logger.error(f"Failed to write event update to temporary file: {e}")
+
+    def cleanup_tmp_files(self) -> None:
+        tmp_status_dump_file = f"{self.eventstatusdumpjsonfile}.tmp"
+        if os.path.isfile(tmp_status_dump_file):
+            self._logger.warn("About to quit with leftover temporary files... Last try to move it")
+            try:
+                with open(tmp_status_dump_file) as f:
+                    current_update = json.load(f)
+                os.remove(tmp_status_dump_file)
+            except Exception as e:
+                self._logger.error(f"Failed: {e}")
             else:
                 current_update = EventRangeUpdate(current_update)
-                for panda_id in current_update:
-                    if panda_id in request:
-                        request[panda_id] += current_update[panda_id]
-                    else:
-                        request[panda_id] = current_update[panda_id]
-
-        with open(tmp_status_dump_file, 'w') as f:
-            json.dump(request.range_update, f)
-
-        # eventstatusdumpjsonfile should not exist as it just got removed before
-        while os.path.isfile(self.eventstatusdumpjsonfile):
-            time.sleep(0.5)
-
-        shutil.move(tmp_status_dump_file, self.eventstatusdumpjsonfile)
+                self.update_events(current_update)
 
     def create_job_report(self, request: JobReport) -> None:
         """
@@ -238,20 +280,34 @@ class HarvesterFileCommunicator(BaseCommunicator):
         Returns:
             None
         """
+        last_event_range_update = 0
+
         while True:
-            request = self.requests_queue.get()
-            if isinstance(request, PandaJobRequest):
-                self.request_job(request)
-            elif isinstance(request, EventRangeRequest):
-                self.request_event_ranges(request)
-            elif isinstance(request, PandaJobUpdate):
-                self.update_job(request)
-            elif isinstance(request, EventRangeUpdate):
-                self.update_events(request)
-            elif isinstance(request, JobReport):
-                self.create_job_report(request)
-            else:  # if any other request is received, stop the thread
-                break
+            try:
+                request = self.requests_queue.get()
+                if isinstance(request, PandaJobRequest):
+                    self.request_job(request)
+                elif isinstance(request, EventRangeRequest):
+                    self.request_event_ranges(request)
+                elif isinstance(request, PandaJobUpdate):
+                    self.update_job(request)
+                elif isinstance(request, EventRangeUpdate):
+                    self.event_ranges_update_buffer.merge_update(request)
+                    now = time.time()
+                    if now - last_event_range_update > self.event_ranges_update_interval:
+                        self.update_events(self.event_ranges_update_buffer)
+                        last_event_range_update = now
+                        self.event_ranges_update_buffer = EventRangeUpdate()
+                elif isinstance(request, JobReport):
+                    self.create_job_report(request)
+                else:  # if any other request is received, stop the thread
+                    break
+            except Exception as e:
+                self._logger.error(f"Exception occured while handling request: {e}")
+
+        if self.event_ranges_update_buffer:
+            self.update_events(self.event_ranges_update_buffer)
+        self.cleanup_tmp_files()
 
     def start(self) -> None:
         """

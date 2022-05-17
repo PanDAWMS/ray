@@ -2,7 +2,7 @@ from setuptools import setup, find_namespace_packages
 
 setup(
     name='raythena',
-    version='1.0',
+    version="0.1",
     author='Miha Muskinja',
     author_email='MihaMuskinja@lbl.gov',
     packages=find_namespace_packages(include=['raythena.*']),
@@ -15,7 +15,7 @@ setup(
         'example/standalone_ray_test_hello_world.py',
     ],
     data_files=[
-        ('conf', ['conf/cori.yaml', 'conf/incontainer.yaml'])
+        ('conf', ['conf/cori.yaml'])
     ],
     install_requires=[
         'ray[default]',

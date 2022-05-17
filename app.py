@@ -68,11 +68,11 @@ def cli(*args, **kwargs):
     """
     config = Config(kwargs['config'], *args, **kwargs)
 
-    setup_ray(config)
+    cluster_config = setup_ray(config)
     try:
         registry = PluginsRegistry()
         driver_class = registry.get_plugin(config.ray['driver'])
-        driver = driver_class(config)
+        driver = driver_class(config, cluster_config['session_dir'])
 
         signal.signal(signal.SIGINT, functools.partial(cleanup, config, driver))
         signal.signal(signal.SIGTERM, functools.partial(cleanup, config, driver))
@@ -82,8 +82,8 @@ def cli(*args, **kwargs):
         signal.signal(signal.SIGUSR1, functools.partial(cleanup, config, driver))
         signal.signal(signal.SIGBUS, functools.partial(cleanup, config, driver))
         driver.run()
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Caught exception in driver process {e}")
     finally:
         shutdown_ray(config)
 

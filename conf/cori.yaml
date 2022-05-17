@@ -1,17 +1,20 @@
 payload:
   plugin: pilot2http:Pilot2HttpPayload
   bindir:
-  pandaqueue: NERSC_Cori_p2_ES
+  pandaqueue: NERSC_Cori_p2_ES_Test
   logfilename: log.pilotwrapper
-  extrasetup: export ALRB_CONT_SWTYPE=shifter; export LD_LIBRARY_PATH=/global/common/software/atlas/harvester/yampl-py3.7/install/lib:$LD_LIBRARY_PATH; export PYTHONPATH=/global/common/software/atlas/harvester/yampl-py3.7/python-yampl/build/lib.linux-x86_64-3.7:$PYTHONPATH;
+  extrasetup: export ALRB_CONT_SWTYPE=shifter; export LD_LIBRARY_PATH=/global/common/software/atlas/yampl/yampl-v1.0-py3.7/install/lib:$LD_LIBRARY_PATH; export PYTHONPATH=/global/common/software/atlas/yampl/yampl-v1.0-py3.7/install/python-yampl:$PYTHONPATH;
   extrapostpayload:
   hpcresource: cori
   containerengine:
   containerextraargs:
   condabindir:
   virtualenv:
-  py3pilot: true
   pilotversion: 3
+  py3pilot: true
+  pilotkillfile: pilot_kill_payload
+  pilotkilltime: 900
+  timemonitorfile: jobtimeout.txt
 
 harvester:
   cacher: $SCRATCH/harvester
@@ -25,17 +28,20 @@ ray:
   redispassword:
   driver: esdriver:ESDriver
   workdir: $SCRATCH/raythena/workdir
+  cachesizefactor: 4
   monitortime: 300
   timeoutinterval: 600
-  tarinterval: 120
+  tarinterval: 60
   tarmaxfilesize: 5000000000
-  tarmaxprocesses: 5
+  tarmaxprocesses: 64
   tarcheckinterval: 60
 
 resources:
-  corepernode: 32
+  corepernode: 128
   workerpernode: 1
 
 logging:
   level: debug
-  logfile: raythena.log
+  driverlogfile:
+  workerlogfile:
+  copyraylogs: false

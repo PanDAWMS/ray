@@ -27,6 +27,9 @@ class Config(object):
             "containerengine": str,
             "containerextraargs": str,
             "pilotversion": int,
+            "pilotkillfile": str,
+            "pilotkilltime": int,
+            "timemonitorfile": str,
         },
         'harvester': {
             'endpoint': str,
@@ -45,6 +48,7 @@ class Config(object):
             'tarmaxfilesize': int,
             'tarmaxprocesses': int,
             'tarcheckinterval': int,
+            'cachesizefactor': int,
         },
         'resources': {
             'corepernode': int,
@@ -52,7 +56,9 @@ class Config(object):
         },
         'logging': {
             'level': str,
-            'logfile': str,
+            'driverlogfile': str,
+            'workerlogfile': str,
+            'copyraylogs': bool
         }
     }
 

@@ -60,7 +60,7 @@ def is_external_cluster(config: Config) -> bool:
         'redisport'] is not None
 
 
-def setup_ray(config: Config) -> None:
+def setup_ray(config: Config) -> dict:
     """
     Connect to / Setup the ray cluster
 
@@ -68,13 +68,14 @@ def setup_ray(config: Config) -> None:
         config: application config
 
     Returns:
-        None
+        dict of cluster params
     """
+    log_to_driver = True if not config.logging.get('workerlogfile', None) else False
     if is_external_cluster(config):
         ray_url = f"{config.ray['headip']}:{config.ray['redisport']}"
-        ray.init(address=ray_url, _redis_password=config.ray['redispassword'])
+        return ray.init(address=ray_url, _redis_password=config.ray['redispassword'], log_to_driver=log_to_driver)
     else:
-        ray.init(_system_config={"num_heartbeats_timeout": 60000})
+        return ray.init(_system_config={"num_heartbeats_timeout": 60000}, log_to_driver=log_to_driver)
 
 
 def shutdown_ray(config: Config) -> None:

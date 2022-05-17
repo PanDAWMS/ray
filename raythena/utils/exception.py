@@ -120,6 +120,10 @@ class BaseRaythenaException(Exception):
         self.error_code = error_code
         self.message = message if message else ErrorCodes.get_error_message(
             error_code)
+        super().__init__(self.message)
+
+    def __reduce__(self):
+        return (self.__class__, (self.worker_id, self.error_code, self.message))
 
 
 class PluginNotFound(BaseRaythenaException):
@@ -129,6 +133,9 @@ class PluginNotFound(BaseRaythenaException):
 
     def __init__(self, worker_id: str, message: str = None) -> None:
         super().__init__(worker_id, ErrorCodes.PLUGIN_NOT_FOUND, message)
+
+    def __reduce__(self):
+        return (self.__class__, (self.worker_id, self.message))
 
 
 class IllegalWorkerState(BaseRaythenaException):
@@ -141,6 +148,9 @@ class IllegalWorkerState(BaseRaythenaException):
         self.src_state = src_state
         self.dst_state = dst_state
 
+    def __reduce__(self):
+        return (self.__class__, (self.worker_id, self.src_state, self.dst_state, self.message))
+
 
 class StageInFailed(BaseRaythenaException):
     """
@@ -149,6 +159,9 @@ class StageInFailed(BaseRaythenaException):
 
     def __init__(self, worker_id: str, message: str = None) -> None:
         super().__init__(worker_id, ErrorCodes.STAGEIN_FAILED, message)
+
+    def __reduce__(self):
+        return (self.__class__, (self.worker_id, self.message))
 
 
 class StageOutFailed(BaseRaythenaException):
@@ -159,6 +172,9 @@ class StageOutFailed(BaseRaythenaException):
     def __init__(self, worker_id: str, message: str = None) -> None:
         super().__init__(worker_id, ErrorCodes.STAGEOUT_FAILED, message)
 
+    def __reduce__(self):
+        return (self.__class__, (self.worker_id, self.message))
+
 
 class FailedPayload(BaseRaythenaException):
     """
@@ -168,6 +184,9 @@ class FailedPayload(BaseRaythenaException):
     def __init__(self, worker_id: str, message: str = None) -> None:
         super().__init__(worker_id, ErrorCodes.PAYLOAD_FAILED, message)
 
+    def __reduce__(self):
+        return (self.__class__, (self.worker_id, self.message))
+
 
 class UnknownException(BaseRaythenaException):
     """
@@ -176,6 +195,22 @@ class UnknownException(BaseRaythenaException):
 
     def __init__(self, worker_id: str, message: str = None) -> None:
         super().__init__(worker_id, ErrorCodes.UNKNOWN, message)
+
+    def __reduce__(self):
+        return (self.__class__, (self.worker_id, self.message))
+
+
+class WrappedException(BaseRaythenaException):
+    """
+    Raised when no other exception type applies
+    """
+
+    def __init__(self, worker_id: str, e: Exception) -> None:
+        super().__init__(worker_id, ErrorCodes.UNKNOWN, f"Wrapped exception {e}")
+        self.wrapped_exception = e
+
+    def __reduce__(self):
+        return (self.__class__, (self.worker_id, self.message))
 
 
 if __name__ == "__main__":
