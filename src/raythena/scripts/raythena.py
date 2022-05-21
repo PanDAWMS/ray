@@ -104,5 +104,9 @@ def cleanup(config: Config, driver: BaseDriver, signum: signal.Signals, frame: t
     driver.stop()
 
 
-if __name__ == "__main__":
+def main():
     cli(auto_envvar_prefix='RAYTHENA')
+
+
+if __name__ == "__main__":
+    main()
