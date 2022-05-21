@@ -6,7 +6,7 @@ setup(
     version=__version__,
     author='Miha Muskinja',
     author_email='MihaMuskinja@lbl.gov',
-    packages=find_packages(),
+    packages=find_packages(where="src"),
     scripts=[
         'bin/ray_start_head',
         'bin/ray_start_worker',
