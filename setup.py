@@ -11,7 +11,7 @@ setup(
         'bin/ray_start_head',
         'bin/ray_start_worker',
         'bin/ray_sync',
-        'raythena.py',
+        'bin/raythena.py',
         'example/setup_ray_cluster_slurm.sh',
         'example/standalone_ray_test_hello_world.py',
     ],
