@@ -125,7 +125,7 @@ while [[ $retsync -ne 0 ]]; do
   fi
 done
 
-python $BINDIR/app.py > $RAYTHENA_RAY_WORKDIR/raythena.log 2> $RAYTHENA_RAY_WORKDIR/raythena.err
+python $BINDIR/raythena.py > $RAYTHENA_RAY_WORKDIR/raythena.log 2> $RAYTHENA_RAY_WORKDIR/raythena.err
 
 ray stop
 

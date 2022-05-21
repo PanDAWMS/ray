@@ -1,16 +1,17 @@
-from setuptools import setup, find_namespace_packages
+from setuptools import setup
+from raythena import __version__
 
 setup(
     name='raythena',
-    version="0.1",
+    version=__version__,
     author='Miha Muskinja',
     author_email='MihaMuskinja@lbl.gov',
-    packages=find_namespace_packages(include=['raythena.*']),
+    packages=['raythena'],
     scripts=[
         'bin/ray_start_head',
         'bin/ray_start_worker',
         'bin/ray_sync',
-        'app.py',
+        'raythena.py',
         'example/setup_ray_cluster_slurm.sh',
         'example/standalone_ray_test_hello_world.py',
     ],
@@ -18,11 +19,10 @@ setup(
         ('conf', ['conf/cori.yaml'])
     ],
     install_requires=[
-        'ray[default]',
+        'ray',
         'psutil',
         'uvloop',
         'aiohttp',
-        'tox',
         'click',
         'setproctitle'
     ]
