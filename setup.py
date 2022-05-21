@@ -1,4 +1,4 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 from raythena import __version__
 
 setup(
@@ -6,7 +6,7 @@ setup(
     version=__version__,
     author='Miha Muskinja',
     author_email='MihaMuskinja@lbl.gov',
-    packages=['raythena'],
+    packages=find_packages(),
     scripts=[
         'bin/ray_start_head',
         'bin/ray_start_worker',
