@@ -29,13 +29,11 @@ export HARVESTER_NNODE={nNode}
 #export HARVESTER_NNODE=$SLURM_NNODES
 
 export PANDA_QUEUE=NERSC_Cori_p2_ES_Test
-export container_setup=/release_setup.sh
-export HARVESTER_CONTAINER_RELEASE_SETUP_FILE=$container_setup
-export HARVESTER_PILOT_CONFIG=/global/common/software/atlas/raythena-pilot/default.cfg
-export PILOT_LOGFILE=RaythenaActor.log.tgz
 
-# staged by harvester cacher module
-export pilot_queuedata_file=/global/cscratch1/sd/$USER/harvester/${PANDA_QUEUE}_queuedata.json
+# variables read by pilot3
+export HARVESTER_CONTAINER_RELEASE_SETUP_FILE=/release_setup.sh
+export HARVESTER_PILOT_CONFIG=/global/common/software/atlas/raythena-pilot/default.cfg
+export PILOT_LOGFILE=log.pilotwrapper
 
 export CONFDIR=/global/common/software/atlas/raythena-pilot
 
