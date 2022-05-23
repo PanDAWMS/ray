@@ -17,11 +17,12 @@ from raythena.utils.logging import disable_stdout_logging, make_logger, log_to_f
 from raythena.utils.config import Config
 from raythena.utils.eventservice import EventRangeRequest, Messages, EventRangeUpdate, PandaJob, EventRange
 from raythena.utils.exception import IllegalWorkerState, StageInFailed, StageOutFailed, WrappedException, BaseRaythenaException
-from raythena.utils.plugins import PluginsRegistry
 from raythena.utils.ray import get_node_ip
 # from raythena.utils.timing import CPUMonitor
 from raythena.actors.payloads.basePayload import BasePayload
 from raythena.actors.payloads.eventservice.esPayload import ESPayload
+
+from raythena.actors.payloads.eventservice.pilothttp import PilotHttpPayload
 
 
 @ray.remote(num_cpus=1, max_restarts=1, max_task_retries=3)
@@ -115,13 +116,10 @@ class ESWorker(object):
             self.config.ray.get('workdir', os.getcwd()))
         if not os.path.isdir(self.workdir):
             self.workdir = os.getcwd()
-        self.plugin_registry = PluginsRegistry()
-        payload = self.config.payload['plugin']
         self.pilot_kill_file = os.path.expandvars(self.config.payload.get('pilotkillfile', 'pilot_kill_payload'))
         self.pilot_kill_time = self.config.payload.get('pilotkilltime', 600)
         self.time_monitor_file = os.path.expandvars(self.config.payload.get('timemonitorfile', 'RaythenaTimeMonitor.txt'))
-        self.payload_class = self.plugin_registry.get_plugin(payload)
-        self.payload: Union[BasePayload, ESPayload] = self.payload_class(self.id, self.config)
+        self.payload: Union[BasePayload, ESPayload] = PilotHttpPayload(self.id, self.config)
         self.start_time = -1
         self.time_limit = -1
         self.elapsed = 1

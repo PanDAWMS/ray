@@ -1,6 +1,4 @@
 payload:
-  plugin: pilot2http:Pilot2HttpPayload
-  bindir:
   pandaqueue: NERSC_Cori_p2_ES
   logfilename: log.pilotwrapper
   extrasetup: export LD_LIBRARY_PATH=/global/project/projectdirs/m2616/yampl/lib:$LD_LIBRARY_PATH;export PYTHONPATH=/global/project/projectdirs/m2616/yampl/python-yampl:$PYTHONPATH;
@@ -8,7 +6,6 @@ payload:
   hpcresource: cori
   containerengine: docker
   containerextraargs: run
-  pilotversion: 2
   pilotkillfile: pilot_kill_payload
   pilotkilltime: 900
   timemonitorfile: jobtimeout.txt
@@ -22,19 +19,15 @@ ray:
   headip:
   redisport:
   redispassword:
-  driver: esdriver:ESDriver
   cachesizefactor: 1
   workdir: .
-  monitortime: 300
   timeoutinterval: 600
   tarinterval: 120
   tarmaxfilesize: 5000000000
   tarmaxprocesses: 5
-  tarcheckinterval: 120
 
 resources:
   corepernode: 8
-  workerpernode: 2
 
 logging:
   level: debug

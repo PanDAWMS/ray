@@ -18,12 +18,12 @@ from raythena.utils.logging import disable_stdout_logging, log_to_file, make_log
 from raythena.drivers.baseDriver import BaseDriver
 from raythena.drivers.communicators.baseCommunicator import BaseCommunicator
 from raythena.utils.config import Config
+from raythena.drivers.communicators.harvesterFileMessenger import HarvesterFileCommunicator
 from raythena.utils.eventservice import (EventRange, EventRangeRequest,
                                          EventRangeUpdate, JobReport, Messages,
                                          PandaJob, PandaJobQueue,
                                          PandaJobRequest)
 from raythena.utils.exception import BaseRaythenaException
-from raythena.utils.plugins import PluginsRegistry
 from raythena.utils.ray import build_nodes_resource_list
 
 # from raythena.utils.timing import CPUMonitor
@@ -49,9 +49,6 @@ class BookKeeper(object):
         self.ranges_tarred_up: List[List[Dict]] = list()
         self.ranges_tarred_by_output_file: Dict[str, List[Dict]] = dict()
         self.start_time = time.time()
-        self.finished_by_time = []
-        self.finished_by_time.append((time.time(), 0))
-        self.monitortime = self.config.ray['monitortime']
         self.tarmaxfilesize = self.config.ray['tarmaxfilesize']
         self.last_status_print = time.time()
 
@@ -146,31 +143,6 @@ class BookKeeper(object):
             None
         """
         self.jobs.process_event_ranges_reply(event_ranges)
-
-    def add_finished_event_ranges(self) -> None:
-        """
-        Add Number of finished event ranges to finished_by_time list.
-        Each entry is the list (time stamp (time.time()), job_ranges.nranges_done()
-
-        Args:
-            None
-
-        Returns:
-            None
-        """
-        nfinished = 0
-        for pandaID in self.jobs:
-            job_ranges = self.jobs.get_event_ranges(pandaID)
-            nfinished = nfinished + job_ranges.nranges_done()
-        # get the previous time stamp
-        time_tuple = self.finished_by_time[-1]
-        time_stamp = time_tuple[0]
-        now = time.time()
-        delta_time = now - time_stamp
-        # Record number of finished jobs at allowed time interval
-        if int(delta_time) >= self.monitortime:
-            time_tuple = (now, nfinished)
-            self.finished_by_time.append(time_tuple)
 
     def have_finished_events(self) -> bool:
         """
@@ -398,13 +370,10 @@ class ESDriver(BaseDriver):
         # self.cpu_monitor = CPUMonitor(os.path.join(workdir, "cpu_monitor_driver.json"))
         # self.cpu_monitor.start()
 
-        registry = PluginsRegistry()
-        self.communicator_class = registry.get_plugin(self.config.harvester['communicator'])
-
-        self.communicator: BaseCommunicator = self.communicator_class(self.requests_queue,
-                                                                      self.jobs_queue,
-                                                                      self.event_ranges_queue,
-                                                                      config)
+        self.communicator: BaseCommunicator = HarvesterFileCommunicator(self.requests_queue,
+                                                                        self.jobs_queue,
+                                                                        self.event_ranges_queue,
+                                                                        config)
         self.communicator.start()
         self.requests_queue.put(PandaJobRequest())
         self.actors = dict()
@@ -739,8 +708,6 @@ class ESDriver(BaseDriver):
         """
         self.get_tar_results()
         self.tar_es_output()
-
-        self.bookKeeper.add_finished_event_ranges()
         self.request_event_ranges()
 
     def cleanup(self) -> None:
