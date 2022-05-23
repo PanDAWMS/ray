@@ -75,7 +75,7 @@ class AsyncRouter(object):
         return await self.routes[endpoint](*args, **kwargs)
 
 
-class Pilot2HttpPayload(ESPayload):
+class PilotHttpPayload(ESPayload):
     """
     This payload plugin processes panda jobs using the ray <-> pilot 2 <-> AthenMP workflow on HPC. The plugin starts
     a pilot process using Popen. Communication with the pilot process is done using HTTP using the same API
@@ -159,40 +159,24 @@ class Pilot2HttpPayload(ESPayload):
         """
         cmd = str()
 
-        conda_activate = None
-        condabindir = self.config.payload.get('condabindir', None)
-        pilot_venv = self.config.payload.get('virtualenv', None)
-
-        if condabindir is not None:
-            conda_activate = os.path.expandvars(os.path.join(self.config.payload.get('condabindir', ''), 'activate'))
-
-        if conda_activate is not None and os.path.isfile(conda_activate) and pilot_venv is not None:
-            cmd += f"source {conda_activate} {pilot_venv};"
-
         extra_setup = self.config.payload.get('extrasetup', None)
         if extra_setup is not None:
             cmd += f"{extra_setup}{';' if not extra_setup.endswith(';') else ''}"
 
-        pilot_version = self.config.payload.get('pilotversion', None)
-        if pilot_version == 3:
-            pilot_base = "pilot3"
-            # pilot3 only supports python3, override conf
-            py3pilot = True
-        else:
-            pilot_base = "pilot2"
-            py3pilot = self.config.payload.get('py3pilot', None)
+        pilot_base = "pilot3"
 
-        pilot_src = f"{shlex.quote(self.config.ray['workdir'])}/{pilot_base}"
+        pilot_version = self.config.payload.get("pilotversion", "latest")
+
+        pilot_src = f"/cvmfs/atlas.cern.ch/repo/sw/PandaPilot/pilot3/{pilot_version}"
 
         if not os.path.isdir(pilot_src):
-            raise FailedPayload(self.worker_id)
+            raise FailedPayload(self.worker_id, f"Pilot release {pilot_src} not found")
 
         cmd += f"ln -s {pilot_src} {os.path.join(os.getcwd(), pilot_base)};"
 
         prod_source_label = shlex.quote(self.current_job['prodSourceLabel'])
 
-        pilotwrapper_bin = os.path.expandvars(
-            os.path.join(self.config.payload['bindir'], "runpilot2-wrapper.sh"))
+        pilotwrapper_bin = "/cvmfs/atlas.cern.ch/repo/sw/PandaPilotWrapper/latest/runpilot2-wrapper.sh"
 
         if not os.path.isfile(pilotwrapper_bin):
             raise FailedPayload(self.worker_id)
@@ -200,10 +184,7 @@ class Pilot2HttpPayload(ESPayload):
         queue_escaped = shlex.quote(self.config.payload['pandaqueue'])
         cmd += f"{shlex.quote(pilotwrapper_bin)} --localpy --piloturl local -q {queue_escaped} -r {queue_escaped} -s {queue_escaped} "
 
-        if pilot_version == 3:
-            cmd += "--pilotversion 3 --pythonversion 3 "
-        elif py3pilot:
-            cmd += "--pythonversion 3 "
+        cmd += "--pilotversion 3 --pythonversion 3 "
 
         cmd += f"-i PR -j {prod_source_label} --container --mute --pilot-user=atlas -t -u --es-executor-type=raythena -v 1 " \
             f"-d --cleanup=False -w generic --use-https False --allow-same-user=False --resource-type MCORE " \
@@ -222,74 +203,6 @@ class Pilot2HttpPayload(ESPayload):
         return (f"/bin/bash {cmd_script} "
                 f"> {payload_log} 2> {payload_log}.stderr")
 
-    def _build_pilot_container_command(self) -> str:
-        """
-        Build the payload command to run pilot 2 in a container. Container engine used in defined in the config file.
-        The payload command is written to a file which is then executed in the container environment
-
-        Returns:
-            command string to execute
-        """
-        cmd = str()
-        extra_setup = self.config.payload.get('extrasetup', '')
-        if extra_setup:
-            cmd += f"{extra_setup}{';' if not extra_setup.endswith(';') else ''}"
-
-        pilot_version = self.config.payload.get('pilotversion', None)
-        if pilot_version == 3:
-            pilot_base = "pilot3"
-            # pilot3 only supports python3, override conf
-            py3pilot = True
-        else:
-            pilot_base = "pilot2"
-            py3pilot = self.config.payload.get('py3pilot', None)
-
-        pilot_src = f"{shlex.quote(self.config.ray['workdir'])}/{pilot_base}"
-
-        if not os.path.isdir(pilot_src):
-            raise FailedPayload(self.worker_id)
-
-        cmd += f"ln -s {pilot_src} {os.path.join(os.getcwd(), pilot_base)};"
-        prod_source_label = shlex.quote(self.current_job['prodSourceLabel'])
-
-        pilotwrapper_bin = os.path.expandvars(
-            os.path.join(self.config.payload['bindir'], "runpilot2-wrapper.sh"))
-
-        if not os.path.isfile(pilotwrapper_bin):
-            raise FailedPayload(self.worker_id)
-
-        queue_escaped = shlex.quote(self.config.payload['pandaqueue'])
-
-        cmd += f"{shlex.quote(pilotwrapper_bin)} --localpy --piloturl local -q {queue_escaped} -r {queue_escaped} -s {queue_escaped} "
-
-        if pilot_version == 3:
-            cmd += "--pilotversion 3 --pythonversion 3 "
-        elif py3pilot:
-            cmd += "--pythonversion 3 "
-
-        cmd += f"-i PR -j {prod_source_label} --container --mute --pilot-user=atlas -t -u --es-executor-type=raythena -v 1 " \
-            f"-d --cleanup=False -w generic --url=http://{self.host} -p {self.port} --use-https False --allow-same-user=False --resource-type MCORE " \
-            f"--hpc-resource {shlex.quote(self.config.payload['hpcresource'])};"
-
-        extra_script = self.config.payload.get('extrapostpayload', '')
-        if extra_script:
-            cmd += f"{extra_script}{';' if not extra_script.endswith(';') else ''}"
-        cmd_script = os.path.join(os.getcwd(), "payload.sh")
-        with open(cmd_script, 'w') as f:
-            f.write(cmd)
-        st = os.stat(cmd_script)
-        os.chmod(cmd_script, st.st_mode | stat.S_IEXEC)
-        payload_log = shlex.quote(
-            self.config.payload.get('logfilename', 'wrapper'))
-        container = shlex.quote(self.config.payload.get('containerengine', ''))
-        container_args = self.config.payload.get('containerextraargs', '')
-        if container_args:
-            container_args = shlex.quote(container_args)
-        else:
-            container_args = ''
-        return (f"{container} {container_args} /bin/bash {cmd_script} "
-                f"> {payload_log} 2> {payload_log}.stderr")
-
     def stagein(self) -> None:
         """
         Stage-in cric pandaqueues, queuedata and ddmendpoints info from harvester cacher
@@ -300,11 +213,11 @@ class Pilot2HttpPayload(ESPayload):
         cwd = os.getcwd()
         harvester_home = os.path.expandvars(self.config.harvester.get("cacher", ''))
 
-        ddm_endpoints_file = os.path.join(harvester_home, "cric_ddmendpoints.json")
+        ddm_endpoints_file = "/cvmfs/atlas.cern.ch/repo/sw/local/etc/cric_ddmendpoints.json"
         if os.path.isfile(ddm_endpoints_file):
             os.symlink(ddm_endpoints_file, os.path.join(cwd, "cric_ddmendpoints.json"))
 
-        pandaqueues_file = os.path.join(harvester_home, "cric_pandaqueues.json")
+        pandaqueues_file = "/cvmfs/atlas.cern.ch/repo/sw/local/etc/cric_pandaqueues.json"
         if os.path.isfile(pandaqueues_file):
             os.symlink(pandaqueues_file, os.path.join(cwd, "cric_pandaqueues.json"))
 
@@ -511,7 +424,7 @@ class Pilot2HttpPayload(ESPayload):
         Returns:
             Status code
         """
-        _ = await Pilot2HttpPayload.parse_qs_body(request)
+        _ = await PilotHttpPayload.parse_qs_body(request)
         # Do not send job update as the driver is not doing anything with them
         # await self.job_update.put(body)
         res = {"StatusCode": 0}
@@ -531,7 +444,7 @@ class Pilot2HttpPayload(ESPayload):
         Returns:
             json holding the event ranges
         """
-        body = await Pilot2HttpPayload.parse_qs_body(request)
+        body = await PilotHttpPayload.parse_qs_body(request)
         status = 0
         panda_id = body['pandaID'][0]
         ranges = list()
@@ -562,7 +475,7 @@ class Pilot2HttpPayload(ESPayload):
         Returns:
             status code
         """
-        body = await Pilot2HttpPayload.parse_qs_body(request)
+        body = await PilotHttpPayload.parse_qs_body(request)
         await self.ranges_update.put(body)
         res = {"StatusCode": 0}
         # self._logger.debug(f"event ranges queue size is {self.ranges_update.qsize()}")

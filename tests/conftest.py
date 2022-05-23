@@ -24,8 +24,6 @@ def config(config_path):
     return Config(config_path,
                   config=None,
                   debug=False,
-                  payload_bindir=None,
-                  ray_driver=None,
                   ray_head_ip=None,
                   ray_redis_password=None,
                   ray_redis_port=None,

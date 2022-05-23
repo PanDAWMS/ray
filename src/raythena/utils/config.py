@@ -17,8 +17,6 @@ class Config(object):
 
     required_conf_settings = {
         'payload': {
-            'plugin': str,
-            "bindir": str,
             "pandaqueue": str,
             "logfilename": str,
             "extrasetup": str,
@@ -26,8 +24,8 @@ class Config(object):
             "extrapostpayload": str,
             "containerengine": str,
             "containerextraargs": str,
-            "pilotversion": int,
             "pilotkillfile": str,
+            "pilotversion": str,
             "pilotkilltime": int,
             "timemonitorfile": str,
         },
@@ -41,18 +39,14 @@ class Config(object):
             'headip': str,
             'redisport': int,
             'redispassword': str,
-            'driver': str,
-            'monitortime': int,
             'timeoutinterval': int,
             'tarinterval': int,
             'tarmaxfilesize': int,
             'tarmaxprocesses': int,
-            'tarcheckinterval': int,
             'cachesizefactor': int,
         },
         'resources': {
             'corepernode': int,
-            'workerpernode': int,
         },
         'logging': {
             'level': str,
@@ -96,8 +90,8 @@ class Config(object):
         """
         return str(self.__dict__)
 
-    def _parse_cli_args(self, config: str, debug: bool, payload_bindir: str,
-                        ray_driver: str, ray_head_ip: str,
+    def _parse_cli_args(self, config: str, debug: bool,
+                        ray_head_ip: str,
                         ray_redis_password: str, ray_redis_port: str,
                         ray_workdir: str, harvester_endpoint: str,
                         panda_queue: str, core_per_node: int) -> None:
@@ -107,8 +101,6 @@ class Config(object):
         Args:
             config: path to config file
             debug: debug log level. Overrides logging.level
-            payload_bindir: directory to the payload used by worker. Overrides payload.bindir
-            ray_driver: driver class using form path.to.module:DriverClass. Overrides ray.driver
             ray_head_ip: ray cluster head ip. Overrides ray.headip
             ray_redis_password: ray cluster password. Overrides ray.redispassword
             ray_redis_port: ray cluster port. Overrides ray.redisport
@@ -124,10 +116,6 @@ class Config(object):
         """
         if debug:
             self.logging['level'] = 'debug'
-        if payload_bindir:
-            self.payload['bindir'] = payload_bindir
-        if ray_driver:
-            self.ray['driver'] = ray_driver
         if ray_head_ip:
             self.ray['headip'] = ray_head_ip
         if ray_redis_port:

@@ -7,7 +7,6 @@ class ErrorCodes(object):
     Defines error codes constants and associated default error message for each error code
     """
 
-    PLUGIN_NOT_FOUND = 10
     ILLEGAL_WORKER_STATE = 20
     STAGEIN_FAILED = 30
     STAGEOUT_FAILED = 40
@@ -15,7 +14,6 @@ class ErrorCodes(object):
     UNKNOWN = 0
 
     ERROR_CODES_GENRIC_MESSAGES = {
-        PLUGIN_NOT_FOUND: "Couldn't import specified plugin",
         ILLEGAL_WORKER_STATE: "Illegal worker state transition",
         STAGEIN_FAILED: "Failed to stagein data",
         STAGEOUT_FAILED: "Failed to stageout data",
@@ -124,18 +122,6 @@ class BaseRaythenaException(Exception):
 
     def __reduce__(self):
         return (self.__class__, (self.worker_id, self.error_code, self.message))
-
-
-class PluginNotFound(BaseRaythenaException):
-    """
-    Raised when trying to load a plugin that is not found
-    """
-
-    def __init__(self, worker_id: str, message: str = None) -> None:
-        super().__init__(worker_id, ErrorCodes.PLUGIN_NOT_FOUND, message)
-
-    def __reduce__(self):
-        return (self.__class__, (self.worker_id, self.message))
 
 
 class IllegalWorkerState(BaseRaythenaException):

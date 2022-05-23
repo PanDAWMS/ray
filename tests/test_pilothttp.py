@@ -4,9 +4,8 @@ import time
 import pytest
 import requests
 
-from raythena.actors.payloads.eventservice.pilot2http import Pilot2HttpPayload
+from raythena.actors.payloads.eventservice.pilothttp import PilotHttpPayload
 from raythena.utils.eventservice import PandaJob, EventRange
-from raythena.utils.exception import FailedPayload
 
 
 class MockPopen:
@@ -26,14 +25,14 @@ class MockPopen:
         self.returncode = 0
 
 
-class MockPayload(Pilot2HttpPayload):
+class MockPayload(PilotHttpPayload):
 
     def _start_payload(self):
         self.pilot_process = MockPopen(None)
 
 
 @pytest.mark.usefixtures("requires_ray")
-class TestPilot2Http:
+class TestPilotHttp:
 
     def wait_server_start(self):
         while True:
@@ -50,7 +49,7 @@ class TestPilot2Http:
     @pytest.fixture
     def payload(self, tmpdir, config, sample_job):
         cwd = os.getcwd()
-        config.ray['workdir'] = config.payload['bindir'] = str(tmpdir)
+        config.ray['workdir'] = str(tmpdir)
         os.chdir(tmpdir)
         job_dict = list(sample_job.values())[0]
         job = PandaJob(job_dict)
@@ -60,24 +59,6 @@ class TestPilot2Http:
         yield payload
         payload.stop()
         os.chdir(cwd)
-
-    def test_build_container_command(self, payload, config):
-        wdir = config.ray['workdir']
-        with pytest.raises(FailedPayload):
-            payload._build_pilot_container_command()
-        pilot_version = config.payload.get("pilotversion", 2)
-        if pilot_version == 3:
-            pilot_base = "pilot3"
-        else:
-            pilot_base = "pilot2"
-        os.makedirs(os.path.join(wdir, pilot_base))
-        with pytest.raises(FailedPayload):
-            payload._build_pilot_container_command()
-        with open(os.path.join(wdir, "runpilot2-wrapper.sh"), 'w') as f:
-            f.write("str")
-        _ = payload._build_pilot_container_command()
-        cmd_file = os.path.join(wdir, "payload.sh")
-        assert os.path.isfile(cmd_file)
 
     def test_getjob(self, payload, is_eventservice, config, sample_job):
         if not is_eventservice:
