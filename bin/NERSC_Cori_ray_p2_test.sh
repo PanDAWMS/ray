@@ -28,8 +28,6 @@ export HARVESTER_NNODE={nNode}
 #export HARVESTER_WORKDIR=$HARVESTER_ACCESS_POINT
 #export HARVESTER_NNODE=$SLURM_NNODES
 
-export HARVESTER_HOME=/global/common/software/atlas/harvester
-
 export PANDA_QUEUE=NERSC_Cori_p2_ES_Test
 export container_setup=/release_setup.sh
 export HARVESTER_CONTAINER_RELEASE_SETUP_FILE=$container_setup
@@ -69,9 +67,6 @@ export RAY_TMP_DIR=/tmp/ray/$SLURM_JOB_ID
 if [[ ! -d $RAY_TMP_DIR ]]; then
   mkdir -p "$RAY_TMP_DIR"
 fi
-
-# setup ray
-source activate $HARVESTER_HOME
 
 srun -N1 -n1 -w "$SLURMD_NODENAME" ray_start_head > $RAYTHENA_RAY_WORKDIR/headnode.log 2> $RAYTHENA_RAY_WORKDIR/headnode.err &
 pid=$!
@@ -113,7 +108,7 @@ while [[ $retsync -ne 0 ]]; do
   fi
 done
 
-python raythena > $RAYTHENA_RAY_WORKDIR/raythena.log 2> $RAYTHENA_RAY_WORKDIR/raythena.err
+raythena > $RAYTHENA_RAY_WORKDIR/raythena.log 2> $RAYTHENA_RAY_WORKDIR/raythena.err
 
 ray stop
 

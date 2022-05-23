@@ -165,10 +165,12 @@ class PilotHttpPayload(ESPayload):
 
         pilot_base = "pilot3"
 
-        pilot_src = "/cvmfs/atlas.cern.ch/repo/sw/PandaPilot/pilot3/latest"
+        pilot_version = self.config.payload.get("pilotversion", "latest")
+
+        pilot_src = f"/cvmfs/atlas.cern.ch/repo/sw/PandaPilot/pilot3/{pilot_version}"
 
         if not os.path.isdir(pilot_src):
-            raise FailedPayload(self.worker_id)
+            raise FailedPayload(self.worker_id, f"Pilot release {pilot_src} not found")
 
         cmd += f"ln -s {pilot_src} {os.path.join(os.getcwd(), pilot_base)};"
 

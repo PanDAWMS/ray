@@ -25,6 +25,7 @@ class Config(object):
             "containerengine": str,
             "containerextraargs": str,
             "pilotkillfile": str,
+            "pilotversion": str,
             "pilotkilltime": int,
             "timemonitorfile": str,
         },
