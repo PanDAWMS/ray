@@ -6,6 +6,7 @@ payload:
   hpcresource: cori
   containerengine: docker
   containerextraargs: run
+  pilotversion: 3.2.2.22
   pilotkillfile: pilot_kill_payload
   pilotkilltime: 900
   timemonitorfile: jobtimeout.txt

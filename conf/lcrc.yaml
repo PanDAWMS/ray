@@ -4,6 +4,7 @@ payload:
   extrasetup: export ALRB_CONT_SWTYPE=singularity; export LD_LIBRARY_PATH=/home/dbenjamin/harvester-py3/yampl-v1.0/lib:$LD_LIBRARY_PATH; export PYTHONPATH=/home/dbenjamin/harvester-py3/yampl-v1.0/python-yampl:$PYTHONPATH;
   extrapostpayload:
   hpcresource: cori
+  pilotversion: 3.2.2.22
   containerengine:
   containerextraargs:
 
