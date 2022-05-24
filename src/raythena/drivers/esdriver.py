@@ -11,6 +11,8 @@ from queue import Empty, Queue
 from socket import gethostname
 from typing import (Any, Dict, Iterator, List, Mapping, Sequence,
                     Tuple)
+from subprocess import DEVNULL, Popen
+
 
 import ray
 from ray.exceptions import RayActorError
@@ -600,9 +602,7 @@ class ESDriver(BaseDriver):
         # test validity of range_list
         if range_list and isinstance(range_list, list) and len(range_list) > 0:
             # read first element in list to build temporary filename
-            file_base_name = "panda." + os.path.basename(range_list[0]['path']) + ".zip"
-            temp_file_base_name = file_base_name + ".tmpfile"
-            temp_file_path = os.path.join(self.tar_merge_es_output_dir, temp_file_base_name)
+            file_base_name = "panda." + os.path.basename(range_list[0]['path']) + ".MRG"
             file_path = os.path.join(self.tar_merge_es_output_dir, file_base_name)
 
             # self.tar_merge_es_output_dir zip files
@@ -612,27 +612,18 @@ class ESDriver(BaseDriver):
 
             file_fsize = 0
             try:
-                tarred_ranges_list = list()
                 # create tar file looping over event ranges
-                with tarfile.open(temp_file_path, "w") as tar:
-                    for event_range in range_list:
-                        path = event_range['path']
-                        if os.path.isfile(path):
-                            tar.add(path)
-                            tarred_ranges_list.append(event_range)
-                        else:
-                            self._logger.warning((f"Could not add event {path} to tar, file does not exists. "
-                                                  f"Event status: {event_range['eventStatus']}"))
-                file_fsize = os.path.getsize(temp_file_path)
+                return_code = self.hits_merge_transform(map(lambda x: x['path'], range_list), file_path)
+                if  return_code != 0:
+                    raise Exception("Merged transform failed to execute")
+                file_fsize = os.path.getsize(file_path)
                 # calculate alder32 checksum
-                file_chksum = self.calc_adler32(temp_file_path)
-                return_val = self.create_harvester_data(PanDA_id, file_path, file_chksum, file_fsize, tarred_ranges_list)
-                for event_range in tarred_ranges_list:
+                file_chksum = self.calc_adler32(file_path)
+                return_val = self.create_harvester_data(PanDA_id, file_path, file_chksum, file_fsize, range_list)
+                for event_range in range_list:
                     lfn = os.path.basename(event_range["path"])
                     pfn = os.path.join(self.tar_merge_es_files_dir, lfn)
                     shutil.move(event_range["path"], pfn)
-                # rename zip file (move)
-                shutil.move(temp_file_path, file_path)
                 return return_val
             except Exception:
                 raise
@@ -687,6 +678,31 @@ class ESDriver(BaseDriver):
         if return_list:
             return_dict = {PanDA_id: return_list}
         return return_dict
+    
+    def hits_merge_transform(self, input_files: List[str], output_file):
+        if not input_files:
+            return
+        file_list = " ".join(input_files)
+        container_script = "if [[ -f /alrb/postATLASReleaseSetup.sh ]]; then source /alrb/postATLASReleaseSetup.sh; fi;"
+        container_script += f"HITSMerge_tf.py --inputHITSFile {file_list} --outputHITS_MRGFile {output_file};"
+
+        cmd = str()
+        cmd += "export ATLAS_LOCAL_ROOT_BASE=/cvmfs/atlas.cern.ch/repo/ATLASLocalRootBase;"
+        cmd += "export thePlatform=\"atlas/athena:21.0.15_31.8.1\";"
+        cmd += f"source ${{ATLAS_LOCAL_ROOT_BASE}}/user/atlasLocalSetup.sh --swtype shifter -c $thePlatform -d -s none -r \"{container_script}\" -e \"--clearenv\";exit $?;"
+        sub_process = Popen(cmd,
+            stdin=DEVNULL,
+            stdout=DEVNULL,
+            stderr=DEVNULL,
+            shell=True,
+            close_fds=True)
+        
+        while sub_process.poll() is None:
+            time.sleep(5)
+        self._logger.debug(f"Merge transform finished with return code {sub_process.poll()}")
+        return sub_process.returncode
+
+
 
     def tar_es_output(self, skip_time_check = False) -> None:
         """
