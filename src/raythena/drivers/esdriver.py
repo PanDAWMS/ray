@@ -2,7 +2,7 @@ import concurrent.futures
 import os
 import shutil
 import sys
-import tarfile
+import tempfile
 import time
 import traceback
 import zlib
@@ -682,11 +682,13 @@ class ESDriver(BaseDriver):
     def hits_merge_transform(self, input_files: List[str], output_file):
         if not input_files:
             return
+        tmp_dir = tempfile.mkdtemp()
         file_list = " ".join(input_files)
         container_script = "if [[ -f /alrb/postATLASReleaseSetup.sh ]]; then source /alrb/postATLASReleaseSetup.sh; fi;"
         container_script += f"HITSMerge_tf.py --inputHITSFile {file_list} --outputHITS_MRGFile {output_file};"
 
         cmd = str()
+        cmd += f"cd {tmp_dir};"
         cmd += "export ATLAS_LOCAL_ROOT_BASE=/cvmfs/atlas.cern.ch/repo/ATLASLocalRootBase;"
         cmd += "export thePlatform=\"atlas/athena:21.0.15_31.8.1\";"
         cmd += f"source ${{ATLAS_LOCAL_ROOT_BASE}}/user/atlasLocalSetup.sh --swtype shifter -c $thePlatform -d -s none -r \"{container_script}\" -e \"--clearenv\";exit $?;"
