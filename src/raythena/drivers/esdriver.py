@@ -671,7 +671,7 @@ class ESDriver(BaseDriver):
                     "eventRangeID": event_range['eventRangeID'],
                     "eventStatus": "finished",
                     "path": file_path,
-                    "type": "zip_output",
+                    "type": "merged_output",
                     "chksum": file_chksum,
                     "fsize": file_fsize
                 })
@@ -690,7 +690,7 @@ class ESDriver(BaseDriver):
         cmd = str()
         cmd += f"cd {tmp_dir};"
         cmd += "export ATLAS_LOCAL_ROOT_BASE=/cvmfs/atlas.cern.ch/repo/ATLASLocalRootBase;"
-        cmd += "export thePlatform=\"atlas/athena:21.0.15_31.8.1\";"
+        cmd += "export thePlatform=\"${SLURM_SPANK_SHIFTER_IMAGEREQUEST}\";"
         cmd += f"source ${{ATLAS_LOCAL_ROOT_BASE}}/user/atlasLocalSetup.sh --swtype shifter -c $thePlatform -d -s none -r \"{container_script}\" -e \"--clearenv\";exit $?;"
         sub_process = Popen(cmd,
             stdin=DEVNULL,
