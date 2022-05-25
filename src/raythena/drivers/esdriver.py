@@ -35,6 +35,7 @@ from raythena.utils.exception import BaseRaythenaException
 from raythena.utils.logging import (disable_stdout_logging, log_to_file,
                                     make_logger)
 from raythena.utils.ray import build_nodes_resource_list
+from raythena import __version__
 
 
 class ESDriver(BaseDriver):
@@ -118,7 +119,6 @@ class ESDriver(BaseDriver):
         self.ranges_to_tar: List[List[EventRangeDef]] = list()
         self.running_tar_threads = dict()
         self.processed_event_ranges = dict()
-        self.finished_tar_tasks = set()
         self.failed_actor_tasks_count = dict()
         self.available_events_per_actor = 0
         self.total_tar_tasks = 0
@@ -615,7 +615,7 @@ class ESDriver(BaseDriver):
                 # create tar file looping over event ranges
                 return_code = self.hits_merge_transform(map(lambda x: x['path'], range_list), file_path)
                 if  return_code != 0:
-                    raise Exception("Merged transform failed to execute")
+                    raise Exception(f"Merged transform failed to execute with return code {return_code}")
                 file_fsize = os.path.getsize(file_path)
                 # calculate alder32 checksum
                 file_chksum = self.calc_adler32(file_path)
@@ -671,7 +671,7 @@ class ESDriver(BaseDriver):
                     "eventRangeID": event_range['eventRangeID'],
                     "eventStatus": "finished",
                     "path": file_path,
-                    "type": "merged_output",
+                    "type": "zip_output",
                     "chksum": file_chksum,
                     "fsize": file_fsize
                 })
@@ -688,15 +688,15 @@ class ESDriver(BaseDriver):
         container_script += f"HITSMerge_tf.py --inputHITSFile {file_list} --outputHITS_MRGFile {output_file};"
 
         cmd = str()
-        cmd += f"cd {tmp_dir};"
         cmd += "export ATLAS_LOCAL_ROOT_BASE=/cvmfs/atlas.cern.ch/repo/ATLASLocalRootBase;"
         cmd += "export thePlatform=\"${SLURM_SPANK_SHIFTER_IMAGEREQUEST}\";"
-        cmd += f"source ${{ATLAS_LOCAL_ROOT_BASE}}/user/atlasLocalSetup.sh --swtype shifter -c $thePlatform -d -s none -r \"{container_script}\" -e \"--clearenv\";exit $?;"
+        cmd += f"source ${{ATLAS_LOCAL_ROOT_BASE}}/user/atlasLocalSetup.sh --swtype shifter -c $thePlatform -d -s none -r \"{container_script}\" -e \"--clearenv\";RETURN_VAL=$?; rm -r {tmp_dir};exit $RETURN_VAL;"
         sub_process = Popen(cmd,
             stdin=DEVNULL,
             stdout=DEVNULL,
             stderr=DEVNULL,
             shell=True,
+            cwd=tmp_dir,
             close_fds=True)
         
         while sub_process.poll() is None:
@@ -751,17 +751,17 @@ class ESDriver(BaseDriver):
         final_update = EventRangeUpdate()
         for future in done:
             try:
-                self.finished_tar_tasks.add(future)
                 result = future.result()
                 if result and isinstance(result, dict) and self.check_for_duplicates(result):
                     final_update.merge_update(EventRangeUpdate(result))
-                del self.running_tar_threads[future]
             except Exception as ex:
                 exc_type, exc_value, exc_traceback = sys.exc_info()
                 self._logger.info(f"get_tar_results: Caught exception {ex}")
                 self._logger.info(f"get_tar_results: Caught exception {repr(traceback.format_tb(exc_traceback))}")
                 pass
                 # raise
+            finally:
+                del self.running_tar_threads[future]
         if final_update:
             self.requests_queue.put(final_update)
         if len(done):
