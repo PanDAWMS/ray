@@ -9,10 +9,9 @@ import zlib
 from math import ceil
 from queue import Empty, Queue
 from socket import gethostname
-from typing import (Any, Dict, Iterator, List, Mapping, Sequence,
+from typing import (Any, Dict, Iterator, List, Mapping, Sequence,Set, Union, Iterable,
                     Tuple)
 from subprocess import DEVNULL, Popen
-
 
 import ray
 from ray.exceptions import RayActorError
@@ -201,7 +200,8 @@ class ESDriver(BaseDriver):
                 event_ranges = self.bookKeeper.fetch_event_ranges(actor_id, events_per_actor)
                 if event_ranges:
                     kwargs['event_ranges'] = event_ranges
-                    self._logger.debug(f"Prefetched job {job['PandaID']} and {len(event_ranges)} event ranges for {actor_id}")
+                    self._logger.debug(
+                        f"Prefetched job {job['PandaID']} and {len(event_ranges)} event ranges for {actor_id}")
 
             actor = ESWorker.options(resources={node_constraint: 1}).remote(**kwargs)
             self.actors[actor_id] = actor
@@ -614,7 +614,7 @@ class ESDriver(BaseDriver):
             try:
                 # create tar file looping over event ranges
                 return_code = self.hits_merge_transform(map(lambda x: x['path'], range_list), file_path)
-                if  return_code != 0:
+                if return_code != 0:
                     raise Exception(f"Merged transform failed to execute with return code {return_code}")
                 file_fsize = os.path.getsize(file_path)
                 # calculate alder32 checksum
@@ -678,8 +678,17 @@ class ESDriver(BaseDriver):
         if return_list:
             return_dict = {PanDA_id: return_list}
         return return_dict
-    
-    def hits_merge_transform(self, input_files: List[str], output_file):
+
+    def hits_merge_transform(self, input_files: Iterable[str], output_file: str) -> int:
+        """
+
+        Args:
+            input_files:
+            output_file:
+
+        Returns:
+            int:
+        """
         if not input_files:
             return
         tmp_dir = tempfile.mkdtemp()
@@ -690,23 +699,22 @@ class ESDriver(BaseDriver):
         cmd = str()
         cmd += "export ATLAS_LOCAL_ROOT_BASE=/cvmfs/atlas.cern.ch/repo/ATLASLocalRootBase;"
         cmd += "export thePlatform=\"${SLURM_SPANK_SHIFTER_IMAGEREQUEST}\";"
-        cmd += f"source ${{ATLAS_LOCAL_ROOT_BASE}}/user/atlasLocalSetup.sh --swtype shifter -c $thePlatform -d -s none -r \"{container_script}\" -e \"--clearenv\";RETURN_VAL=$?; rm -r {tmp_dir};exit $RETURN_VAL;"
+        cmd += "source ${{ATLAS_LOCAL_ROOT_BASE}}/user/atlasLocalSetup.sh --swtype shifter -c $thePlatform -d -s none"
+        cmd += f" -r \"{container_script}\" -e \"--clearenv\";RETURN_VAL=$?; rm -r {tmp_dir};exit $RETURN_VAL;"
         sub_process = Popen(cmd,
-            stdin=DEVNULL,
-            stdout=DEVNULL,
-            stderr=DEVNULL,
-            shell=True,
-            cwd=tmp_dir,
-            close_fds=True)
-        
+                            stdin=DEVNULL,
+                            stdout=DEVNULL,
+                            stderr=DEVNULL,
+                            shell=True,
+                            cwd=tmp_dir,
+                            close_fds=True)
+
         while sub_process.poll() is None:
             time.sleep(5)
         self._logger.debug(f"Merge transform finished with return code {sub_process.poll()}")
         return sub_process.returncode
 
-
-
-    def tar_es_output(self, skip_time_check = False) -> None:
+    def tar_es_output(self, skip_time_check=False) -> None:
         """
         Get from bookKeeper the event ranges arraigned by input file than need to put into output tar files
 
@@ -727,14 +735,17 @@ class ESDriver(BaseDriver):
             self.tar_timestamp = now
             self.ranges_to_tar.extend(ranges_to_tar)
             try:
-                self.running_tar_threads.update({self.tar_executor.submit(self.create_tar_file, range_list): range_list for range_list in self.ranges_to_tar})
+                self.running_tar_threads.update(
+                    {self.tar_executor.submit(self.create_tar_file, range_list): range_list for range_list in
+                     self.ranges_to_tar})
                 self.total_tar_tasks += len(self.ranges_to_tar)
                 self.ranges_to_tar = list()
             except Exception as exc:
                 self._logger.warning(f"tar_es_output: Exception {exc} when submitting tar subprocess")
                 pass
 
-            self._logger.debug(f"tar_es_output: #tasks in queue : {len(self.running_tar_threads)}, #total tasks submitted since launch: {self.total_tar_tasks}")
+            self._logger.debug(
+                f"tar_es_output: #tasks in queue : {len(self.running_tar_threads)}, #total tasks submitted since launch: {self.total_tar_tasks}")
 
     def get_tar_results(self) -> None:
         """
@@ -747,7 +758,8 @@ class ESDriver(BaseDriver):
         """
         if len(self.running_tar_threads) == 0:
             return
-        done, not_done = concurrent.futures.wait(self.running_tar_threads, timeout=0.001, return_when=concurrent.futures.FIRST_COMPLETED)
+        done, not_done = concurrent.futures.wait(self.running_tar_threads, timeout=0.001,
+                                                 return_when=concurrent.futures.FIRST_COMPLETED)
         final_update = EventRangeUpdate()
         for future in done:
             try:
