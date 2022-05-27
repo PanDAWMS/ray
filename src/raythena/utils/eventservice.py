@@ -3,6 +3,7 @@ import os
 
 from typing import Set, Union, Dict, List, Mapping, Iterable, Any, Optional, Sequence, MutableMapping
 
+# Types aliases
 Builtin = Union[int, float, str]
 JobDef = Dict[str, Builtin]
 EventRangeDef = MutableMapping[str, Builtin]
@@ -48,7 +49,7 @@ class ESEncoder(json.JSONEncoder):
 
     def default(self, o: Any) -> Any:
         """
-        Serialize event service data structure to json, use default encoder if the type of the object is unknown
+        Serialize event service data structure to json, forwards to default encoder if the type of the object is unknown
         Args:
             o: object to serialize to json
 
@@ -81,6 +82,10 @@ class ESEncoder(json.JSONEncoder):
 class PandaJobQueue(object):
     """
     Build from the reply to a job request. Harvester will provide the following JSON as a reply:
+    Provides utility methods to manage the job queue such as retrieving a spcific job, assigning jobs to workers.
+
+    In the current workflow, one Raythena application will only ever receive a single job from Harvester so this
+    is not strictly necessary to use this class.
 
     {
         "pandaID": <jobspec>,

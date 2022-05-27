@@ -17,7 +17,6 @@ class ESPayload(BasePayload):
 
         Args:
             worker_id: payload worker_id
-            logging_actor: remote logger
             config: application config
         """
         super().__init__(worker_id, config)
@@ -29,9 +28,6 @@ class ESPayload(BasePayload):
 
         Args:
             event_ranges: the event ranges list to process
-
-        Returns:
-            None
         """
         raise NotImplementedError("Base method not implemented")
 

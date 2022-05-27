@@ -37,8 +37,7 @@ class ESWorker(object):
 
     A worker instance is a stateful object which basically transitions from
     job request -> stage-in -> processing <-> ranges request -> stage-out -> done
-    Allowed transition are defined by ESWorker.TRANSITIONS_EVENTSERVICE (for event service job)
-    and ESWorker.TRANSITIONS_STANDARD (for standard job)
+    Allowed transition are defined by ESWorker.TRANSITIONS
 
     The current state defines what message will be sent to the driver when
     it requests the worker state using get_message(). The driver needs to frequently call get_message() and process
@@ -91,7 +90,9 @@ class ESWorker(object):
         Args:
             actor_id: actor id
             config: application config
-            logging_actor: remote logger
+            session_log_dir: directory where the ray session logs are stored
+            job: optional pre-assigned job to process
+            event_ranges: optional pre-assigned event ranges to process
         """
         self.id = actor_id
         self.config = config
@@ -125,6 +126,14 @@ class ESWorker(object):
                 self.receive_event_ranges(Messages.REPLY_OK, event_ranges)
 
     def check_time(self) -> None:
+        """
+        Executed by the timer thread to check the time limit and kill the pilot if we reach the end of the job.
+        In addition, this method will also copy the ray logs to the pilot log directory every 5 minutes
+        if enabled in the config file
+
+        Returns:
+
+        """
         while True:
             curtime = datetime.datetime.now()
             time_elapsed = curtime.hour * 3600 + curtime.minute * 60 + curtime.second - self.start_time
@@ -157,12 +166,13 @@ class ESWorker(object):
         if "jobPars" not in job:
             return job
         cmd = job["jobPars"]
-        inputEVNTFile = re.findall(r"\-\-inputEVNTFile=([\w\.\,]*) \-", cmd)
-        if len(inputEVNTFile) != 1:
+        input_evnt_file = re.findall(r"\-\-inputEVNTFile=([\w\.\,]*) \-", cmd)
+        if len(input_evnt_file) != 1:
             return job
-        inFiles = [os.path.join(os.path.expandvars(self.config.harvester['endpoint']), x) for x in inputEVNTFile[0].split(",")]
-        inFiles = ",".join(inFiles[0:1])
-        cmd = re.sub(r"\-\-inputEVNTFile=([\w\.\,]*) \-", f"--inputEVNTFile={inFiles} -", cmd)
+        in_files = [os.path.join(os.path.expandvars(self.config.harvester['endpoint']), x)
+                    for x in input_evnt_file[0].split(",")]
+        in_files = ",".join(in_files[0:1])
+        cmd = re.sub(r"\-\-inputEVNTFile=([\w\.\,]*) \-", f"--inputEVNTFile={in_files} -", cmd)
         job["jobPars"] = cmd
         return job
 
@@ -381,15 +391,6 @@ class ESWorker(object):
         if res:
             self.transition_state(ESWorker.READY_FOR_EVENTS)
         return res
-
-    def get_no_more_ranges(self) -> bool:
-        """
-        Returns a boolean indicating whether any events remain to be processed
-
-        Returns:
-            True if no more ranges to be processed
-        """
-        return self.payload.get_no_more_ranges()
 
     def stageout_event_service_files(
             self,

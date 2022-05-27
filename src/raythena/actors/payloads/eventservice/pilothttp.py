@@ -46,7 +46,7 @@ class AsyncRouter(object):
         Assign a handler to a http endpoint. If the http endpoint was already assigned, it is overrided
 
         Args:
-            endpoint:
+            endpoint: http endpoint
             handler: coroutine to be called when a http call is received
 
         Returns:
@@ -77,11 +77,12 @@ class AsyncRouter(object):
 
 class PilotHttpPayload(ESPayload):
     """
-    This payload plugin processes panda jobs using the ray <-> pilot 2 <-> AthenMP workflow on HPC. The plugin starts
-    a pilot process using Popen. Communication with the pilot process is done using HTTP using the same API
-    specification provided by panda-server so that it doesn't require any change in pilot 2. The HTTP server is
-    packaged in this class and started at the same time that the payload is started.
+    Pilot payload responsible for handling http requests and monitoring the subprocess.
+    Both the subprocess and the http server are started when the method start is called.
+    Messages from the payload can be retrieved by calling fetch_messages, fetch_ranges_update.
 
+    PilotHttpPayload.start() and PilotHttpPayloadstop() must be called at most once per instance. If a new subprocess is
+    required, a new instance of PilotHttpPayload must be created.
     """
 
     def __init__(self, worker_id: str, config: Config) -> None:
@@ -91,7 +92,6 @@ class PilotHttpPayload(ESPayload):
 
         Args:
             worker_id: actor worker_id
-            logging_actor: remote logger
             config: application config
         """
         super().__init__(worker_id, config)
@@ -130,9 +130,6 @@ class PilotHttpPayload(ESPayload):
     def _start_payload(self) -> None:
         """
         Build the payload command and starts the pilot process using Popen
-
-        Returns:
-            None
         """
         command = self._build_pilot_command()
         # using PIPE will cause the subprocess to hang because
@@ -149,11 +146,15 @@ class PilotHttpPayload(ESPayload):
 
     def _build_pilot_command(self) -> str:
         """
-        Build the payload command for environment without using a container. Typically used when the ray cluster
-        itself is already running in a container.
+        Build the payload command to start the pilot wrapper. CVMFS is required as the pilot wrapper and pilot3 source
+        code is retrieved from CVMFS.
+
+        Side effect: creates a file in the current directory, to be executed by the command returned command.
 
         Returns:
-            command string to execute
+            command string to pass to Popen
+        Raises:
+            FailedPayload: if source code to be executed cannot be retrieved from CVMFS
         """
         cmd = str()
 
@@ -203,10 +204,8 @@ class PilotHttpPayload(ESPayload):
 
     def stagein(self) -> None:
         """
-        Stage-in cric pandaqueues, queuedata and ddmendpoints info from harvester cacher
+        Stage-in cric pandaqueues, queuedata and ddmendpoints info from harvester cacher and CVMFS by creating symlinks.
 
-        Returns:
-            None
         """
         cwd = os.getcwd()
         harvester_home = os.path.expandvars(self.config.harvester.get("cacher", ''))
@@ -228,14 +227,12 @@ class PilotHttpPayload(ESPayload):
         """
         Pass, stage-out if performed on-the-fly by the worker after each event ranges update
 
-        Returns:
-            None
         """
         pass
 
     def is_complete(self) -> bool:
         """
-        Checks if the payload subprocess ended.
+        Checks if the payload subprocess ended by polling.
 
         Returns:
             False if the payload has not finished yet, True otherwise
@@ -243,33 +240,22 @@ class PilotHttpPayload(ESPayload):
         return self.pilot_process is not None and self.pilot_process.poll(
         ) is not None
 
-    def return_code(self) -> int:
+    def return_code(self) -> Optional[int]:
         """
         Returns the subprocess return code, or None is the subprocess hasn't finished yet
 
         Returns:
-            None
+            None or the subprocess return code if the subprocess has finished
         """
         return self.pilot_process.poll()
 
-    def get_no_more_ranges(self) -> bool:
-        """
-        Returns the no_more_ranges bool
-
-        Returns:
-            None
-        """
-        return self.no_more_ranges
-
     def start(self, job: PandaJob) -> None:
         """
-        Starts the payload subprocess and the http server in a separate thread
+        Starts the payload subprocess and the http server in a separate thread.
+        No effects if this method has been called before.
 
         Args:
             job: the job spec that should be processed by the payload
-
-        Returns:
-            None
         """
         if not self.server_thread or not self.server_thread.is_alive():
             self.stop_event = Event()
@@ -286,9 +272,6 @@ class PilotHttpPayload(ESPayload):
         """
         Stops the payload. If the subprocess hasn't finished yet, sends a SIGTERM signal to terminate it
         and wait until it exits then stop the http server
-
-        Returns:
-            None
         """
         if self.server_thread and self.server_thread.is_alive():
 
@@ -303,18 +286,21 @@ class PilotHttpPayload(ESPayload):
 
     def submit_new_range(self, event_range: Optional[EventRange]) -> asyncio.Future:
         """
-        Submits new event ranges to the payload thread but adding it to the event ranges queue
+        Submits a new evnet range to the payload thread by adding it to the event ranges queue.
 
         Args:
-            event_range: range to submit to the payload
-
-        Returns:
-            None
+            event_range: range to forward to pilot
         """
         return asyncio.run_coroutine_threadsafe(self.ranges_queue.put(event_range),
                                                 self.loop)
 
     def submit_new_ranges(self, event_ranges: Optional[Iterable[EventRange]]) -> None:
+        """
+        Wrapper for submit_new_range that accepts an iterable of event ranges.
+
+        Args:
+            event_ranges: iterable of event ranges to forward to pilot
+        """
         futures = list()
         if event_ranges:
             for r in event_ranges:
@@ -329,7 +315,7 @@ class PilotHttpPayload(ESPayload):
         Tries to get a job update from the payload by polling the job queue
 
         Returns:
-            None if no job update update is available or a dict holding the update
+            None if no job update is available or a dict holding the update
         """
         try:
             res = self.job_update.get_nowait()
@@ -354,7 +340,10 @@ class PilotHttpPayload(ESPayload):
 
     def should_request_more_ranges(self) -> bool:
         """
-        Checks if the payload is ready to receive more event ranges
+        Checks if the payload is ready to receive more event ranges. If false is returned, then the payload is
+        not expecting to have more ranges assigned to it by calling submit_new_ranges. If this method ever returns false,
+        then any future to it will return false as well.
+        Event ranges submitted after this method returns false will be ignored and never sent to the pilot process.
 
         Returns:
             True if the worker should send new event ranges to the payload, False otherwise
@@ -432,9 +421,9 @@ class PilotHttpPayload(ESPayload):
     async def handle_get_event_ranges(self,
                                       request: web.BaseRequest) -> web.Response:
         """
-        Handler for getEventRanges call, retrieve event ranges from the queue and returns ranges to pilot 2.
+        Handler for getEventRanges call, retrieve event ranges from the queue and returns ranges to pilot.
         If not enough event ranges are available yet, wait until more ranges become available or a message indicating
-        that no more ranges are available for this job, in that case
+        that no more ranges are available for this job, in that case sends all the available ranges to the pilot.
 
         Args:
             request: http request received by the server
@@ -482,7 +471,7 @@ class PilotHttpPayload(ESPayload):
     async def handle_update_jobs_in_bulk(
             self, request: web.BaseRequest) -> web.Response:
         """
-        Not used by pilot 2
+        Not used by pilot in the current workflow
 
         Args:
             request: http request received by the server
@@ -497,7 +486,7 @@ class PilotHttpPayload(ESPayload):
 
     async def handle_get_status(self, request: web.BaseRequest) -> web.Response:
         """
-        Not used by pilot 2
+         Not used by pilot in the current workflow
 
         Args:
             request: http request received by the server
@@ -513,7 +502,7 @@ class PilotHttpPayload(ESPayload):
     async def handle_get_key_pair(self,
                                   request: web.BaseRequest) -> web.Response:
         """
-        Not used by pilot 2
+         Not used by pilot in the current workflow
 
         Args:
             request: http request received by the server
@@ -543,18 +532,12 @@ class PilotHttpPayload(ESPayload):
     async def notify_stop_server_task(self) -> None:
         """
         Notify the server thread that the http server should stop listening
-
-        Returns:
-            None
         """
         self.stop_event.set()
 
     async def serve(self) -> None:
         """
-        Starts the http server then blocks until it receives an end notification
-
-        Returns:
-            None
+        Starts the http server then blocks until it receives a stop event
         """
         await self.startup_server()
         self._start_payload()
@@ -566,9 +549,6 @@ class PilotHttpPayload(ESPayload):
         """
         Http server target method setting up the asyncio event loop for the current thread and blocks until the server
         is stopped
-
-        Returns:
-            None
         """
         asyncio.set_event_loop(self.loop)
         self.loop.run_until_complete(self.serve())
