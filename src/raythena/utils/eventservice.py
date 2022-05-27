@@ -1,11 +1,11 @@
 import json
 import os
 
-from typing import Set, Union, Dict, List, Mapping, Iterable, Any, Optional, Sequence
+from typing import Set, Union, Dict, List, Mapping, Iterable, Any, Optional, Sequence, MutableMapping
 
 Builtin = Union[int, float, str]
 JobDef = Dict[str, Builtin]
-EventRangeDef = Mapping[str, Builtin]
+EventRangeDef = MutableMapping[str, Builtin]
 FileInfo = Mapping[str, Builtin]
 PilotEventRangeUpdateDef = Mapping[
     str,
@@ -18,7 +18,7 @@ PilotEventRangeUpdateDef = Mapping[
     ]
 ]
 
-HarvesterEventRangeUpdateDef = Sequence[Mapping[str, Builtin]]
+HarvesterEventRangeUpdateDef = Sequence[MutableMapping[str, Builtin]]
 EventRangeUpdateDef = Union[Sequence[PilotEventRangeUpdateDef], HarvesterEventRangeUpdateDef]
 EventRangeRequestDef = Mapping[str, Mapping[str, Builtin]]
 
@@ -653,7 +653,7 @@ class EventRangeUpdate(object):
 
     """
 
-    def __init__(self, range_update: Dict[str, List[Dict[str, Union[str, int]]]] = None) -> None:
+    def __init__(self, range_update: Dict[str, List[MutableMapping[str, Union[str, int]]]] = None) -> None:
         """
         Wraps the range update dict in an object. The range update should be in the harvester-supported format.
 
@@ -917,7 +917,8 @@ class PandaJob(object):
         --preExec "from AthenaCommon.DetFlags import DetFlags;DetFlags.ID_setOn();DetFlags.Calo_setOff();
         DetFlags.Muon_setOff();DetFlags.Lucid_setOff();DetFlags.Truth_setOff()"
         --athenaopts=--preloadlib=${ATLASMKLLIBDIR_PRELOAD}/libimf.so
-        --preInclude sim:SimulationJobOptions/preInclude.FrozenShowersFCalOnly.py,SimulationJobOptions/preInclude.BeamPipeKill.py
+        --preInclude sim:SimulationJobOptions/
+        preInclude.FrozenShowersFCalOnly.py,SimulationJobOptions/preInclude.BeamPipeKill.py
         --geometryVersion ATLAS-R2-2016-01-00-00_VALIDATION --physicsList QGSP_BERT --randomSeed 1234
         --conditionsTag OFLCOND-MC12-SIM-00 --maxEvents=-1 --inputEvgenFile EVNT.01469903._009502.pool.root.1
         --outputHitsFile HITS_%s.pool.root' % job_name,

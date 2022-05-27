@@ -3,7 +3,7 @@ import os
 import re
 import shutil
 import time
-from typing import Union, Tuple, List, Dict
+from typing import Union, Tuple, Sequence, Any, Mapping, Optional
 
 import datetime
 import threading
@@ -23,6 +23,9 @@ from raythena.actors.payloads.basePayload import BasePayload
 from raythena.actors.payloads.eventservice.esPayload import ESPayload
 
 from raythena.actors.payloads.eventservice.pilothttp import PilotHttpPayload
+
+
+WorkerResponse = Tuple[str, int, Any]
 
 
 @ray.remote(num_cpus=1, max_restarts=1, max_task_retries=3)
@@ -66,7 +69,7 @@ class ESWorker(object):
     }
 
     # authorize state transition from x to y if y in TRANSITION[X]
-    TRANSITIONS_EVENTSERVICE = {
+    TRANSITIONS = {
         READY_FOR_JOB: [JOB_REQUESTED],
         JOB_REQUESTED: [STAGE_IN, DONE],
         STAGE_IN: [READY_FOR_EVENTS],
@@ -79,18 +82,8 @@ class ESWorker(object):
         DONE: [READY_FOR_JOB]
     }
 
-    TRANSITIONS_STANDARD = {
-        READY_FOR_JOB: [JOB_REQUESTED],
-        JOB_REQUESTED: [STAGE_IN, DONE],
-        STAGE_IN: [PROCESSING],
-        PROCESSING: [STAGE_OUT],
-        STAGE_OUT: [FINISHING],
-        FINISHING: [DONE],
-        DONE: [READY_FOR_JOB]
-    }
-
     def __init__(self, actor_id: str, config: Config,
-                 session_log_dir: str, job: PandaJob = None, event_ranges: List[EventRange] = None) -> None:
+                 session_log_dir: str, job: PandaJob = None, event_ranges: Sequence[EventRange] = None) -> None:
         """
         Initialize attributes, instantiate a payload and setup the workdir
 
@@ -144,7 +137,7 @@ class ESWorker(object):
                             shutil.rmtree(self.actor_ray_logs_dir)
                         shutil.copytree(self.session_log_dir, self.actor_ray_logs_dir)
                 except Exception as e:
-                    self._logger.warn(f"Failed to copy ray logs to actor directory: {e}")
+                    self._logger.warning(f"Failed to copy ray logs to actor directory: {e}")
             if time_elapsed > self.time_limit - self.pilot_kill_time:
                 killsignal = open(self.pilot_kill_file, 'w')
                 killsignal.close()
@@ -153,7 +146,7 @@ class ESWorker(object):
             else:
                 sleep(5)
 
-    def modify_job(self, job: Dict) -> Dict:
+    def modify_job(self, job: PandaJob) -> PandaJob:
         """
         Modify the job dict before sending it to the payload.
 
@@ -182,7 +175,7 @@ class ESWorker(object):
         """
         self.payload_job_dir = os.path.join(self.workdir, self.job['PandaID'])
         if not os.path.isdir(self.payload_job_dir):
-            self._logger.warn(f"Specified path {self.payload_job_dir} does not exist. Using cwd {os.getcwd()}")
+            self._logger.warning(f"Specified path {self.payload_job_dir} does not exist. Using cwd {os.getcwd()}")
             self.payload_job_dir = self.workdir
 
         subdir = f"{self.id}"
@@ -215,7 +208,7 @@ class ESWorker(object):
             if not os.path.isdir(self.payload_actor_output_dir):
                 os.mkdir(self.payload_actor_output_dir)
         except Exception as e:
-            self._logger.warn(f"Exception when creating dir: {e}")
+            self._logger.warning(f"Exception when creating dir: {e}")
             raise StageInFailed(self.id)
         # self.cpu_monitor = CPUMonitor(os.path.join(self.payload_actor_process_dir, "cpu_monitor.json"))
         # self.cpu_monitor.start()
@@ -223,7 +216,7 @@ class ESWorker(object):
             self.payload.stagein()
             self.payload.start(self.modify_job(self.job))
         except Exception as e:
-            self._logger.warn(f"Failed to stagein payload: {e}")
+            self._logger.warning(f"Failed to stagein payload: {e}")
             raise StageInFailed(self.id)
         self.transition_state(ESWorker.READY_FOR_EVENTS if self.
                               is_event_service_job() else ESWorker.PROCESSING)
@@ -281,7 +274,7 @@ class ESWorker(object):
         else:
             self.transitions = ESWorker.TRANSITIONS_STANDARD
 
-    def receive_job(self, reply: int, job: PandaJob) -> Tuple[str, int, object]:
+    def receive_job(self, reply: int, job: PandaJob) -> WorkerResponse:
         """
         Assign a job to the worker. If a job was successfully assigned, move to the stage-in otherwise end the actor
 
@@ -308,7 +301,7 @@ class ESWorker(object):
 
         return self.return_message(Messages.REPLY_OK)
 
-    def mark_new_job(self) -> Tuple[str, int, object]:
+    def mark_new_job(self) -> WorkerResponse:
         """
         Indicate that the worker should prepare to receive new jobs from the driver, should be called after the worker
         notifies that it reached the state 'DONE' if the actor should be re-used fo processing another job
@@ -322,7 +315,7 @@ class ESWorker(object):
 
     def receive_event_ranges(
             self, reply: int,
-            event_ranges: List[EventRange]) -> Tuple[str, int, object]:
+            event_ranges: Sequence[EventRange]) -> WorkerResponse:
         """
         Sends event ranges to the worker. Update the PFN of event ranges to an absolute path if
         it is an relative path
@@ -351,7 +344,7 @@ class ESWorker(object):
 
     def return_message(self,
                        message: int,
-                       data: object = None) -> Tuple[str, int, object]:
+                       data: Any = None) -> WorkerResponse:
         """
         Utility function building a tuple returned to the driver
 
@@ -412,7 +405,7 @@ class ESWorker(object):
 
     def stageout_event_service_files(
             self,
-            ranges_update: Dict[str, str]) -> Union[EventRangeUpdate, None]:
+            ranges_update: Mapping[str, str]) -> Optional[EventRangeUpdate]:
         """
         Move the event ranges files reported in the event ranges update to the harvester endpoint common to
         all workers for stage-out
@@ -433,7 +426,7 @@ class ESWorker(object):
             if "eventStatus" not in range_update:
                 raise StageOutFailed(self.id)
             if range_update["eventStatus"] == "failed":
-                self._logger.warn("event range failed, will not stage-out")
+                self._logger.warning("event range failed, will not stage-out")
                 continue
             if "path" in range_update and range_update["path"]:
                 cfile_key = "path"
@@ -449,7 +442,7 @@ class ESWorker(object):
                     range_update[cfile_key] = dst
         return ranges
 
-    def get_payload_message(self) -> Union[None, Tuple[str, int, object]]:
+    def get_payload_message(self) -> Optional[WorkerResponse]:
         """
         Returns:
             A payload message (event ranges or job update) to be sent to the driver.
@@ -465,7 +458,7 @@ class ESWorker(object):
             return self.return_message(Messages.UPDATE_JOB, job_update)
         return None
 
-    def get_message(self) -> Tuple[str, int, object]:
+    def get_message(self) -> WorkerResponse:
         """
         Used by the driver to retrieve messages from the worker. This function should be called regularly to make
         sure that the worker is able to process a job.

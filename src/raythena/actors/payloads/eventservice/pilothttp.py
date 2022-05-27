@@ -6,7 +6,7 @@ import shlex
 import stat
 from asyncio import Queue, QueueEmpty, Event
 from subprocess import DEVNULL, Popen
-from typing import Union, Dict, List, Callable
+from typing import Dict, List, Callable, Optional, Iterable, Mapping
 from urllib.parse import parse_qs
 
 import uvloop
@@ -134,9 +134,7 @@ class PilotHttpPayload(ESPayload):
         Returns:
             None
         """
-        command = self._build_pilot_container_command(
-        ) if self.config.payload.get('containerengine',
-                                     None) else self._build_pilot_command()
+        command = self._build_pilot_command()
         # using PIPE will cause the subprocess to hang because
         # we're not reading data using communicate() and the pipe buffer becomes full as pilot2
         # generates a lot of data to the stdout pipe
@@ -303,7 +301,7 @@ class PilotHttpPayload(ESPayload):
                                              self.loop)
             self.server_thread.join()
 
-    def submit_new_range(self, event_range: Union[None, EventRange]) -> asyncio.Future:
+    def submit_new_range(self, event_range: Optional[EventRange]) -> asyncio.Future:
         """
         Submits new event ranges to the payload thread but adding it to the event ranges queue
 
@@ -316,7 +314,7 @@ class PilotHttpPayload(ESPayload):
         return asyncio.run_coroutine_threadsafe(self.ranges_queue.put(event_range),
                                                 self.loop)
 
-    def submit_new_ranges(self, event_ranges: Union[None, List[EventRange]]) -> None:
+    def submit_new_ranges(self, event_ranges: Optional[Iterable[EventRange]]) -> None:
         futures = list()
         if event_ranges:
             for r in event_ranges:
@@ -326,7 +324,7 @@ class PilotHttpPayload(ESPayload):
         for fut in futures:
             fut.result()
 
-    def fetch_job_update(self) -> Union[None, Dict[str, str]]:
+    def fetch_job_update(self) -> Optional[Mapping[str, str]]:
         """
         Tries to get a job update from the payload by polling the job queue
 
@@ -340,7 +338,7 @@ class PilotHttpPayload(ESPayload):
         except QueueEmpty:
             return None
 
-    def fetch_ranges_update(self) -> Union[None, Dict[str, str]]:
+    def fetch_ranges_update(self) -> Optional[Mapping[str, str]]:
         """
         Checks if event ranges update are available by polling the event ranges update queue
 

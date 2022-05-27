@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from typing import Union, Dict, List
+from typing import Dict, Optional, Sequence
 
 from raythena.actors.payloads.basePayload import BasePayload
 from raythena.utils.config import Config
@@ -23,7 +23,7 @@ class ESPayload(BasePayload):
         super().__init__(worker_id, config)
 
     @abstractmethod
-    def submit_new_ranges(self, event_ranges: Union[None, List[EventRange]]) -> None:
+    def submit_new_ranges(self, event_ranges: Optional[Sequence[EventRange]]) -> None:
         """
         Submit a new list of event ranges to the payload. The event ranges should be saved until is can be processed
 
@@ -36,7 +36,7 @@ class ESPayload(BasePayload):
         raise NotImplementedError("Base method not implemented")
 
     @abstractmethod
-    def fetch_ranges_update(self) -> Union[None, Dict[str, str]]:
+    def fetch_ranges_update(self) -> Optional[Dict[str, str]]:
         """
         Checks if event ranges update are available
 
