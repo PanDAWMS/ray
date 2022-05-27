@@ -37,6 +37,8 @@ setup(
         'uvloop',
         'aiohttp',
         'click',
-        'setproctitle'
+        'setproctitle',
+        # temporary pin to old release: https://github.com/protocolbuffers/protobuf/issues/10051
+        'protobuf==3.20.1',
     ]
 )
