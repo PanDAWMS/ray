@@ -25,6 +25,7 @@ from raythena.actors.payloads.eventservice.esPayload import ESPayload
 from raythena.actors.payloads.eventservice.pilothttp import PilotHttpPayload
 
 
+# Type returned by the worker methods to the driver
 WorkerResponse = Tuple[str, int, Any]
 
 
@@ -97,7 +98,7 @@ class ESWorker(object):
         self._logger = make_logger(self.config, self.id)
         self.session_log_dir = session_log_dir
         self.job = None
-        self.transitions = ESWorker.TRANSITIONS_EVENTSERVICE
+        self.transitions = ESWorker.TRANSITIONS
         self.node_ip = get_node_ip()
         self.state = ESWorker.READY_FOR_JOB
         self.payload_job_dir = None
@@ -262,18 +263,6 @@ class ESWorker(object):
         """
         return self.job and self.job['eventService']
 
-    def set_transitions(self) -> None:
-        """
-        Set the allowed transitions depending on the type of job being processed
-
-        Returns:
-            None
-        """
-        if self.is_event_service_job():
-            self.transitions = ESWorker.TRANSITIONS_EVENTSERVICE
-        else:
-            self.transitions = ESWorker.TRANSITIONS_STANDARD
-
     def receive_job(self, reply: int, job: PandaJob) -> WorkerResponse:
         """
         Assign a job to the worker. If a job was successfully assigned, move to the stage-in otherwise end the actor
@@ -288,7 +277,6 @@ class ESWorker(object):
         self.job = job
         if reply == Messages.REPLY_OK and self.job:
             self.transition_state(ESWorker.STAGE_IN)
-            self.set_transitions()
             try:
                 self.stagein()
             except BaseRaythenaException:
