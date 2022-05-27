@@ -9,7 +9,7 @@ import zlib
 from math import ceil
 from queue import Empty, Queue
 from socket import gethostname
-from typing import Any, Dict, Iterator, List, Set, Tuple, Union
+from typing import Any, Dict, Iterator, List, Set, Tuple, Union, Optional
 
 import ray
 from ray.exceptions import RayActorError
@@ -38,18 +38,18 @@ class BookKeeper(object):
     """
 
     def __init__(self, config: Config) -> None:
-        self.jobs = PandaJobQueue()
-        self.config = config
+        self.jobs: PandaJobQueue = PandaJobQueue()
+        self.config: Config = config
         self._logger = make_logger(self.config, "BookKeeper")
-        self.actors: Dict[str, Union[str, None]] = dict()
+        self.actors: Dict[str, Optional[str]] = dict()
         self.rangesID_by_actor: Dict[str, Set[str]] = dict()
         self.finished_range_by_input_file: Dict[str, List[Dict]] = dict()
         self.ranges_to_tar_by_input_file: Dict[str, List[Dict]] = dict()
         self.ranges_to_tar: List[List[Dict]] = list()
         self.ranges_tarred_up: List[List[Dict]] = list()
         self.ranges_tarred_by_output_file: Dict[str, List[Dict]] = dict()
-        self.start_time = time.time()
-        self.tarmaxfilesize = self.config.ray['tarmaxfilesize']
+        self.start_time: float = time.time()
+        self.tarmaxfilesize: int = self.config.ray['tarmaxfilesize']
         self.last_status_print = time.time()
 
     def get_ranges_to_tar(self) -> List[List[Dict]]:
@@ -946,7 +946,6 @@ class ESDriver(BaseDriver):
             ranges_to_tar = self.bookKeeper.get_ranges_to_tar()
             self.tar_timestamp = now
             self.ranges_to_tar.extend(ranges_to_tar)
-
             try:
                 self.running_tar_threads.update({self.tar_executor.submit(self.create_tar_file, range_list): range_list for range_list in self.ranges_to_tar})
                 self.total_tar_tasks += len(self.ranges_to_tar)
