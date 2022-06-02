@@ -130,9 +130,6 @@ class ESWorker(object):
         Executed by the timer thread to check the time limit and kill the pilot if we reach the end of the job.
         In addition, this method will also copy the ray logs to the pilot log directory every 5 minutes
         if enabled in the config file
-
-        Returns:
-
         """
         while True:
             curtime = datetime.datetime.now()
@@ -158,10 +155,13 @@ class ESWorker(object):
 
     def modify_job(self, job: PandaJob) -> PandaJob:
         """
-        Modify the job dict before sending it to the payload.
+        Modify the job dict before sending it to the payload. Update the path to the input files in the job definition.
+
+        Args:
+            job: The job definition to be modified.
 
         Returns:
-            Dict
+            Job with updated input files path.
         """
         if "jobPars" not in job:
             return job
@@ -178,11 +178,15 @@ class ESWorker(object):
 
     def stagein(self) -> None:
         """
-        Perform a generic stage-in, creating a unique worker directory and cwd to it,
-        moving input files to that directory using a symlink then starts the payload
+        Performs stage-in of files necessary to run the pilot. Create work directories, reads the timer file.
+        This will change the process current directory to a unique work directory on the shared file system.
 
-        Returns:
-            None
+        Preconditions:
+            - The worker is in the STAGE_IN state.
+        Postconditions:
+            - The worker is in the READY_FOR_EVENTS state.
+        Raises:
+            StageInFailed: If creating / moving to the work directory fails or the call to the payload stage-in raises an exception.
         """
         self.payload_job_dir = os.path.join(self.workdir, self.job['PandaID'])
         if not os.path.isdir(self.payload_job_dir):
@@ -199,7 +203,7 @@ class ESWorker(object):
             self.start_time = int(start_time[0]) * 3600 + int(start_time[1]) * 60 + int(start_time[2])
             time_limit = time_limit_monitor.readline().split(':')
             if len(time_limit) < 3:
-                time_limit = [0] + time_limit
+                time_limit = ['0'] + time_limit
             self.time_limit = int(time_limit[0]) * 3600 + int(time_limit[1]) * 60 + int(time_limit[2])
             timer_thread = threading.Thread(name='timer', target=self.check_time, daemon=True)
             timer_thread.start()
@@ -234,12 +238,15 @@ class ESWorker(object):
 
     def stageout(self) -> None:
         """
-        Stage-out job output data
+        Performs stage-out of data and termination of threads / subprocesses and http server.
+        Currently, this does not move any data as in event service, output files are staged out asynchronously
+        as they are produced.
 
-        Returns:
-            None
+        Preconditions:
+            - The worker is in the STAGE_OUT state.
+        Postconditions:
+            - The worker is in the DONE state.
         """
-        # TODO move payload out file to harvester dir, drain jobupdate and rangeupdate from payload
         self.payload.stageout()
         self.transition_state(ESWorker.FINISHING)
         self.terminate_actor()
@@ -250,9 +257,6 @@ class ESWorker(object):
 
         Args:
             dest: state to transit to
-
-        Returns:
-            None
 
         Raises:
             IllegalWorkerState if the transition isn't allowed
@@ -279,10 +283,16 @@ class ESWorker(object):
 
         Args:
             reply: status code indicating whether the job request was correctly processed
-            job: panda job specification
+            job: panda job definition
+
+        Preconditions:
+            - The worker is in the JOB_REQUESTED state.
+
+        Postconditions:
+            - The worker is in the STAGE_IN state or DONE state if stage-in failed.
 
         Returns:
-            tuple with status code indicating that the job was correctly received
+            tuple with status code indicating that the job was correctly received and the worker staged in
         """
         self.job = job
         if reply == Messages.REPLY_OK and self.job:
@@ -301,12 +311,16 @@ class ESWorker(object):
 
     def mark_new_job(self) -> WorkerResponse:
         """
-        Indicate that the worker should prepare to receive new jobs from the driver, should be called after the worker
-        notifies that it reached the state 'DONE' if the actor should be re-used fo processing another job
+        Indicate that the worker should perform cleanup of its current state to be ready to accept a new job.
+        This might be called by the driver after the worker finished processing a job.
 
+        Preconditions:
+            - The worker is in the DONE state.
         Returns:
             Job request message
         """
+        # TODO: either remove this functionality (event service workers will only ever have one job)
+        # TODO: or finish the implementation by also cleaning up the filesystem
         self.transition_state(ESWorker.READY_FOR_JOB)
         self.transition_state(ESWorker.JOB_REQUESTED)
         return self.return_message(Messages.REQUEST_NEW_JOB)
@@ -315,12 +329,21 @@ class ESWorker(object):
             self, reply: int,
             event_ranges: Sequence[EventRange]) -> WorkerResponse:
         """
-        Sends event ranges to the worker. Update the PFN of event ranges to an absolute path if
-        it is an relative path
+        Sends event ranges to be processed by the worker. Update the PFN of event ranges to an absolute path if
+        it is a relative path. If no ranges are provided, the worker will not expect any more ranges in the future and
+        will send a message to the payload to notify it that no new ranges will be provided and that
+        it should finish processing its local cache.
 
         Args:
             reply: status code indicating whether the event ranges request was correctly processed
             event_ranges: list of event ranges to process
+
+        Preconditions:
+            - The worker is in the EVENT_RANGES_REQUESTED state.
+
+        Postconditions:
+            - The worker is in the FINISHING_LOCAL_RANGES state if no ranges were received.
+            - The worker is in the PROCESSING state if it received ranges.
 
         Returns:
             tuple with status code indicating that the event ranges were correctly received
@@ -344,7 +367,7 @@ class ESWorker(object):
                        message: int,
                        data: Any = None) -> WorkerResponse:
         """
-        Utility function building a tuple returned to the driver
+        Utility function to build a tuple response for to the driver
 
         Args:
             message: message type to send to the driver
@@ -357,11 +380,8 @@ class ESWorker(object):
 
     def interrupt(self) -> None:
         """
-        Notifies the worker that it should stop processing the current job, stop the payload which will then
-        trigger the stage-out of the worker
-
-        Returns:
-            None
+        Graceful interruption of the worker. Notifies the worker that it should stop processing the current job,
+        stop the payload which will in turn trigger the stage-out process.
         """
         self.payload.stop()
 
@@ -369,8 +389,11 @@ class ESWorker(object):
         """
         End the processing of current job by stopping the payload and moving to state DONE
 
-        Returns:
-            None
+        Preconditions:
+            - The worker is in the FINISHING or JOB_REQUESTED state.
+
+        Postconditions:
+            - The worker is in the DONE state.
         """
         self.payload.stop()
         # self.cpu_monitor.stop()
@@ -378,10 +401,14 @@ class ESWorker(object):
 
     def should_request_ranges(self) -> bool:
         """
-        Checks if the worker should ask more event ranges to the driver.
+        Checks if the worker is ready to receive more event ranges from the driver.
+        The payload handles the logic to check whether the worker is ready to receive more ranges.
+
+        Postconditions:
+            - The worker is in the READY_FOR_EVENTS if the payload is ready to receive more ranges.
 
         Returns:
-            True if more event ranges are are needed
+            True if more event ranges are needed by the payload
         """
         # do not transition if not in a state allowing for event ranges request
         if ESWorker.READY_FOR_EVENTS not in self.transitions[self.state]:
@@ -396,18 +423,15 @@ class ESWorker(object):
             self,
             ranges_update: Mapping[str, str]) -> Optional[EventRangeUpdate]:
         """
-        Move the event ranges files reported in the event ranges update to the harvester endpoint common to
-        all workers for stage-out
+        Move the HITS files reported by the pilot payload. Files are moved from the Athena work directory to the
+        worker-specific output directory.
 
         Args:
-            ranges_update: event ranges updated received by the payload
+            ranges_update: event ranges update sent by the pilot
 
         Returns:
-            event ranges update referencing moved output files
+            Updated event ranges update referencing the moved output files
         """
-        harvester_endpoint = os.path.expandvars(self.config.harvester.get("endpoint", ""))
-        if not os.path.isdir(harvester_endpoint):
-            return
         ranges = json.loads(ranges_update['eventRanges'][0])
         ranges = EventRangeUpdate.build_from_dict(self.job.get_id(), ranges)
         # stage-out finished event ranges
@@ -433,6 +457,9 @@ class ESWorker(object):
 
     def get_payload_message(self) -> Optional[WorkerResponse]:
         """
+        Check the messages queues from the payload and return the first message if any. Gives priority to the messages
+        in the event ranges update queue.
+
         Returns:
             A payload message (event ranges or job update) to be sent to the driver.
         """
@@ -449,12 +476,18 @@ class ESWorker(object):
 
     def get_message(self) -> WorkerResponse:
         """
-        Used by the driver to retrieve messages from the worker. This function should be called regularly to make
-        sure that the worker is able to process a job.
+        Used by the driver to retrieve messages from the worker. This function is called regularly to make
+        sure that the worker is able to process a job. This is similar to polling a future, the worker will do as much
+        work as possible before returning when it needs information from the driver (e.g. job def, event ranges). Once
+        the payload has been started, the worker will only check for messages from the payload, process them and return
+        them to the driver. If the payload subprocess ended, it will drain the message queues before moving
+        to stage-out and termination of the worker. In case there is nothing to do, the worker will sleep for a moment
+        before rechecking for messages.
+
 
         Returns:
-            Tuple depending on the current worker state indicating actions that should be performed by the driver
-            to continue the processing
+            Tuple depending on the current worker state, informing the driver about what information should be sent
+            to the worker or if the worker produced output data.
         """
         try:
             while self.state != ESWorker.DONE:

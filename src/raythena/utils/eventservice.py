@@ -419,7 +419,7 @@ class EventRangeQueue(object):
         n_ranges = min(self.nranges_available(), n_ranges)
         if not n_ranges:
             return list()
-        res: List[Optional['EventRange']] = [None] * n_ranges
+        res: List[Optional['EventRange']] = [None] * n_ranges  # pre-allocate list
         ready = self.rangesID_by_state[EventRange.READY]
         assigned = self.rangesID_by_state[EventRange.ASSIGNED]
         for n in range(n_ranges):
