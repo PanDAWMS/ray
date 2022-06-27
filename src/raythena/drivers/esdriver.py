@@ -51,7 +51,8 @@ class BookKeeper(object):
 
     def get_ranges_to_tar(self) -> List[List[EventRangeDef]]:
         """
-        Return a list of lists of event Ranges to be written to tar files. Essentially the same structure as get_ranges_to_tar_by_input_file but without the input file name as key.
+        Return a list of lists of event Ranges to be written to tar files.
+        Essentially the same structure as get_ranges_to_tar_by_input_file but without the input file name as key.
 
         Returns:
             List of Lists of Event Ranges to be put into tar files
@@ -161,7 +162,7 @@ class BookKeeper(object):
 
         Args:
             actor_id: actor ID
-        
+
         Returns:
             job ID if the actor is assigned to a job, None otherwise
         """
@@ -216,7 +217,8 @@ class BookKeeper(object):
             event_ranges_update: range update sent by the payload, i.e. pilot
 
         Returns:
-            A tuple with two EventRangeUpdate object, the first one contains event ranges in status DONE, the second one contains event ranges in status FAILED or FATAL
+            A tuple with two EventRangeUpdate object, the first one contains event ranges in status DONE,
+            the second one contains event ranges in status FAILED or FATAL
         """
         panda_id = self.actors.get(actor_id, None)
         if not panda_id:
@@ -311,7 +313,8 @@ class BookKeeper(object):
 
     def is_flagged_no_more_events(self, panda_id: str) -> bool:
         """
-        Checks if a job can still receive more event ranges from harvester. This function returning Trued doesn't guarantee that Harvester has more events available,
+        Checks if a job can still receive more event ranges from harvester.
+        This function returning Trued doesn't guarantee that Harvester has more events available,
         only that it may or may not have more events available. If false is returned, Harvester doesn't have more events available
 
         Args:
@@ -327,7 +330,7 @@ class ESDriver(BaseDriver):
     """
     The driver is managing all the ray workers and handling the communication with Harvester. It keeps tracks of
     which event ranges is assigned to which actor using a BookKeeper instance which provides the interface to read and update the status of each event range.
-    
+
     It will also send requests for jobs, event ranges or update of produced output to harvester by using a communicator instance.
     The communicator uses the shared file system to communicate with Harvester and does I/O in a separate thread,
     communication between the driver and the communicator is done by message passing using a queue.
@@ -335,7 +338,8 @@ class ESDriver(BaseDriver):
     The driver is starting one actor per node in the ray cluster except for the ray head node which doesn't execute
     any worker
 
-    After creating all the actors, the driver will call the function get_message() of each actor. Futures are awaited, depending on the message returned by the actors, the driver will
+    After creating all the actors, the driver will call the function get_message() of each actor.
+    Futures are awaited, depending on the message returned by the actors, the driver will
     process it and call the appropriate remote function of the actor
     """
 
@@ -490,7 +494,7 @@ class ESDriver(BaseDriver):
 
         Args:
             ready: a list of read futures
-        
+
         Returns:
             Iterator of WorkerResponse
         """
@@ -623,11 +627,13 @@ class ESDriver(BaseDriver):
 
     def handle_request_event_ranges(self, actor_id: str, data: EventRangeRequest, total_sent: int) -> int:
         """
-        Handle event ranges request. Event ranges are distributed evenly amongst workers, the number of events returned in a single request is capped to the number of local events
+        Handle event ranges request. Event ranges are distributed evenly amongst workers,
+        the number of events returned in a single request is capped to the number of local events
         divided by the number of actors. This cap is updated every time new events are retrieved from Harvester.
 
-        If the driver doesn't have enough events to send to the actor, then it will initiate or wait on a pending event request to Harvester to get more events. It will only return less
-        events than the request number (or cap) if Harvester returns no events. Requests to Harvester are skipped if it was flagged as not having any events left for the current actor's job.
+        If the driver doesn't have enough events to send to the actor, then it will initiate or wait on a pending event request to Harvester to get more events.
+        It will only return less events than the request number (or cap) if Harvester returns no events.
+        Requests to Harvester are skipped if it was flagged as not having any events left for the current actor's job.
 
         Args:
             actor_id: worker sending the event ranges update
