@@ -40,6 +40,10 @@ from raythena.drivers.esdriver import ESDriver
     help='Workdirectory for ray actors'
 )
 @click.option(
+    '--ray-outputdir',
+    help='Output directory where state for the raythena job is saved. This should be the same amongst all raythena job in a single Panda task'
+)
+@click.option(
     '--harvester-endpoint',
     help='Directory to use to communicate with harvester'
 )
