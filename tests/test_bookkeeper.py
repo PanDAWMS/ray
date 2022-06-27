@@ -1,6 +1,6 @@
 import pytest
 
-from raythena.drivers.esdriver import BookKeeper
+from raythena.utils.bookkeeper import BookKeeper
 
 
 @pytest.mark.usefixtures("requires_ray")
