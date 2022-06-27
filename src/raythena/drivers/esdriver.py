@@ -9,27 +9,24 @@ import zlib
 from math import ceil
 from queue import Empty, Queue
 from socket import gethostname
-from typing import Any, Dict, Iterator, List, Set, Tuple, Union
+from typing import Any, Dict, Iterator, List, Set, Tuple, Union, Optional, Sequence, Mapping
 
 import ray
 from ray.exceptions import RayActorError
-from raythena.actors.esworker import ESWorker
+from ray.types import ObjectRef
+
+from raythena.actors.esworker import ESWorker, WorkerResponse
 from raythena.utils.logging import disable_stdout_logging, log_to_file, make_logger
 from raythena.drivers.baseDriver import BaseDriver
-from raythena.drivers.communicators.baseCommunicator import BaseCommunicator
+from raythena.drivers.communicators.baseCommunicator import BaseCommunicator, RequestData
 from raythena.utils.config import Config
 from raythena.drivers.communicators.harvesterFileMessenger import HarvesterFileCommunicator
 from raythena.utils.eventservice import (EventRange, EventRangeRequest,
                                          EventRangeUpdate, JobReport, Messages,
                                          PandaJob, PandaJobQueue,
-                                         PandaJobRequest)
+                                         PandaJobRequest, JobDef, EventRangeDef, PilotEventRangeUpdateDef)
 from raythena.utils.exception import BaseRaythenaException
 from raythena.utils.ray import build_nodes_resource_list
-
-# from raythena.utils.timing import CPUMonitor
-
-EventRangeTypeHint = Dict[str, str]
-PandaJobTypeHint = Dict[str, str]
 
 
 class BookKeeper(object):
@@ -38,38 +35,33 @@ class BookKeeper(object):
     """
 
     def __init__(self, config: Config) -> None:
-        self.jobs = PandaJobQueue()
-        self.config = config
+        self.jobs: PandaJobQueue = PandaJobQueue()
+        self.config: Config = config
         self._logger = make_logger(self.config, "BookKeeper")
-        self.actors: Dict[str, Union[str, None]] = dict()
+        self.actors: Dict[str, Optional[str]] = dict()
         self.rangesID_by_actor: Dict[str, Set[str]] = dict()
-        self.finished_range_by_input_file: Dict[str, List[Dict]] = dict()
-        self.ranges_to_tar_by_input_file: Dict[str, List[Dict]] = dict()
-        self.ranges_to_tar: List[List[Dict]] = list()
-        self.ranges_tarred_up: List[List[Dict]] = list()
-        self.ranges_tarred_by_output_file: Dict[str, List[Dict]] = dict()
-        self.start_time = time.time()
-        self.tarmaxfilesize = self.config.ray['tarmaxfilesize']
+        self.finished_range_by_input_file: Dict[str, List[EventRangeDef]] = dict()
+        self.ranges_to_tar_by_input_file: Dict[str, List[EventRangeDef]] = dict()
+        self.ranges_to_tar: List[List[EventRangeDef]] = list()
+        self.ranges_tarred_up: List[List[EventRangeDef]] = list()
+        self.ranges_tarred_by_output_file: Dict[str, List[EventRangeDef]] = dict()
+        self.start_time: float = time.time()
+        self.tarmaxfilesize: int = self.config.ray['tarmaxfilesize']
         self.last_status_print = time.time()
 
-    def get_ranges_to_tar(self) -> List[List[Dict]]:
+    def get_ranges_to_tar(self) -> List[List[EventRangeDef]]:
         """
-        Return a list of lists of event Ranges to be written to tar files
-
-        Args:
-            None
+        Return a list of lists of event Ranges to be written to tar files.
+        Essentially the same structure as get_ranges_to_tar_by_input_file but without the input file name as key.
 
         Returns:
             List of Lists of Event Ranges to be put into tar files
         """
         return self.ranges_to_tar
 
-    def get_ranges_to_tar_by_input_file(self) -> Dict[str, List[Dict]]:
+    def get_ranges_to_tar_by_input_file(self) -> Dict[str, List[EventRangeDef]]:
         """
-        Return the dictionary of event Ranges to be written to tar files organized by input files
-
-        Args:
-            None
+        Return the dictionary of event Ranges to be written to tar files organized by input file.
 
         Returns:
             dict of Event Ranges organized by input file
@@ -79,12 +71,9 @@ class BookKeeper(object):
     def create_ranges_to_tar(self) -> bool:
         """
         using the event ranges organized by input file in ranges_to_tar_by_input_file
-        loop over the entries creating a list of lists which container all of event ranges to be tarred up.
+        loop over the entries creating a list of lists which contains all of event ranges to be tarred up.
         update the dictionary of event Ranges to be written to tar files organized by input files
         removing the event ranges event Range lists organized by input files
-
-        Args:
-             None:
 
         Returns:
            True if there are any ranges to tar up. False otherwise
@@ -119,7 +108,7 @@ class BookKeeper(object):
             return_val = False
         return return_val
 
-    def add_jobs(self, jobs: Dict[str, PandaJobTypeHint]) -> None:
+    def add_jobs(self, jobs: Mapping[str, JobDef]) -> None:
         """
         Register new jobs. Event service jobs will not be assigned to worker until event ranges are added to the job
 
@@ -132,12 +121,12 @@ class BookKeeper(object):
         self.jobs.add_jobs(jobs)
 
     def add_event_ranges(
-            self, event_ranges: Dict[str, List[EventRangeTypeHint]]) -> None:
+            self, event_ranges: Mapping[str, Sequence[EventRangeDef]]) -> None:
         """
-        Assign event ranges to jobs in queue.
+        Assign event ranges to the jobs in queue.
 
         Args:
-            event_ranges: event ranges dict as returned by harvester
+            event_ranges: List of event ranges dict as returned by harvester
 
         Returns:
             None
@@ -147,9 +136,6 @@ class BookKeeper(object):
     def have_finished_events(self) -> bool:
         """
         Checks if any job finished any events
-
-        Args:
-            None
 
         Returns:
             True if any event ranges requests have finished, False otherwise
@@ -170,10 +156,19 @@ class BookKeeper(object):
         job_id = self.jobs.next_job_id_to_process()
         return job_id is not None
 
-    def get_actor_job(self, actor_id: str):
+    def get_actor_job(self, actor_id: str) -> Optional[str]:
+        """
+        Get the job ID for the given actor ID
+
+        Args:
+            actor_id: actor ID
+
+        Returns:
+            job ID if the actor is assigned to a job, None otherwise
+        """
         return self.actors.get(actor_id, None)
 
-    def assign_job_to_actor(self, actor_id: str) -> Union[PandaJob, None]:
+    def assign_job_to_actor(self, actor_id: str) -> Optional[PandaJob]:
         """
         Retrieve a job from the job queue to be assigned to a worker
 
@@ -190,8 +185,8 @@ class BookKeeper(object):
 
     def fetch_event_ranges(self, actor_id: str, n: int) -> List[EventRange]:
         """
-        Retrieve event ranges for an actor. The specified actor should have a job assigned from assign_job_to_actor().
-        If the job assigned to the actor doesn't have enough range currently available, it will assign all of its ranges
+        Retrieve event ranges for an actor. The specified actor should have a job assigned from assign_job_to_actor() or an empty list will be returned.
+        If the job assigned to the actor doesn't have enough range currently available, it will assign all of its remaining anges
         to the worker without trying to get new ranges from harvester.
 
         Args:
@@ -211,17 +206,19 @@ class BookKeeper(object):
         return ranges
 
     def process_event_ranges_update(
-        self, actor_id: str, event_ranges_update: Union[dict, EventRangeUpdate]
-    ) -> Union[Tuple[EventRangeUpdate, EventRangeUpdate], None]:
+        self, actor_id: str, event_ranges_update: Union[Sequence[PilotEventRangeUpdateDef], EventRangeUpdate]
+    ) -> Optional[Tuple[EventRangeUpdate, EventRangeUpdate]]:
         """
-        Update the event ranges status according to the range update.
+        Process the event ranges update sent by the worker. This will update the status of event ranges in the update as well as building
+        the list of event ranges to be tarred up for each input file.
 
         Args:
             actor_id: actor worker_id that sent the update
-            event_ranges_update: range update sent by the payload
+            event_ranges_update: range update sent by the payload, i.e. pilot
 
         Returns:
-            None
+            A tuple with two EventRangeUpdate object, the first one contains event ranges in status DONE,
+            the second one contains event ranges in status FAILED or FATAL
         """
         panda_id = self.actors.get(actor_id, None)
         if not panda_id:
@@ -260,6 +257,9 @@ class BookKeeper(object):
         return event_ranges_update, failed_events
 
     def print_status(self) -> None:
+        """
+        Print a status of each job
+        """
         for panda_id in self.jobs:
             job_ranges = self.jobs.get_event_ranges(panda_id)
             if not job_ranges:
@@ -278,7 +278,7 @@ class BookKeeper(object):
     def process_actor_end(self, actor_id: str) -> None:
         """
         Performs clean-up of event ranges when an actor ends. Event ranges still assigned to this actor
-        that did not receive an update are marked as available again
+        which did not receive an update are marked as available again.
 
         Args:
             actor_id: worker_id of actor that ended
@@ -313,13 +313,15 @@ class BookKeeper(object):
 
     def is_flagged_no_more_events(self, panda_id: str) -> bool:
         """
-        Checks if a job could potentially receive more event ranges from harvester
+        Checks if a job can still receive more event ranges from harvester.
+        This function returning Trued doesn't guarantee that Harvester has more events available,
+        only that it may or may not have more events available. If false is returned, Harvester doesn't have more events available
 
         Args:
             panda_id: job worker_id to check
 
         Returns:
-            True if more event ranges requests should be sent to harvester for the specified job, False otherwise
+            True if more event ranges requests may be retrieved from harvester for the specified job, False otherwise
         """
         return self.jobs[panda_id].no_more_ranges
 
@@ -327,18 +329,24 @@ class BookKeeper(object):
 class ESDriver(BaseDriver):
     """
     The driver is managing all the ray workers and handling the communication with Harvester. It keeps tracks of
-    which event ranges is assigned to which actor using the BookKeeper, and sends requests for jobs, event ranges
-    or event ranges update to harvester by using a communicator plugin. It will regularly poll messages from actors and
-    handle the message so that actors can execute jobs that they are attributed.
+    which event ranges is assigned to which actor using a BookKeeper instance which provides the interface to read and update the status of each event range.
 
-    The driver is scheduling one actor per node in the ray cluster, except for the ray head node which doesn't execute
+    It will also send requests for jobs, event ranges or update of produced output to harvester by using a communicator instance.
+    The communicator uses the shared file system to communicate with Harvester and does I/O in a separate thread,
+    communication between the driver and the communicator is done by message passing using a queue.
+
+    The driver is starting one actor per node in the ray cluster except for the ray head node which doesn't execute
     any worker
+
+    After creating all the actors, the driver will call the function get_message() of each actor.
+    Futures are awaited, depending on the message returned by the actors, the driver will
+    process it and call the appropriate remote function of the actor
     """
 
     def __init__(self, config: Config, session_dir: str) -> None:
         """
-        Initialize ray custom resources, logging actor, a bookKeeper instance and other attributes.
-        The harvester communicator is also initialized and an initial JobRequest is sent
+        Initialize logging, a bookKeeper instance, communicator and other attributes.
+        An initial job request is also sent to Harvester.
 
         Args:
             config: application config
@@ -350,9 +358,9 @@ class ESDriver(BaseDriver):
         self.session_log_dir = os.path.join(self.session_dir, "logs")
         self.nodes = build_nodes_resource_list(self.config, run_actor_on_head=False)
 
-        self.requests_queue = Queue()
-        self.jobs_queue = Queue()
-        self.event_ranges_queue = Queue()
+        self.requests_queue: Queue[RequestData] = Queue()
+        self.jobs_queue: Queue[Mapping[str, JobDef]] = Queue()
+        self.event_ranges_queue: Queue[Mapping[str, Sequence[EventRangeDef]]] = Queue()
 
         workdir = os.path.expandvars(self.config.ray.get('workdir'))
         if not workdir or not os.path.exists(workdir):
@@ -376,7 +384,7 @@ class ESDriver(BaseDriver):
                                                                         config)
         self.communicator.start()
         self.requests_queue.put(PandaJobRequest())
-        self.actors = dict()
+        self.actors: Dict[str, ESWorker] = dict()
         self.actors_message_queue = list()
         self.bookKeeper = BookKeeper(config)
         self.terminated = list()
@@ -395,7 +403,7 @@ class ESDriver(BaseDriver):
         self.tarmaxprocesses = self.config.ray['tarmaxprocesses']
         self.tar_merge_es_output_dir = os.path.join(self.workdir, "merge_es_output")
         self.tar_merge_es_files_dir = os.path.join(self.workdir, "merge_es_files")
-        self.ranges_to_tar: List[List[Dict]] = list()
+        self.ranges_to_tar: List[List[EventRangeDef]] = list()
         self.running_tar_threads = dict()
         self.processed_event_ranges = dict()
         self.finished_tar_tasks = set()
@@ -410,13 +418,13 @@ class ESDriver(BaseDriver):
             if not os.path.isdir(self.tar_merge_es_output_dir):
                 os.mkdir(self.tar_merge_es_output_dir)
         except Exception:
-            self._logger.warn(f"Exception when creating the {self.tar_merge_es_output_dir}")
+            self._logger.warning(f"Exception when creating the {self.tar_merge_es_output_dir}")
             raise
         try:
             if not os.path.isdir(self.tar_merge_es_files_dir):
                 os.mkdir(self.tar_merge_es_files_dir)
         except Exception:
-            self._logger.warn(f"Exception when creating the {self.tar_merge_es_files_dir}")
+            self._logger.warning(f"Exception when creating the {self.tar_merge_es_files_dir}")
             raise
 
     def __str__(self) -> str:
@@ -442,7 +450,7 @@ class ESDriver(BaseDriver):
 
     def start_actors(self) -> None:
         """
-        Initialize actor communication by performing a first call to get_message()
+        Initialize actor communication by performing the first call to get_message() and add the future to the future list.
 
         Returns:
             None
@@ -451,7 +459,8 @@ class ESDriver(BaseDriver):
 
     def create_actors(self) -> None:
         """
-        Create actors by using custom resources available in self.nodes
+        Create actors on each node. Before creating an actor, the driver tries to assign it a job and an initial batch of
+        event ranges. This avoid having all actors requesting jobs and event ranges at the start of the job.
 
         Returns:
             None
@@ -478,10 +487,21 @@ class ESDriver(BaseDriver):
             actor = ESWorker.options(resources={node_constraint: 1}).remote(**kwargs)
             self.actors[actor_id] = actor
 
-    def retrieve_actors_messages(self, ready: list) -> Iterator[Tuple[str, int, object]]:
+    def retrieve_actors_messages(self, ready: Sequence[ObjectRef]) -> Iterator[WorkerResponse]:
+        """
+        Given a list of ready futures from actors, unwrap them and return an interable over the result of each future.
+        In case one of the futures raised an exception, the exception is handled by this function and not propagated to the caller.
+
+        Args:
+            ready: a list of read futures
+
+        Returns:
+            Iterator of WorkerResponse
+        """
         try:
             messages = ray.get(ready)
         except Exception:
+            # if any of the future raised an exception, we need to handle them one by one to know which one produced the exception.
             for r in ready:
                 try:
                     actor_id, message, data = ray.get(r)
@@ -500,7 +520,7 @@ class ESDriver(BaseDriver):
 
     def handle_actors(self) -> None:
         """
-        Main function handling messages from all ray actors.
+        Main function handling messages from all ray actors and dispatching to the appropriate handling function according to the message returned by the actor,
 
         Returns:
             None
@@ -527,9 +547,16 @@ class ESDriver(BaseDriver):
 
         self._logger.debug("Finished handling the Actors. Raythena will shutdown now.")
 
-    def wait_on_messages(self) -> Tuple[List, List]:
-        messages = list()
-        queue = list()
+    def wait_on_messages(self) -> Tuple[List[ObjectRef], List[ObjectRef]]:
+        """
+        Wait on part of the pending futures to complete. Wait for 1 second trying to fetch half of the pending futures.
+        If no futures are ready, then wait another second to fetch a tenth of the pending futures.
+        If there are still no futures ready, then wait for the timeout interval or until one future is ready. If this is the beginning of the job, i.e. no
+        events have finished processing yet, then wait forever until one future is ready instead of only timeout interval.
+
+        Returns:
+            Tuple of a list of completed futures and a list of pending futures, respectively
+        """
         if self.bookKeeper.have_finished_events():
             timeoutinterval = self.timeoutinterval
         else:
@@ -547,7 +574,7 @@ class ESDriver(BaseDriver):
 
     def handle_actor_done(self, actor_id: str) -> bool:
         """
-        Handle worker that finished processing a job
+        Handle workers that finished processing a job
 
         Args:
             actor_id: actor which finished processing a job
@@ -568,7 +595,7 @@ class ESDriver(BaseDriver):
             # do not get new messages from this actor
         return has_jobs
 
-    def handle_update_event_ranges(self, actor_id: str, data: Any) -> None:
+    def handle_update_event_ranges(self, actor_id: str, data: EventRangeUpdate) -> None:
         """
         Handle worker update event ranges
 
@@ -586,7 +613,7 @@ class ESDriver(BaseDriver):
 
     def handle_update_job(self, actor_id: str, data: Any) -> None:
         """
-        Handle worker job update
+        Handle worker job update. This is currently ignored and we simply get a new message from the actor.
 
         Args:
             actor_id: worker sending the job update
@@ -598,12 +625,19 @@ class ESDriver(BaseDriver):
         self.actors_message_queue.append(
             self[actor_id].get_message.remote())
 
-    def handle_request_event_ranges(self, actor_id: str, data: Any, total_sent: int) -> int:
+    def handle_request_event_ranges(self, actor_id: str, data: EventRangeRequest, total_sent: int) -> int:
         """
-        Handle event ranges request
+        Handle event ranges request. Event ranges are distributed evenly amongst workers,
+        the number of events returned in a single request is capped to the number of local events
+        divided by the number of actors. This cap is updated every time new events are retrieved from Harvester.
+
+        If the driver doesn't have enough events to send to the actor, then it will initiate or wait on a pending event request to Harvester to get more events.
+        It will only return less events than the request number (or cap) if Harvester returns no events.
+        Requests to Harvester are skipped if it was flagged as not having any events left for the current actor's job.
+
         Args:
             actor_id: worker sending the event ranges update
-            data: event range update
+            data: event range request
             total_sent: number of ranges already sent by the driver to all actors
 
         Returns:
@@ -655,7 +689,9 @@ class ESDriver(BaseDriver):
         If no event range request is ongoing, checks if any jobs needs more ranges, and if so,
         sends a request to harvester. If an event range request has been sent (including one from
         the same call of this function), checks if a reply is available. If so, add the ranges to the bookKeeper.
-        If block == true and a request has been sent, blocks until a reply is received
+        If block == true and there are requests in-flight, blocks until a reply is received.
+
+        The current implementation limits the number of in-flight requests to 1.
 
         Args:
             block: wait on the response from harvester communicator if true,
@@ -694,6 +730,7 @@ class ESDriver(BaseDriver):
                     if n_received_events == 0:
                         self.stop()
                 self.bookKeeper.add_event_ranges(ranges)
+                # TODO do not reference pandaID befoore checking if non-null
                 self.available_events_per_actor = max(1, ceil(self.bookKeeper.n_ready(pandaID) / self.n_actors))
                 self.n_eventsrequest -= 1
             except Empty:
@@ -701,7 +738,7 @@ class ESDriver(BaseDriver):
 
     def on_tick(self) -> None:
         """
-        Performs actions that should be executed regularly, after handling a batch of actor messages.
+        Performs upkeep actions that should be executed regularly, after handling a batch of actor messages.
 
         Returns:
             None
@@ -730,7 +767,7 @@ class ESDriver(BaseDriver):
         Method used to start the driver, initializing actors, retrieving initial job and event ranges,
         creates job subdir then handle actors until they are all done or stop() has been called
         This function will also create a directory in config.ray.workdir for the retrieved job
-        with the directory name being the job worker_id
+        with the directory name being the PandaID. Workers will then each create their own subdirectory in that job directory.
 
         Returns:
             None
@@ -804,28 +841,31 @@ class ESDriver(BaseDriver):
 
     def handle_actor_exception(self, actor_id: str, ex: Exception) -> None:
         """
-        Handle exception that occurred in an actor process
+        Handle exception that occurred in an actor process. Log the exception and count the number of exceptions
+        that were produced by the same actor. If the number of exceptions is greater than the threshold, the driver will simply drop the actor
+        by no longer calling remote functions on it.
 
         Args:
+            actor_id: the actor that raised the exception
             ex: exception raised in actor process
 
         Returns:
             None
         """
-        self._logger.warn(f"An exception occured in {actor_id}: {ex}")
+        self._logger.warning(f"An exception occurred in {actor_id}: {ex}")
         if actor_id not in self.failed_actor_tasks_count:
             self.failed_actor_tasks_count[actor_id] = 0
 
         self.failed_actor_tasks_count[actor_id] += 1
         if self.failed_actor_tasks_count[actor_id] < self.max_retries_error_failed_tasks:
             self.actors_message_queue.append(self[actor_id].get_message.remote())
-            self._logger.warn(f"{actor_id} failed {self.failed_actor_tasks_count[actor_id]} times. Retrying...")
+            self._logger.warning(f"{actor_id} failed {self.failed_actor_tasks_count[actor_id]} times. Retrying...")
         else:
-            self._logger.warn(f"{actor_id} failed too many times. No longer fetching messages from it")
+            self._logger.warning(f"{actor_id} failed too many times. No longer fetching messages from it")
             if actor_id not in self.terminated:
                 self.terminated.append(actor_id)
 
-    def create_tar_file(self, range_list: list) -> Dict[str, List[Dict]]:
+    def create_tar_file(self, range_list: List[EventRangeDef]) -> Dict[str, List[EventRangeDef]]:
         """
         Use input range_list to create tar file and return list of tarred up event ranges and information needed by Harvester
 
@@ -859,8 +899,8 @@ class ESDriver(BaseDriver):
                             tar.add(path)
                             tarred_ranges_list.append(event_range)
                         else:
-                            self._logger.warn((f"Could not add event {path} to tar, file does not exists. "
-                                               f"Event status: {event_range['eventStatus']}"))
+                            self._logger.warning((f"Could not add event {path} to tar, file does not exists. "
+                                                  f"Event status: {event_range['eventStatus']}"))
                 file_fsize = os.path.getsize(temp_file_path)
                 # calculate alder32 checksum
                 file_chksum = self.calc_adler32(temp_file_path)
@@ -897,7 +937,7 @@ class ESDriver(BaseDriver):
             val += 2 ** 32
         return hex(val)[2:10].zfill(8).lower()
 
-    def create_harvester_data(self, PanDA_id: str, file_path: str, file_chksum: str, file_fsize: int, range_list: list) -> Dict[str, List[Dict]]:
+    def create_harvester_data(self, PanDA_id: str, file_path: str, file_chksum: str, file_fsize: int, range_list: list) -> Dict[str, List[EventRangeDef]]:
         """
         create data structure for telling Harvester what files are merged and ready to process
 
@@ -946,13 +986,12 @@ class ESDriver(BaseDriver):
             ranges_to_tar = self.bookKeeper.get_ranges_to_tar()
             self.tar_timestamp = now
             self.ranges_to_tar.extend(ranges_to_tar)
-
             try:
                 self.running_tar_threads.update({self.tar_executor.submit(self.create_tar_file, range_list): range_list for range_list in self.ranges_to_tar})
                 self.total_tar_tasks += len(self.ranges_to_tar)
                 self.ranges_to_tar = list()
             except Exception as exc:
-                self._logger.warn(f"tar_es_output: Exception {exc} when submitting tar subprocess")
+                self._logger.warning(f"tar_es_output: Exception {exc} when submitting tar subprocess")
                 pass
 
             self._logger.debug(f"tar_es_output: #tasks in queue : {len(self.running_tar_threads)}, #total tasks submitted since launch: {self.total_tar_tasks}")
@@ -1020,9 +1059,9 @@ class ESDriver(BaseDriver):
                         if len(self.processed_event_ranges[PanDA_id][eventRangeID]) > 1:
                             # duplicate eventRangeID
                             return_val = False
-                            self._logger.warn(f"ERROR duplicate eventRangeID - {eventRangeID}")
+                            self._logger.warning(f"ERROR duplicate eventRangeID - {eventRangeID}")
                             for path in (self.processed_event_ranges[PanDA_id][eventRangeID]):
-                                self._logger.warn(f"ERROR duplicate eventRangeID - {eventRangeID} {path}")
+                                self._logger.warning(f"ERROR duplicate eventRangeID - {eventRangeID} {path}")
         except Exception as ex:
             self._logger.info(f"check_for_duplicates Caught exception {ex}")
             return_val = False

@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Union, Dict
+from typing import Dict, Optional, Any
 
 from raythena.utils.config import Config
 from raythena.utils.eventservice import PandaJob
@@ -89,21 +89,11 @@ class BasePayload(ABC):
         raise NotImplementedError("Base method not implemented")
 
     @abstractmethod
-    def get_no_more_ranges(self) -> int:
-        """
-        Returns a boolean indicating whether any events remain to be processed
-
-        Returns:
-            True if no more ranges to be processed
-        """
-        raise NotImplementedError("Base method not implemented")
-
-    @abstractmethod
-    def fetch_job_update(self) -> Union[None, Dict[str, str]]:
+    def fetch_job_update(self) -> Optional[Dict[str, Any]]:
         """
         Tries to get a job update from the payload
 
         Returns:
-            None if no job update update is available or a dict holding the update
+            None if no job update is available or a dict holding the update
         """
         raise NotImplementedError("Base method not implemented")
