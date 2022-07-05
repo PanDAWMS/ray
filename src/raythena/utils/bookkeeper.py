@@ -1,3 +1,8 @@
+from asyncio import events
+from asyncore import write
+from functools import reduce
+import json
+from multiprocessing import Event
 from raythena.utils.config import Config
 from raythena.utils.eventservice import PandaJobQueue, EventRange, PandaJob, EventRangeUpdate, EventRangeDef, JobDef, PilotEventRangeUpdateDef
 from raythena.utils.logging import make_logger
@@ -6,6 +11,117 @@ from typing import Dict, Set, Optional, List, Mapping, Sequence, Union, Tuple
 
 import time
 import os
+
+
+class TaskStatus:
+
+    SIMULATED = "simulated"
+    MERGED = "merged"
+
+    def __init__(self, job: PandaJob, config: Config, save_on_update=False) -> None:
+        self.config = config
+        self.job = job
+        self._logger = make_logger(self.config, "TaskStatus")
+        self.output_dir = config.ray.get("outputdir")
+        self.filepath = os.path.join(self.output_dir, f"{self.job['taskID']}.json")
+        self.tmpfilepath = f"{self.filepath}.tmp"
+        self._status: Dict[str, Union[Dict[str, List[Dict[str, str]]], List[str]]] = dict()
+        self.save_on_update = save_on_update
+        self._restore_status()
+
+    def _restore_status(self):
+        """
+        Tries to restore the previously saved status by reading the file written by save_status(). 
+        If it fails to load data from the status file, try to load data from the potential temporary file
+        """
+        filename = self.filepath
+        if not os.path.isfile(filename):
+            if not os.path.isfile(self.tmpfilepath):
+                # no savefile, init dict
+                self._status[TaskStatus.SIMULATED] = dict()
+                self._status[TaskStatus.MERGED] = list()
+                return
+            else:
+                filename = self.tmpfilepath
+
+        try:
+            with open(filename, 'r') as f:
+               self._status = json.load(f)
+        except OSError as e:
+            # failed to load status, try to read from a possible tmp file if it exists and not already done
+            if filename != self.tmpfilepath and os.path.isfile(self.tmpfilepath):
+                try:
+                    with open(self.tmpfilepath, 'r') as f:
+                        self._status = json.load(f)
+                except OSError as ee:
+                    self._logger.error(e.strerror)
+                    self._logger.error(ee.strerror)
+                    self._status[TaskStatus.SIMULATED] = dict()
+                    self._status[TaskStatus.MERGED] = list()
+
+    def save_status(self, write_to_tmp=True):
+        """
+        Save the current status to a json file.
+
+        Args:
+            write_to_tmp: if true, the json data will be written to a temporary file then renamed to the final file
+        """
+        filename = self.filepath
+        if write_to_tmp:
+            filename = self.tmpfilepath
+        try:
+            with open(filename, 'w') as f:
+                json.dump(self._status, f)
+
+            if write_to_tmp:
+                os.replace(filename, self.filepath)
+        except OSError as e:
+            self._logger.error(f"Failed to save task status: {e.strerror}")
+
+    def _build_eventrange_dict(self, eventrange: EventRange) -> Dict[str, str]:
+        return {"eventRangeID": eventrange.eventRangeID, "startEvent": eventrange.startEvent, "lastEvent": eventrange.lastEvent}
+
+    def set_eventrange_simulated(self, eventrange: EventRange):
+        filename = eventrange.PFN
+        simulated_dict = self._status[TaskStatus.SIMULATED]
+        if filename not in simulated_dict:
+            simulated_dict[filename] = list()
+        simulated_dict[filename].append(self._build_eventrange_dict(eventrange))
+
+    def set_eventrange_merged(self, eventrange: EventRange):
+        filename = eventrange.PFN
+
+        eventrange_dict = self._build_eventrange_dict(eventrange)
+        self._status[TaskStatus.SIMULATED][filename].remove(eventrange_dict)
+        self._status[TaskStatus.MERGED].append(eventrange.PFN)
+    
+    def get_nsimulated(self, filename=None) -> int:
+        """
+        Total number of event ranges that have been simulated but not yet merged.
+
+        Args:
+            filename: if none, returns the total number of simulated events. If specified, returns the number of events simulated for that specific file
+        
+        Returns:
+            the number of events simulated
+        """
+        if filename:
+            return len(self._status[TaskStatus.SIMULATED].get(filename, []))
+        return reduce(lambda acc, cur: acc + len(cur), self._status[TaskStatus.SIMULATED].values(), 0)
+
+    def get_nmerged(self, filename=None) -> int:
+        """
+        Total number of event ranges that have been merged.
+
+        Args:
+            filename: if none, returns the total number of merged events. If specified, returns the number of events merged for that specific file which should be constant
+        
+        Returns:
+            the number of events merged
+        """
+        if filename in self._status[TaskStatus.MERGED]:
+            return 500 # TODO: update with nevents per file provided by Harvester
+        return len(self._status[TaskStatus.MERGED]) * 500 # TODO: update with nevents per file provided by Harvester
 
 
 class BookKeeper(object):
@@ -27,6 +143,7 @@ class BookKeeper(object):
         self.start_time: float = time.time()
         self.tarmaxfilesize: int = self.config.ray['tarmaxfilesize']
         self.last_status_print = time.time()
+        self.taskstatus = dict()
 
     def get_ranges_to_tar(self) -> List[List[EventRangeDef]]:
         """
@@ -98,6 +215,11 @@ class BookKeeper(object):
             None
         """
         self.jobs.add_jobs(jobs)
+        for pandaID in self.jobs:
+            job = self.jobs[pandaID]
+            if job["taskID"] not in self.taskstatus:
+                self.taskstatus[job['taskID']] = TaskStatus(job, self.config)
+
 
     def add_event_ranges(
             self, event_ranges: Mapping[str, Sequence[EventRangeDef]]) -> None:
