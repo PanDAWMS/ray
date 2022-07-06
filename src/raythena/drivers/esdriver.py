@@ -527,6 +527,8 @@ class ESDriver(BaseDriver):
         while len(self.running_tar_threads) > 0:
             self.get_tar_results()
             time.sleep(1)
+
+        self.bookKeeper.stop_save_thread()
         self.requests_queue.put(JobReport())
 
         self.communicator.stop()
