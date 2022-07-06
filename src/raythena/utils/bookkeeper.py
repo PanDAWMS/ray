@@ -7,7 +7,7 @@ from raythena.utils.eventservice import PandaJobQueue, EventRange, PandaJob, Eve
 from raythena.utils.exception import ExThread
 from raythena.utils.logging import make_logger
 
-from typing import Deque, Dict, Literal, Set, Optional, List, Mapping, Sequence, Union, Tuple
+from typing import Deque, Dict, Set, Optional, List, Mapping, Sequence, Union, Tuple, Any
 
 import time
 import os
@@ -26,6 +26,7 @@ class TaskStatus:
         self.output_dir = config.ray.get("outputdir")
         self.filepath = os.path.join(self.output_dir, f"{self.job['taskID']}.json")
         self.tmpfilepath = f"{self.filepath}.tmp"
+        self._events_per_file = 500
         self._status: Dict[str, Union[Dict[str, List[Dict[str, str]]], List[str]]] = dict()
         self._update_queue: Deque[Tuple[str, Union[EventRange, Tuple]]] = collections.deque()
         self._restore_status()
@@ -97,7 +98,7 @@ class TaskStatus:
         except OSError as e:
             self._logger.error(f"Failed to save task status: {e.strerror}")
 
-    def _build_eventrange_dict(self, eventrange: EventRange) -> Dict[str, Literal]:
+    def _build_eventrange_dict(self, eventrange: EventRange) -> Dict[str, Any]:
         return {"eventRangeID": eventrange.eventRangeID, "startEvent": eventrange.startEvent, "lastEvent": eventrange.lastEvent}
 
     def set_eventrange_simulated(self, eventrange: EventRange):
@@ -141,6 +142,20 @@ class TaskStatus:
             return len(self._status[TaskStatus.SIMULATED].get(filename, []))
         return reduce(lambda acc, cur: acc + len(cur), self._status[TaskStatus.SIMULATED].values(), 0)
 
+    def get_nfailed(self, filename=None) -> int:
+        """
+        Total number of event ranges that have failed.
+
+        Args:
+            filename: if none, returns the total number of simulated events. If specified, returns the number of events simulated for that specific file
+
+        Returns:
+            the number of events simulated
+        """
+        if filename:
+            return len(self._status[TaskStatus.FAILED].get(filename, []))
+        return reduce(lambda acc, cur: acc + len(cur), self._status[TaskStatus.FAILED].values(), 0)
+
     def get_nmerged(self, filename=None) -> int:
         """
         Total number of event ranges that have been merged.
@@ -153,8 +168,8 @@ class TaskStatus:
             the number of events merged
         """
         if filename in self._status[TaskStatus.MERGED]:
-            return 500  # TODO: update with nevents per file provided by Harvester
-        return len(self._status[TaskStatus.MERGED]) * 500  # TODO: update with nevents per file provided by Harvester
+            return self._events_per_file  # TODO: update with nevents per file provided by Harvester
+        return len(self._status[TaskStatus.MERGED]) * self._events_per_file  # TODO: update with nevents per file provided by Harvester
 
 
 class BookKeeper(object):
@@ -259,7 +274,7 @@ class BookKeeper(object):
             return_val = False
         return return_val
 
-    def add_jobs(self, jobs: Mapping[str, JobDef]) -> None:
+    def add_jobs(self, jobs: Mapping[str, JobDef], start_save_thread=True) -> None:
         """
         Register new jobs. Event service jobs will not be assigned to worker until event ranges are added to the job
 
@@ -274,7 +289,7 @@ class BookKeeper(object):
             job = self.jobs[pandaID]
             if job["taskID"] not in self.taskstatus:
                 self.taskstatus[job['taskID']] = TaskStatus(job, self.config)
-        if not self.save_state_thread.is_alive():
+        if start_save_thread and not self.save_state_thread.is_alive():
             self.stop_event.clear()
             self.start_save_thread()
 
