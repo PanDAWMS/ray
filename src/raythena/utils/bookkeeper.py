@@ -14,6 +14,16 @@ import os
 
 
 class TaskStatus:
+    """
+    Utility class which manages the persistancy to file of the progress on a given Panda task.
+
+    All operations (set_eventrange_simulated, set_eventrange_failed, set_file_merged) are lazy.
+    They will only enqueue a message which will only be processed just before writting the status to disk in save_status.
+    The reason for this design is that save_status and the update operations are supposed to be called by different threads and would
+    therefore add synchronization overhead and latency for the main driver thread responsible for polling actors. Having a single thread
+    updating and serializing the dictionary eliminate the need for synchronization however it also means that other thread reading the dictionary
+    (e.g. from get_nsimulated) will get out of date information as there will most likely be update pending in the queue at any point in time
+    """
 
     SIMULATED = "simulated"
     MERGED = "merged"
@@ -32,6 +42,9 @@ class TaskStatus:
         self._restore_status()
 
     def _default_init_status(self):
+        """
+        Default initialization of the status dict
+        """
         self._status[TaskStatus.SIMULATED] = dict()
         self._status[TaskStatus.MERGED] = dict()
         self._status[TaskStatus.FAILED] = dict()
@@ -66,7 +79,8 @@ class TaskStatus:
 
     def save_status(self, write_to_tmp=True):
         """
-        Save the current status to a json file.
+        Save the current status to a json file. Before saving to file, the update queue will be drained, actually carrying out the operations to the dictionary
+        that will be written to file.
 
         Args:
             write_to_tmp: if true, the json data will be written to a temporary file then renamed to the final file
@@ -99,12 +113,32 @@ class TaskStatus:
             self._logger.error(f"Failed to save task status: {e.strerror}")
 
     def _build_eventrange_dict(self, eventrange: EventRange) -> Dict[str, Any]:
+        """
+        Takes an EventRange object and retuns the dict representation which should be saved in the state file
+
+        Args:
+            eventrange: the eventrange to convert
+        Returns:
+            The dictionnary to serialize
+        """
         return {"eventRangeID": eventrange.eventRangeID, "startEvent": eventrange.startEvent, "lastEvent": eventrange.lastEvent}
 
     def set_eventrange_simulated(self, eventrange: EventRange):
+        """
+        Enqueue a message indicating that an event range has been simulated
+
+        Args:
+            eventrange: the event range
+        """
         self._update_queue.append((TaskStatus.SIMULATED, eventrange))
 
     def _set_eventrange_simulated(self, eventrange: EventRange):
+        """
+        Performs the update of the internal dictionnary of a simulated event range
+
+        Args:
+            eventrange: the event range
+        """
         filename = eventrange.PFN
         simulated_dict = self._status[TaskStatus.SIMULATED]
         if filename not in simulated_dict:
@@ -112,16 +146,41 @@ class TaskStatus:
         simulated_dict[filename].append(self._build_eventrange_dict(eventrange))
 
     def set_file_merged(self, inputfile: str, outputfile: str):
+        """
+        Enqueue a message indicating that a file has been merged.
+
+        Args:
+            eventrange: the event range
+        """
         self._update_queue.append((TaskStatus.MERGED, (inputfile, outputfile)))
 
     def _set_file_merged(self, inputfile: str, outputfile: str):
+        """
+        Performs the update of the internal dictionnary of a merged file
+
+        Args:
+            inputfile: the path to the corresponding input file
+            outputfile: the path to the merged file
+        """
         del self._status[TaskStatus.SIMULATED][inputfile]
         self._status[TaskStatus.MERGED][inputfile] = outputfile
 
     def set_eventrange_failed(self, eventrange: EventRange):
+        """
+        Enqueue a message indicating that an event range has failed.
+
+        Args:
+            eventrange: the event range
+        """
         self._update_queue.append((TaskStatus.FAILED, eventrange))
 
     def _set_eventrange_failed(self, eventrange: EventRange):
+        """
+        Performs the update of the internal dictionnary of a failed event range
+
+        Args:
+            eventrange: the event range
+        """
         filename = eventrange.PFN
         failed_dict = self._status[TaskStatus.FAILED]
         if filename not in failed_dict:
@@ -147,10 +206,10 @@ class TaskStatus:
         Total number of event ranges that have failed.
 
         Args:
-            filename: if none, returns the total number of simulated events. If specified, returns the number of events simulated for that specific file
+            filename: if none, returns the total number of failed events. If specified, returns the number of events failed for that specific file
 
         Returns:
-            the number of events simulated
+            the number of events failed
         """
         if filename:
             return len(self._status[TaskStatus.FAILED].get(filename, []))
@@ -208,12 +267,20 @@ class BookKeeper(object):
             task_status.save_status()
 
     def stop_save_thread(self):
+        """
+        Stop and join the thread writing task status to disk and prepare a new thread for execution.
+        """
         self.stop_event.set()
         self.save_state_thread.join()
         self.save_state_thread = ExThread(target=self.save_status, name="status-saver-thread")
 
     def start_save_thread(self):
-        self.save_state_thread.start()
+        """
+        Start the thread responsible for writing task status to disk
+        """
+        if not self.save_state_thread.is_alive():
+            self.stop_event.clear()
+            self.save_state_thread.start()
 
     def get_ranges_to_tar(self) -> List[List[EventRangeDef]]:
         """
@@ -276,10 +343,13 @@ class BookKeeper(object):
 
     def add_jobs(self, jobs: Mapping[str, JobDef], start_save_thread=True) -> None:
         """
-        Register new jobs. Event service jobs will not be assigned to worker until event ranges are added to the job
+        Register new jobs. Event service jobs will not be assigned to worker until event ranges are added to the job.
+        This will also automatically start the thread responsible for saving the task status to file if the parameter start_save_thread is True.
+        If the thread is started, it must be stopped with stop_save_thread before exiting the application
 
         Args:
             jobs: job dict
+            start_save_thread: Automatically starts the thread writing task status to file
 
         Returns:
             None
@@ -289,8 +359,7 @@ class BookKeeper(object):
             job = self.jobs[pandaID]
             if job["taskID"] not in self.taskstatus:
                 self.taskstatus[job['taskID']] = TaskStatus(job, self.config)
-        if start_save_thread and not self.save_state_thread.is_alive():
-            self.stop_event.clear()
+        if start_save_thread:
             self.start_save_thread()
 
     def add_event_ranges(
