@@ -75,4 +75,3 @@ class TestTaskStatus:
         assert len(ts._status[TaskStatus.MERGED]) == 2
         assert ts.get_nmerged() == 2 * nevents / nfiles
         print(ts._status)
-        assert 0
