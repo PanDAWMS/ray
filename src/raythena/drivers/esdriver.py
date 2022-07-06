@@ -109,8 +109,9 @@ class ESDriver(BaseDriver):
         self.tar_timestamp = time.time()
         self.tarinterval = self.config.ray['tarinterval']
         self.tarmaxprocesses = self.config.ray['tarmaxprocesses']
-        self.tar_merge_es_output_dir = os.path.join(self.workdir, "merge_es_output")
-        self.tar_merge_es_files_dir = os.path.join(self.workdir, "merge_es_files")
+        self.outputdir = os.path.expandvars(self.config.ray.get("outputdir", self.workdir))
+        self.tar_merge_es_output_dir = os.path.join(self.outputdir, "merge_es_output")
+        self.tar_merge_es_files_dir = os.path.join(self.outputdir, "merge_es_files")
         self.ranges_to_tar: List[List[EventRangeDef]] = list()
         self.running_tar_threads = dict()
         self.processed_event_ranges = dict()
@@ -122,6 +123,12 @@ class ESDriver(BaseDriver):
         self.tar_executor = concurrent.futures.ThreadPoolExecutor(max_workers=self.tarmaxprocesses)
 
         # create the output directories if needed
+        try:
+            if not os.path.isdir(self.outputdir):
+                os.mkdir(self.outputdir)
+        except Exception:
+            self._logger.warning(f"Exception when creating the {self.outputdir}")
+            raise
         try:
             if not os.path.isdir(self.tar_merge_es_output_dir):
                 os.mkdir(self.tar_merge_es_output_dir)
