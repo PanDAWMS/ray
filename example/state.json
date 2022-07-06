@@ -1,0 +1,42 @@
+{
+    "simulated": {
+        "INPUTFILE1": [
+            {
+                "startEvent": "",
+                "lastEvent": "",
+                "eventRangeID": ""
+            },
+            {
+                "startEvent": "",
+                "lastEvent": "",
+                "eventRangeID": ""
+            }
+        ],
+        "INPUTFILE2": [
+            {
+                "startEvent": "",
+                "lastEvent": "",
+                "eventRangeID": ""
+            },
+            {
+                "startEvent": "",
+                "lastEvent": "",
+                "eventRangeID": ""
+            }
+        ]
+    },
+    "failed": {
+        "INPUTFILE1": [
+            {
+                "startEvent": "",
+                "lastEvent": "",
+                "eventRangeID": ""
+            }
+        ]
+    },
+    "merged": {
+        "INPUTFILE3": "OUTPUTFILE3",
+        "INPUTFILE4": "OUTPUTFILE4",
+        "INPUTFILE5": "OUTPUTFILE5"
+    }
+}
