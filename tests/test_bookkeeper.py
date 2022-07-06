@@ -8,7 +8,7 @@ class TestBookKeeper:
 
     def test_add_jobs(self, is_eventservice, config, sample_multijobs, njobs):
         bookKeeper = BookKeeper(config)
-        bookKeeper.add_jobs(sample_multijobs)
+        bookKeeper.add_jobs(sample_multijobs, False)
         assert len(bookKeeper.jobs) == njobs
         for pandaID in bookKeeper.jobs:
             assert pandaID in sample_multijobs
@@ -16,7 +16,7 @@ class TestBookKeeper:
     def test_assign_job_to_actor(elf, is_eventservice, config, sample_multijobs,
                                  njobs, sample_ranges, nevents):
         bookKeeper = BookKeeper(config)
-        bookKeeper.add_jobs(sample_multijobs)
+        bookKeeper.add_jobs(sample_multijobs, False)
         actor_id = "a1"
         if not is_eventservice:
             job = None
@@ -45,7 +45,7 @@ class TestBookKeeper:
             pytest.skip()
 
         bookKeeper = BookKeeper(config)
-        bookKeeper.add_jobs(sample_multijobs)
+        bookKeeper.add_jobs(sample_multijobs, False)
 
         assert bookKeeper.has_jobs_ready()
 
@@ -79,7 +79,7 @@ class TestBookKeeper:
         worker_ids = [f"w_{i}" for i in range(10)]
 
         bookKeeper = BookKeeper(config)
-        bookKeeper.add_jobs(sample_multijobs)
+        bookKeeper.add_jobs(sample_multijobs, False)
         bookKeeper.add_event_ranges(sample_ranges)
 
         for wid in worker_ids:
@@ -105,7 +105,7 @@ class TestBookKeeper:
 
         def __inner__(range_update, failed=False):
             bookKeeper = BookKeeper(config)
-            bookKeeper.add_jobs(sample_multijobs)
+            bookKeeper.add_jobs(sample_multijobs, False)
             bookKeeper.add_event_ranges(sample_ranges)
 
             for i in range(njobs):
@@ -125,7 +125,7 @@ class TestBookKeeper:
         __inner__(sample_failed_rangeupdate, True)
 
         bookKeeper = BookKeeper(config)
-        bookKeeper.add_jobs(sample_multijobs)
+        bookKeeper.add_jobs(sample_multijobs, False)
         bookKeeper.add_event_ranges(sample_ranges)
         for _ in range(njobs):
             job = bookKeeper.assign_job_to_actor(actor_id)
@@ -163,7 +163,7 @@ class TestBookKeeper:
         actor_id_2 = "a2"
 
         bookKeeper = BookKeeper(config)
-        bookKeeper.add_jobs(sample_multijobs)
+        bookKeeper.add_jobs(sample_multijobs, False)
         bookKeeper.add_event_ranges(sample_ranges)
 
         job = bookKeeper.assign_job_to_actor(actor_id_1)
