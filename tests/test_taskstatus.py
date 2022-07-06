@@ -7,7 +7,7 @@ from raythena.utils.eventservice import EventRange, PandaJob
 class TestTaskStatus:
 
     def test_save_restore_status(self, tmp_path, config, sample_job, sample_ranges):
-        os.chdir(tmp_path)
+        config.ray["outputdir"] = tmp_path
         job = PandaJob(list(sample_job.values())[0])
         ts = TaskStatus(job, config)
 
@@ -23,7 +23,7 @@ class TestTaskStatus:
         assert ts._status == ts2._status
 
     def test_set_processed(self, nfiles, nevents, tmp_path, config, sample_job, sample_ranges):
-        os.chdir(tmp_path)
+        config.ray["outputdir"] = tmp_path
         job = PandaJob(list(sample_job.values())[0])
         ts = TaskStatus(job, config)
 
@@ -38,7 +38,7 @@ class TestTaskStatus:
         assert ts.get_nmerged() == 0
 
     def test_set_failed(self, nfiles, nevents, tmp_path, config, sample_job, sample_ranges):
-        os.chdir(tmp_path)
+        config.ray["outputdir"] = tmp_path
         job = PandaJob(list(sample_job.values())[0])
         ts = TaskStatus(job, config)
 
@@ -53,7 +53,7 @@ class TestTaskStatus:
         assert ts.get_nmerged() == 0
 
     def test_set_merged(self, nfiles, nevents, tmp_path, config, sample_job, sample_ranges):
-        os.chdir(tmp_path)
+        config.ray["outputdir"] = tmp_path
         job = PandaJob(list(sample_job.values())[0])
         ts = TaskStatus(job, config)
         ts._events_per_file = nevents / nfiles
