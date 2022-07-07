@@ -15,6 +15,7 @@ from typing import (Any, Dict, Iterator, List, Mapping, Sequence,
 import ray
 from ray.exceptions import RayActorError
 from ray.types import ObjectRef
+from raythena import __version__
 from raythena.actors.esworker import ESWorker, WorkerResponse
 from raythena.drivers.baseDriver import BaseDriver
 from raythena.drivers.communicators.baseCommunicator import (BaseCommunicator,
@@ -80,7 +81,7 @@ class ESDriver(BaseDriver):
             # TODO removing stdout on the root logger will also disable ray logging and collected stdout from actors
             disable_stdout_logging()
 
-        self._logger.debug(f"Raythena initializing, running Ray {ray.__version__} on {gethostname()}")
+        self._logger.debug(f"Raythena v{__version__} initializing, running Ray {ray.__version__} on {gethostname()}")
 
         self.outputdir = os.path.expandvars(self.config.ray.get("outputdir", self.workdir))
         self.config.ray["outputdir"] = self.outputdir
@@ -367,13 +368,13 @@ class ESDriver(BaseDriver):
         evt_range = self.bookKeeper.fetch_event_ranges(
             actor_id, n_ranges)
         # did not fetch enough events and harvester might have more, needs to get more events now
-        while (len(evt_range) < n_ranges and
-               not self.bookKeeper.is_flagged_no_more_events(
-                   panda_id)):
-            self.request_event_ranges(block=True)
-            n_ranges = max(0, min(data[panda_id]['nRanges'], self.available_events_per_actor) - len(evt_range))
-            evt_range += self.bookKeeper.fetch_event_ranges(
-                actor_id, n_ranges)
+        # while (len(evt_range) < n_ranges and
+        #        not self.bookKeeper.is_flagged_no_more_events(
+        #            panda_id)):
+        #     # self.request_event_ranges(block=True)
+        #     n_ranges = max(0, min(data[panda_id]['nRanges'], self.available_events_per_actor) - len(evt_range))
+        #     evt_range += self.bookKeeper.fetch_event_ranges(
+        #         actor_id, n_ranges)
         if evt_range:
             total_sent += len(evt_range)
         self.actors_message_queue.append(self[actor_id].receive_event_ranges.remote(
@@ -393,8 +394,10 @@ class ESDriver(BaseDriver):
         """
         job = self.bookKeeper.assign_job_to_actor(actor_id)
         if not job:
-            self.request_event_ranges(block=True)
-            job = self.bookKeeper.assign_job_to_actor(actor_id)
+            self._logger.warn(f"Could not assign a job to {actor_id}")
+            return
+            # self.request_event_ranges(block=True)
+            # job = self.bookKeeper.assign_job_to_actor(actor_id)
 
         self.actors_message_queue.append(self[actor_id].receive_job.remote(
             Messages.REPLY_OK
@@ -461,7 +464,7 @@ class ESDriver(BaseDriver):
         """
         self.get_tar_results()
         self.tar_es_output()
-        self.request_event_ranges()
+        # self.request_event_ranges()
 
     def cleanup(self) -> None:
         """
@@ -496,7 +499,7 @@ class ESDriver(BaseDriver):
         self.bookKeeper.add_jobs(jobs)
 
         # sends an initial event range request
-        self.request_event_ranges(block=True)
+        # self.request_event_ranges(block=True)
         if not self.bookKeeper.has_jobs_ready():
             # self.cpu_monitor.stop()
             self.communicator.stop()
@@ -513,7 +516,7 @@ class ESDriver(BaseDriver):
         self.create_actors()
 
         self.start_actors()
-        self.request_event_ranges()
+        # self.request_event_ranges()
         try:
             self.handle_actors()
         except Exception as e:
