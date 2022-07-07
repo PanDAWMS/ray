@@ -61,7 +61,6 @@ class ESDriver(BaseDriver):
         """
         super().__init__(config, session_dir)
         self.id = "Driver"
-        self.config_remote = ray.put(self.config)
         self._logger = make_logger(self.config, self.id)
         self.session_log_dir = os.path.join(self.session_dir, "logs")
         self.nodes = build_nodes_resource_list(self.config, run_actor_on_head=False)
@@ -83,18 +82,22 @@ class ESDriver(BaseDriver):
 
         self._logger.debug(f"Raythena initializing, running Ray {ray.__version__} on {gethostname()}")
 
+        self.outputdir = os.path.expandvars(self.config.ray.get("outputdir", self.workdir))
+        self.config.ray["outputdir"] = self.outputdir
+        self.tar_merge_es_output_dir = self.outputdir
+        self.tar_merge_es_files_dir = self.outputdir
         # self.cpu_monitor = CPUMonitor(os.path.join(workdir, "cpu_monitor_driver.json"))
         # self.cpu_monitor.start()
 
         self.communicator: BaseCommunicator = HarvesterFileCommunicator(self.requests_queue,
                                                                         self.jobs_queue,
                                                                         self.event_ranges_queue,
-                                                                        config)
+                                                                        self.config)
         self.communicator.start()
         self.requests_queue.put(PandaJobRequest())
         self.actors: Dict[str, ESWorker] = dict()
         self.actors_message_queue = list()
-        self.bookKeeper = BookKeeper(config)
+        self.bookKeeper = BookKeeper(self.config)
         self.terminated = list()
         self.running = True
         self.n_eventsrequest = 0
@@ -109,9 +112,6 @@ class ESDriver(BaseDriver):
         self.tar_timestamp = time.time()
         self.tarinterval = self.config.ray['tarinterval']
         self.tarmaxprocesses = self.config.ray['tarmaxprocesses']
-        self.outputdir = os.path.expandvars(self.config.ray.get("outputdir", self.workdir))
-        self.tar_merge_es_output_dir = os.path.join(self.outputdir, "merge_es_output")
-        self.tar_merge_es_files_dir = os.path.join(self.outputdir, "merge_es_files")
         self.ranges_to_tar: List[List[EventRangeDef]] = list()
         self.running_tar_threads = dict()
         self.processed_event_ranges = dict()
@@ -120,6 +120,7 @@ class ESDriver(BaseDriver):
         self.available_events_per_actor = 0
         self.total_tar_tasks = 0
         self.remote_jobdef_byid = dict()
+        self.config_remote = ray.put(self.config)
         self.tar_executor = concurrent.futures.ThreadPoolExecutor(max_workers=self.tarmaxprocesses)
 
         # create the output directories if needed
