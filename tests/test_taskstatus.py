@@ -1,5 +1,3 @@
-import os
-
 from raythena.utils.bookkeeper import TaskStatus
 from raythena.utils.eventservice import EventRange, PandaJob
 
