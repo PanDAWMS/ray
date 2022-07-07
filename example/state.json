@@ -1,38 +1,42 @@
 {
     "simulated": {
-        "INPUTFILE1": [
-            {
+        "INPUTFILE1": {
+            "RANGEID1": {
                 "startEvent": "",
                 "lastEvent": "",
-                "eventRangeID": ""
+                "eventRangeID": "RANGEID1",
+                "path": ""
             },
-            {
+            "RANGEID2": {
                 "startEvent": "",
                 "lastEvent": "",
-                "eventRangeID": ""
+                "eventRangeID": "RANGEID2",
+                "path": ""
             }
-        ],
-        "INPUTFILE2": [
-            {
+        },
+        "INPUTFILE2": {
+            "RANGEID3": {
                 "startEvent": "",
                 "lastEvent": "",
-                "eventRangeID": ""
+                "eventRangeID": "RANGEID3",
+                "path": ""
             },
-            {
+            "RANGEID4": {
                 "startEvent": "",
                 "lastEvent": "",
-                "eventRangeID": ""
+                "eventRangeID": "RANGEID4",
+                "path": ""
             }
-        ]
+        }
     },
     "failed": {
-        "INPUTFILE1": [
-            {
+        "INPUTFILE1": {
+            "RANGEID5": {
                 "startEvent": "",
                 "lastEvent": "",
-                "eventRangeID": ""
+                "eventRangeID": "RANGEID5"
             }
-        ]
+        }
     },
     "merged": {
         "INPUTFILE3": "OUTPUTFILE3",
