@@ -9,12 +9,11 @@ payload:
   containerextraargs:
 
 harvester:
-  cacher: /home/dbenjamin/harvester-py3
   endpoint: /lcrc/group/ATLAS/harvester/var/lib/workdir/panda
-  communicator: harvesterFileMessenger:HarvesterFileCommunicator
   harvesterconf: /home/dbenjamin/harvester-py3/etc/panda/panda_harvester.cfg
 
 ray:
+  outputdir:
   headip:
   redisport:
   redispassword:

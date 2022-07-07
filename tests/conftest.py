@@ -28,6 +28,7 @@ def config(config_path):
                   ray_redis_password=None,
                   ray_redis_port=None,
                   ray_workdir=None,
+                  ray_outputdir=None,
                   harvester_endpoint=None,
                   panda_queue=None,
                   core_per_node=None)
@@ -43,9 +44,9 @@ def njobs():
     return 1
 
 
-@pytest.fixture(params=[True, False])
+@pytest.fixture
 def is_eventservice(request):
-    return request.param
+    return True
 
 
 @pytest.fixture
