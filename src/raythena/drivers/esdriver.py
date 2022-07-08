@@ -507,6 +507,7 @@ class ESDriver(BaseDriver):
             time.sleep(5)
             return
 
+        self.available_events_per_actor = max(1, ceil(self.bookKeeper.n_ready(self.bookKeeper.jobs.next_job_id_to_process()) / self.n_actors))
         for pandaID in self.bookKeeper.jobs:
             cjob = self.bookKeeper.jobs[pandaID]
             os.makedirs(

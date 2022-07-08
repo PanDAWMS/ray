@@ -393,7 +393,7 @@ class BookKeeper(object):
                 file_simulated_ranges = simulated_ranges.get(file)
                 file_failed_ranges = failed_ranges.get(file)
                 # TODO: get actual # of event ranges per file from Harvester
-                for i in range(500):
+                for i in range(1, 501):
                     range_id = f"{file}-{i}"
                     if file_failed_ranges and range_id in file_failed_ranges:
                         continue
