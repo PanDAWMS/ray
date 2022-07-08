@@ -390,14 +390,14 @@ class BookKeeper(object):
             for file, guid in zip(files, guids):
                 if file in merged_files:
                     continue
-                file_simulated_ranges = simulated_ranges[file]
-                file_failed_ranges = failed_ranges[file]
+                file_simulated_ranges = simulated_ranges.get(file)
+                file_failed_ranges = failed_ranges.get(file)
                 # TODO: get actual # of event ranges per file from Harvester
                 for i in range(500):
                     range_id = f"{file}-{i}"
-                    if range_id in file_failed_ranges:
+                    if file_failed_ranges and range_id in file_failed_ranges:
                         continue
-                    if range_id in file_simulated_ranges:
+                    if file_simulated_ranges and range_id in file_simulated_ranges:
                         # TODO: temporary while event ranges are tarred instead of merged
                         range_file = file_simulated_ranges[range_id]["path"]
                         fsize = os.path.getsize(os.path.join(self.output_dir, range_file))
