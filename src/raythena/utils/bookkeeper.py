@@ -11,6 +11,7 @@ from typing import Deque, Dict, Set, Optional, List, Mapping, Sequence, Union, T
 
 import time
 import os
+import re
 
 
 class TaskStatus:
@@ -37,7 +38,7 @@ class TaskStatus:
         self.filepath = os.path.join(self.output_dir, f"{self.job['taskID']}.json")
         self.tmpfilepath = f"{self.filepath}.tmp"
         self._events_per_file = 500
-        self._status: Dict[str, Union[Dict[str, List[Dict[str, str]]], List[str]]] = dict()
+        self._status: Dict[str, Union[Dict[str, Dict[str, Dict[str, str]]], Dict[str, str]]] = dict()
         self._update_queue: Deque[Tuple[str, Union[EventRange, Tuple]]] = collections.deque()
         self._restore_status()
 
@@ -94,7 +95,7 @@ class TaskStatus:
         while self._update_queue:
             operation_type, data = self._update_queue.popleft()
             if operation_type == TaskStatus.SIMULATED:
-                self._set_eventrange_simulated(data)
+                self._set_eventrange_simulated(*data)
             elif operation_type == TaskStatus.MERGED:
                 self._set_file_merged(*data)
             elif operation_type == TaskStatus.FAILED:
@@ -112,7 +113,7 @@ class TaskStatus:
         except OSError as e:
             self._logger.error(f"Failed to save task status: {e.strerror}")
 
-    def _build_eventrange_dict(self, eventrange: EventRange) -> Dict[str, Any]:
+    def _build_eventrange_dict(self, eventrange: EventRange, output_file: str = None) -> Dict[str, Any]:
         """
         Takes an EventRange object and retuns the dict representation which should be saved in the state file
 
@@ -121,18 +122,21 @@ class TaskStatus:
         Returns:
             The dictionnary to serialize
         """
-        return {"eventRangeID": eventrange.eventRangeID, "startEvent": eventrange.startEvent, "lastEvent": eventrange.lastEvent}
+        res = {"eventRangeID": eventrange.eventRangeID, "startEvent": eventrange.startEvent, "lastEvent": eventrange.lastEvent}
+        if output_file:
+            res["path"] = output_file
+        return res
 
-    def set_eventrange_simulated(self, eventrange: EventRange):
+    def set_eventrange_simulated(self, eventrange: EventRange, simulation_output_file: str):
         """
         Enqueue a message indicating that an event range has been simulated
 
         Args:
             eventrange: the event range
         """
-        self._update_queue.append((TaskStatus.SIMULATED, eventrange))
+        self._update_queue.append((TaskStatus.SIMULATED, (eventrange, simulation_output_file)))
 
-    def _set_eventrange_simulated(self, eventrange: EventRange):
+    def _set_eventrange_simulated(self, eventrange: EventRange, simulation_output_file: str):
         """
         Performs the update of the internal dictionnary of a simulated event range
 
@@ -142,8 +146,8 @@ class TaskStatus:
         filename = eventrange.PFN
         simulated_dict = self._status[TaskStatus.SIMULATED]
         if filename not in simulated_dict:
-            simulated_dict[filename] = list()
-        simulated_dict[filename].append(self._build_eventrange_dict(eventrange))
+            simulated_dict[filename] = dict()
+        simulated_dict[filename][eventrange.eventRangeID] = self._build_eventrange_dict(eventrange, simulation_output_file)
 
     def set_file_merged(self, inputfile: str, outputfile: str):
         """
@@ -184,8 +188,8 @@ class TaskStatus:
         filename = eventrange.PFN
         failed_dict = self._status[TaskStatus.FAILED]
         if filename not in failed_dict:
-            failed_dict[filename] = list()
-        failed_dict[filename].append(self._build_eventrange_dict(eventrange))
+            failed_dict[filename] = dict()
+        failed_dict[filename][eventrange.eventRangeID] = self._build_eventrange_dict(eventrange)
 
     def get_nsimulated(self, filename=None) -> int:
         """
@@ -239,10 +243,10 @@ class BookKeeper(object):
     def __init__(self, config: Config) -> None:
         self.jobs: PandaJobQueue = PandaJobQueue()
         self.config: Config = config
+        self.output_dir = config.ray.get("outputdir")
         self._logger = make_logger(self.config, "BookKeeper")
         self.actors: Dict[str, Optional[str]] = dict()
         self.rangesID_by_actor: Dict[str, Set[str]] = dict()
-        self.finished_range_by_input_file: Dict[str, List[EventRangeDef]] = dict()
         self.ranges_to_tar_by_input_file: Dict[str, List[EventRangeDef]] = dict()
         self.ranges_to_tar: List[List[EventRangeDef]] = list()
         self.ranges_tarred_up: List[List[EventRangeDef]] = list()
@@ -358,9 +362,52 @@ class BookKeeper(object):
         for pandaID in self.jobs:
             job = self.jobs[pandaID]
             if job["taskID"] not in self.taskstatus:
-                self.taskstatus[job['taskID']] = TaskStatus(job, self.config)
+                ts = TaskStatus(job, self.config)
+                self.taskstatus[job['taskID']] = ts
+                self._generate_event_ranges(job, ts)
         if start_save_thread:
             self.start_save_thread()
+
+    def _generate_event_ranges(self, job: PandaJob, task_status: TaskStatus):
+        """
+        Generates all the event ranges which still need to be simulated and adds them to the
+        EventRangeQueue of the job.
+
+        Args:
+            job: the job to which the generated event ranges will be assigned
+            task_status: current status of the panda task
+        """
+
+        input_evnt_files = re.findall(r"\-\-inputEVNTFile=([\w\.\,]*) \-", job["jobPars"])
+        if input_evnt_files:
+            guids = job["GUID"].split(',')
+            files = input_evnt_files[0].split(',')
+            scope = job["scopeIn"]
+            event_ranges = []
+            merged_files = task_status._status[TaskStatus.MERGED]
+            simulated_ranges = task_status._status[TaskStatus.SIMULATED]
+            failed_ranges = task_status._status[TaskStatus.FAILED]
+            for file, guid in zip(files, guids):
+                if file in merged_files:
+                    continue
+                file_simulated_ranges = simulated_ranges.get(file)
+                file_failed_ranges = failed_ranges.get(file)
+                # TODO: get actual # of event ranges per file from Harvester
+                for i in range(1, 501):
+                    range_id = f"{file}-{i}"
+                    if file_failed_ranges and range_id in file_failed_ranges:
+                        continue
+                    if file_simulated_ranges and range_id in file_simulated_ranges:
+                        # TODO: temporary while event ranges are tarred instead of merged
+                        range_file = file_simulated_ranges[range_id]["path"]
+                        fsize = os.path.getsize(os.path.join(self.output_dir, range_file))
+                        if not self.ranges_to_tar_by_input_file[file]:
+                            self.ranges_to_tar_by_input_file[file] = []
+                        self.ranges_to_tar_by_input_file[file].append({'eventRangeID': range_id, 'path': range_file, 'fsize': fsize})
+                    else:
+                        event_range = EventRange(range_id, i, i, file, guid, scope)
+                        event_ranges.append(event_range)
+            job.event_ranges_queue.add_new_event_ranges(event_ranges)
 
     def add_event_ranges(
             self, event_ranges: Mapping[str, Sequence[EventRangeDef]]) -> None:
@@ -482,12 +529,9 @@ class BookKeeper(object):
                 if r['eventStatus'] == EventRange.DONE:
                     event_range = job_ranges[range_id]
                     file_basename = os.path.basename(event_range.PFN)
-                    if file_basename not in self.finished_range_by_input_file:
-                        self.finished_range_by_input_file[file_basename] = list()
                     if file_basename not in self.ranges_to_tar_by_input_file:
                         self.ranges_to_tar_by_input_file[file_basename] = list()
-                    self.finished_range_by_input_file[file_basename].append(r)
-                    task_status.set_eventrange_simulated(job_ranges[range_id])
+                    task_status.set_eventrange_simulated(job_ranges[range_id], r['path'])
                     r['PanDAID'] = panda_id
                     self.ranges_to_tar_by_input_file[file_basename].append(r)
                 elif r['eventStatus'] in [EventRange.FAILED, EventRange.FATAL]:

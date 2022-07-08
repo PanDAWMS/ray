@@ -15,6 +15,7 @@ from typing import (Any, Dict, Iterator, List, Mapping, Sequence,
 import ray
 from ray.exceptions import RayActorError
 from ray.types import ObjectRef
+from raythena import __version__
 from raythena.actors.esworker import ESWorker, WorkerResponse
 from raythena.drivers.baseDriver import BaseDriver
 from raythena.drivers.communicators.baseCommunicator import (BaseCommunicator,
@@ -61,7 +62,6 @@ class ESDriver(BaseDriver):
         """
         super().__init__(config, session_dir)
         self.id = "Driver"
-        self.config_remote = ray.put(self.config)
         self._logger = make_logger(self.config, self.id)
         self.session_log_dir = os.path.join(self.session_dir, "logs")
         self.nodes = build_nodes_resource_list(self.config, run_actor_on_head=False)
@@ -81,20 +81,24 @@ class ESDriver(BaseDriver):
             # TODO removing stdout on the root logger will also disable ray logging and collected stdout from actors
             disable_stdout_logging()
 
-        self._logger.debug(f"Raythena initializing, running Ray {ray.__version__} on {gethostname()}")
+        self._logger.debug(f"Raythena v{__version__} initializing, running Ray {ray.__version__} on {gethostname()}")
 
+        self.outputdir = os.path.expandvars(self.config.ray.get("outputdir", self.workdir))
+        self.config.ray["outputdir"] = self.outputdir
+        self.tar_merge_es_output_dir = self.outputdir
+        self.tar_merge_es_files_dir = self.outputdir
         # self.cpu_monitor = CPUMonitor(os.path.join(workdir, "cpu_monitor_driver.json"))
         # self.cpu_monitor.start()
 
         self.communicator: BaseCommunicator = HarvesterFileCommunicator(self.requests_queue,
                                                                         self.jobs_queue,
                                                                         self.event_ranges_queue,
-                                                                        config)
+                                                                        self.config)
         self.communicator.start()
         self.requests_queue.put(PandaJobRequest())
         self.actors: Dict[str, ESWorker] = dict()
         self.actors_message_queue = list()
-        self.bookKeeper = BookKeeper(config)
+        self.bookKeeper = BookKeeper(self.config)
         self.terminated = list()
         self.running = True
         self.n_eventsrequest = 0
@@ -109,9 +113,6 @@ class ESDriver(BaseDriver):
         self.tar_timestamp = time.time()
         self.tarinterval = self.config.ray['tarinterval']
         self.tarmaxprocesses = self.config.ray['tarmaxprocesses']
-        self.outputdir = os.path.expandvars(self.config.ray.get("outputdir", self.workdir))
-        self.tar_merge_es_output_dir = os.path.join(self.outputdir, "merge_es_output")
-        self.tar_merge_es_files_dir = os.path.join(self.outputdir, "merge_es_files")
         self.ranges_to_tar: List[List[EventRangeDef]] = list()
         self.running_tar_threads = dict()
         self.processed_event_ranges = dict()
@@ -120,6 +121,7 @@ class ESDriver(BaseDriver):
         self.available_events_per_actor = 0
         self.total_tar_tasks = 0
         self.remote_jobdef_byid = dict()
+        self.config_remote = ray.put(self.config)
         self.tar_executor = concurrent.futures.ThreadPoolExecutor(max_workers=self.tarmaxprocesses)
 
         # create the output directories if needed
@@ -366,13 +368,13 @@ class ESDriver(BaseDriver):
         evt_range = self.bookKeeper.fetch_event_ranges(
             actor_id, n_ranges)
         # did not fetch enough events and harvester might have more, needs to get more events now
-        while (len(evt_range) < n_ranges and
-               not self.bookKeeper.is_flagged_no_more_events(
-                   panda_id)):
-            self.request_event_ranges(block=True)
-            n_ranges = max(0, min(data[panda_id]['nRanges'], self.available_events_per_actor) - len(evt_range))
-            evt_range += self.bookKeeper.fetch_event_ranges(
-                actor_id, n_ranges)
+        # while (len(evt_range) < n_ranges and
+        #        not self.bookKeeper.is_flagged_no_more_events(
+        #            panda_id)):
+        #     # self.request_event_ranges(block=True)
+        #     n_ranges = max(0, min(data[panda_id]['nRanges'], self.available_events_per_actor) - len(evt_range))
+        #     evt_range += self.bookKeeper.fetch_event_ranges(
+        #         actor_id, n_ranges)
         if evt_range:
             total_sent += len(evt_range)
         self.actors_message_queue.append(self[actor_id].receive_event_ranges.remote(
@@ -392,8 +394,10 @@ class ESDriver(BaseDriver):
         """
         job = self.bookKeeper.assign_job_to_actor(actor_id)
         if not job:
-            self.request_event_ranges(block=True)
-            job = self.bookKeeper.assign_job_to_actor(actor_id)
+            self._logger.warn(f"Could not assign a job to {actor_id}")
+            return
+            # self.request_event_ranges(block=True)
+            # job = self.bookKeeper.assign_job_to_actor(actor_id)
 
         self.actors_message_queue.append(self[actor_id].receive_job.remote(
             Messages.REPLY_OK
@@ -460,7 +464,7 @@ class ESDriver(BaseDriver):
         """
         self.get_tar_results()
         self.tar_es_output()
-        self.request_event_ranges()
+        # self.request_event_ranges()
 
     def cleanup(self) -> None:
         """
@@ -495,7 +499,7 @@ class ESDriver(BaseDriver):
         self.bookKeeper.add_jobs(jobs)
 
         # sends an initial event range request
-        self.request_event_ranges(block=True)
+        # self.request_event_ranges(block=True)
         if not self.bookKeeper.has_jobs_ready():
             # self.cpu_monitor.stop()
             self.communicator.stop()
@@ -503,6 +507,7 @@ class ESDriver(BaseDriver):
             time.sleep(5)
             return
 
+        self.available_events_per_actor = max(1, ceil(self.bookKeeper.n_ready(self.bookKeeper.jobs.next_job_id_to_process()) / self.n_actors))
         for pandaID in self.bookKeeper.jobs:
             cjob = self.bookKeeper.jobs[pandaID]
             os.makedirs(
@@ -512,7 +517,7 @@ class ESDriver(BaseDriver):
         self.create_actors()
 
         self.start_actors()
-        self.request_event_ranges()
+        # self.request_event_ranges()
         try:
             self.handle_actors()
         except Exception as e:

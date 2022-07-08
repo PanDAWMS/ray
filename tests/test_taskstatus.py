@@ -11,7 +11,7 @@ class TestTaskStatus:
 
         ranges_list = list(sample_ranges.values())[0]
         for r in ranges_list:
-            ts.set_eventrange_simulated(EventRange.build_from_dict(r))
+            ts.set_eventrange_simulated(EventRange.build_from_dict(r), "outputfile")
 
         fname = EventRange.build_from_dict(ranges_list[0]).PFN
         ts.set_file_merged(fname, f"{fname}-MERGED")
@@ -27,7 +27,7 @@ class TestTaskStatus:
 
         ranges_list = list(sample_ranges.values())[0]
         for r in ranges_list:
-            ts.set_eventrange_simulated(EventRange.build_from_dict(r))
+            ts.set_eventrange_simulated(EventRange.build_from_dict(r), "outputfile")
 
         # need to save as set_event_range_simulated is lazy
         ts.save_status()
@@ -57,7 +57,7 @@ class TestTaskStatus:
         ts._events_per_file = nevents / nfiles
         ranges_list = list(sample_ranges.values())[0]
         for r in ranges_list:
-            ts.set_eventrange_simulated(EventRange.build_from_dict(r))
+            ts.set_eventrange_simulated(EventRange.build_from_dict(r), "outputfile")
 
         fname = EventRange.build_from_dict(ranges_list[0]).PFN
         ts.set_file_merged(fname, f"{fname}-MERGED")
