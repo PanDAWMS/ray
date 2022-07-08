@@ -9,7 +9,7 @@ import zlib
 from math import ceil
 from queue import Empty, Queue
 from socket import gethostname
-from typing import (Any, Dict, Iterator, List, Mapping, Sequence,Set, Union, Iterable,
+from typing import (Any, Dict, Iterator, List, Mapping, Sequence, Iterable,
                     Tuple)
 from subprocess import DEVNULL, Popen
 
@@ -34,7 +34,6 @@ from raythena.utils.exception import BaseRaythenaException
 from raythena.utils.logging import (disable_stdout_logging, log_to_file,
                                     make_logger)
 from raythena.utils.ray import build_nodes_resource_list
-from raythena import __version__
 
 
 class ESDriver(BaseDriver):
