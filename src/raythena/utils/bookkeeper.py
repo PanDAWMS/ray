@@ -166,7 +166,11 @@ class TaskStatus:
             inputfile: the path to the corresponding input file
             outputfile: the path to the merged file
         """
-        del self._status[TaskStatus.SIMULATED][inputfile]
+
+        # unlikely but we could have a file with only failed events
+        # do not delete entry of failed event ranges to keep track of it
+        if inputfile in self._status[TaskStatus.SIMULATED]:
+            del self._status[TaskStatus.SIMULATED][inputfile]
         self._status[TaskStatus.MERGED][inputfile] = outputfile
 
     def set_eventrange_failed(self, eventrange: EventRange):
@@ -247,28 +251,40 @@ class BookKeeper(object):
         self._logger = make_logger(self.config, "BookKeeper")
         self.actors: Dict[str, Optional[str]] = dict()
         self.rangesID_by_actor: Dict[str, Set[str]] = dict()
-        self.ranges_to_tar_by_input_file: Dict[str, List[EventRangeDef]] = dict()
-        self.ranges_to_tar: List[List[EventRangeDef]] = list()
-        self.ranges_tarred_up: List[List[EventRangeDef]] = list()
-        self.ranges_tarred_by_output_file: Dict[str, List[EventRangeDef]] = dict()
-        self.start_time: float = time.time()
-        self.tarmaxfilesize: int = self.config.ray['tarmaxfilesize']
+        self.files_ready_to_merge: Dict[str, List[str]] = dict()
         self.last_status_print = time.time()
         self.taskstatus: Dict[str, TaskStatus] = dict()
         self.stop_event = threading.Event()
-        self.save_state_thread = ExThread(target=self.save_status, name="status-saver-thread")
+        self.save_state_thread = ExThread(target=self._saver_thead_run, name="status-saver-thread")
 
-    def save_status(self):
+    def _saver_thead_run(self):
 
         while not self.stop_event.is_set():
             for task_status in self.taskstatus.values():
                 task_status.save_status()
+            self.check_mergeable_files()
             # wait for 60s before next update or until the stop condition is met
             self.stop_event.wait(60.0)
 
         # Perform a last drain of pending update before stopping
         for task_status in self.taskstatus.values():
             task_status.save_status()
+        self.check_mergeable_files()
+
+    def check_mergeable_files(self):
+        """
+        Goes through the current task status, checks if a file has been entierly processed (event ranges all simulated or failed) and
+        if so adds the file to self.files_ready_to_merge
+        """
+        empty = []
+        for task_status in self.taskstatus.values():
+            simulated = task_status._status[TaskStatus.SIMULATED]
+            failed = task_status._status[TaskStatus.FAILED]
+            for input_file in simulated:
+                if input_file in self.files_ready_to_merge:
+                    continue
+                if len(simulated[input_file]) + len(failed.get(input_file, empty)) == 500:
+                    self.files_ready_to_merge[input_file] = list(map(lambda r: r["path"], simulated[input_file].values()))
 
     def stop_save_thread(self):
         """
@@ -276,7 +292,7 @@ class BookKeeper(object):
         """
         self.stop_event.set()
         self.save_state_thread.join()
-        self.save_state_thread = ExThread(target=self.save_status, name="status-saver-thread")
+        self.save_state_thread = ExThread(target=self._saver_thead_run, name="status-saver-thread")
 
     def start_save_thread(self):
         """
@@ -285,65 +301,6 @@ class BookKeeper(object):
         if not self.save_state_thread.is_alive():
             self.stop_event.clear()
             self.save_state_thread.start()
-
-    def get_ranges_to_tar(self) -> List[List[EventRangeDef]]:
-        """
-        Return a list of lists of event Ranges to be written to tar files.
-        Essentially the same structure as get_ranges_to_tar_by_input_file but without the input file name as key.
-
-        Returns:
-            List of Lists of Event Ranges to be put into tar files
-        """
-        return self.ranges_to_tar
-
-    def get_ranges_to_tar_by_input_file(self) -> Dict[str, List[EventRangeDef]]:
-        """
-        Return the dictionary of event Ranges to be written to tar files organized by input file.
-
-        Returns:
-            dict of Event Ranges organized by input file
-        """
-        return self.ranges_to_tar_by_input_file
-
-    def create_ranges_to_tar(self) -> bool:
-        """
-        using the event ranges organized by input file in ranges_to_tar_by_input_file
-        loop over the entries creating a list of lists which contains all of event ranges to be tarred up.
-        update the dictionary of event Ranges to be written to tar files organized by input files
-        removing the event ranges event Range lists organized by input files
-
-        Returns:
-           True if there are any ranges to tar up. False otherwise
-        """
-        return_val = False
-        # loop over input file names and process the list
-        try:
-            self.ranges_to_tar = []
-            for input_file in self.ranges_to_tar_by_input_file:
-                total_file_size = 0
-                file_list = []
-                while self.ranges_to_tar_by_input_file[input_file]:
-                    event_range = self.ranges_to_tar_by_input_file[input_file].pop()
-                    if event_range["fsize"] > self.tarmaxfilesize:
-                        # if an event is larger than max tar size, tar it alone
-                        self.ranges_to_tar.append([event_range])
-                    elif total_file_size + event_range['fsize'] > self.tarmaxfilesize:
-                        # reached the size limit
-                        self.ranges_to_tar_by_input_file[input_file].append(event_range)
-                        self.ranges_to_tar.append(file_list)
-                        total_file_size = 0
-                        file_list = []
-                    else:
-                        total_file_size = total_file_size + event_range['fsize']
-                        file_list.append(event_range)
-                if len(file_list) > 0:
-                    self.ranges_to_tar.append(file_list)
-            if len(self.ranges_to_tar) > 0:
-                return_val = True
-        except Exception:
-            self._logger.debug("create_ranges_to_tar - can not create list of ranges to tar")
-            return_val = False
-        return return_val
 
     def add_jobs(self, jobs: Mapping[str, JobDef], start_save_thread=True) -> None:
         """
@@ -395,15 +352,8 @@ class BookKeeper(object):
                 # TODO: get actual # of event ranges per file from Harvester
                 for i in range(1, 501):
                     range_id = f"{file}-{i}"
-                    if file_failed_ranges and range_id in file_failed_ranges:
+                    if file_failed_ranges and range_id in file_failed_ranges or file_simulated_ranges and range_id in file_simulated_ranges:
                         continue
-                    if file_simulated_ranges and range_id in file_simulated_ranges:
-                        # TODO: temporary while event ranges are tarred instead of merged
-                        range_file = file_simulated_ranges[range_id]["path"]
-                        fsize = os.path.getsize(os.path.join(self.output_dir, range_file))
-                        if not self.ranges_to_tar_by_input_file[file]:
-                            self.ranges_to_tar_by_input_file[file] = []
-                        self.ranges_to_tar_by_input_file[file].append({'eventRangeID': range_id, 'path': range_file, 'fsize': fsize})
                     else:
                         event_range = EventRange(range_id, i, i, file, guid, scope)
                         event_ranges.append(event_range)
@@ -494,6 +444,11 @@ class BookKeeper(object):
         self.rangesID_by_actor[actor_id].update(map(lambda e: e.eventRangeID, ranges))
         return ranges
 
+    def report_merged_file(self, pandaID: str, merged_input_file: str, merged_output_file: str):
+        if merged_input_file in self.files_ready_to_merge:
+            del self.files_ready_to_merge[merged_input_file]
+        self.taskstatus[pandaID].set_file_merged(merged_input_file, merged_output_file)
+
     def process_event_ranges_update(
         self, actor_id: str, event_ranges_update: Union[Sequence[PilotEventRangeUpdateDef], EventRangeUpdate]
     ) -> Optional[Tuple[EventRangeUpdate, EventRangeUpdate]]:
@@ -527,13 +482,7 @@ class BookKeeper(object):
                 range_id = r['eventRangeID']
                 actor_ranges.remove(range_id)
                 if r['eventStatus'] == EventRange.DONE:
-                    event_range = job_ranges[range_id]
-                    file_basename = os.path.basename(event_range.PFN)
-                    if file_basename not in self.ranges_to_tar_by_input_file:
-                        self.ranges_to_tar_by_input_file[file_basename] = list()
                     task_status.set_eventrange_simulated(job_ranges[range_id], r['path'])
-                    r['PanDAID'] = panda_id
-                    self.ranges_to_tar_by_input_file[file_basename].append(r)
                 elif r['eventStatus'] in [EventRange.FAILED, EventRange.FATAL]:
                     self._logger.info(f"Received failed event from {actor_id}: {r}")
                     task_status.set_eventrange_failed(job_ranges[range_id])
