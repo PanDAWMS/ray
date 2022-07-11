@@ -117,7 +117,7 @@ class ESDriver(BaseDriver):
         self.tarmaxprocesses = self.config.ray['tarmaxprocesses']
         self.ranges_to_tar: List[List[EventRangeDef]] = list()
         self.running_tar_threads = dict()
-        self.panda_jobid = None
+        self.panda_taskid = None
         self.running_merge_transforms: Dict[str, Tuple[str, Popen]] = dict()
         self.processed_event_ranges = dict()
         self.failed_actor_tasks_count = dict()
@@ -505,7 +505,7 @@ class ESDriver(BaseDriver):
             self._logger.critical("Raythena can only handle one job")
             return
         self.bookKeeper.add_jobs(jobs)
-        self.panda_jobid = list(jobs.keys())[0]
+        self.panda_taskid = list(jobs.values())[0]["taskID"]
 
         # sends an initial event range request
         # self.request_event_ranges(block=True)
@@ -540,17 +540,10 @@ class ESDriver(BaseDriver):
             except Exception as e:
                 self._logger.error(f"Failed to copy ray logs to workdir: {e}")
 
-        self._logger.debug("Starting new tar tasks")
-        # Workers might have sent event ranges update since last check, create remaining tasks regardless of tar interval
-        self.tar_es_output(True)
-
-        self._logger.debug("Waiting on tar tasks to finish...")
-        while len(self.running_tar_threads) > 0:
-            self.get_tar_results()
-            time.sleep(1)
-
-        self.bookKeeper.stop_save_thread()
+        self._logger.debug("Waiting on merge transforms")
+        # Workers might have sent event ranges update since last check, create possible merge jobs
         self.handle_merge_transforms(True)
+        self.bookKeeper.stop_save_thread()
         self.requests_queue.put(JobReport())
 
         self.communicator.stop()
@@ -612,7 +605,7 @@ class ESDriver(BaseDriver):
             if sub_process.poll() is not None:
                 to_remove.append(input_filename)
                 if sub_process.returncode == 0:
-                    self.bookKeeper.report_merged_file(self.panda_jobid, input_filename, output_filename)
+                    self.bookKeeper.report_merged_file(self.panda_taskid, input_filename, output_filename)
                 else:
                     pass  # TODO handle errors
         for k in to_remove:
@@ -722,6 +715,7 @@ class ESDriver(BaseDriver):
             return
         tmp_dir = tempfile.mkdtemp()
         file_list = " ".join(input_files)
+        output_file = os.path.join(self.outputdir, output_file)
         container_script = "if [[ -f /alrb/postATLASReleaseSetup.sh ]]; then source /alrb/postATLASReleaseSetup.sh; fi;"
         container_script += f"HITSMerge_tf.py --inputHITSFile {file_list} --outputHITS_MRGFile {output_file};"
 

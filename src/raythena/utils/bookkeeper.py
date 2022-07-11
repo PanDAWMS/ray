@@ -444,10 +444,10 @@ class BookKeeper(object):
         self.rangesID_by_actor[actor_id].update(map(lambda e: e.eventRangeID, ranges))
         return ranges
 
-    def report_merged_file(self, pandaID: str, merged_input_file: str, merged_output_file: str):
+    def report_merged_file(self, taskID: str, merged_input_file: str, merged_output_file: str):
         if merged_input_file in self.files_ready_to_merge:
             del self.files_ready_to_merge[merged_input_file]
-        self.taskstatus[pandaID].set_file_merged(merged_input_file, merged_output_file)
+        self.taskstatus[taskID].set_file_merged(merged_input_file, merged_output_file)
 
     def process_event_ranges_update(
         self, actor_id: str, event_ranges_update: Union[Sequence[PilotEventRangeUpdateDef], EventRangeUpdate]
