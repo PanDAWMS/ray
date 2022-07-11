@@ -1,3 +1,4 @@
+from asyncio import subprocess
 import concurrent.futures
 import os
 import shutil
@@ -116,6 +117,8 @@ class ESDriver(BaseDriver):
         self.tarmaxprocesses = self.config.ray['tarmaxprocesses']
         self.ranges_to_tar: List[List[EventRangeDef]] = list()
         self.running_tar_threads = dict()
+        self.panda_jobid = None
+        self.running_merge_transforms: Dict[str, Tuple[str, Popen]] = dict()
         self.processed_event_ranges = dict()
         self.failed_actor_tasks_count = dict()
         self.available_events_per_actor = 0
@@ -463,8 +466,9 @@ class ESDriver(BaseDriver):
         Returns:
             None
         """
-        self.get_tar_results()
-        self.tar_es_output()
+        # self.get_tar_results()
+        # self.tar_es_output()
+        self.handle_merge_transforms()
         # self.request_event_ranges()
 
     def cleanup(self) -> None:
@@ -497,7 +501,11 @@ class ESDriver(BaseDriver):
         if not jobs:
             self._logger.critical("No jobs provided by communicator, stopping...")
             return
+        if len(jobs) > 1:
+            self._logger.critical("Raythena can only handle one job")
+            return
         self.bookKeeper.add_jobs(jobs)
+        self.panda_jobid = list(jobs.keys())[0]
 
         # sends an initial event range request
         # self.request_event_ranges(block=True)
@@ -542,6 +550,7 @@ class ESDriver(BaseDriver):
             time.sleep(1)
 
         self.bookKeeper.stop_save_thread()
+        self.handle_merge_transforms(True)
         self.requests_queue.put(JobReport())
 
         self.communicator.stop()
@@ -587,6 +596,27 @@ class ESDriver(BaseDriver):
             self._logger.warning(f"{actor_id} failed too many times. No longer fetching messages from it")
             if actor_id not in self.terminated:
                 self.terminated.append(actor_id)
+
+    def handle_merge_transforms(self, wait_for_completion=False):
+        for input_filename, hits_files in self.bookKeeper.files_ready_to_merge.items():
+            if input_filename not in self.running_merge_transforms:
+                output_filename = input_filename.replace("EVNT", "HITS")
+                sub_process = self.hits_merge_transform(hits_files, output_filename)
+                self.running_merge_transforms[input_filename] = (output_filename, sub_process)
+
+        to_remove = []
+        for input_filename, (output_filename, sub_process) in self.running_merge_transforms.items():
+            if wait_for_completion:
+                while sub_process.poll() is None:
+                    time.sleep(5)
+            if sub_process.poll() is not None:
+                to_remove.append(input_filename)
+                if sub_process.returncode == 0:
+                    self.bookKeeper.report_merged_file(self.panda_jobid, input_filename, output_filename)
+                else:
+                    pass  # TODO handle errors
+        for k in to_remove:
+            del self.running_merge_transforms[k]
 
     def create_tar_file(self, range_list: List[EventRangeDef]) -> Dict[str, List[EventRangeDef]]:
         """
@@ -678,7 +708,7 @@ class ESDriver(BaseDriver):
             return_dict = {PanDA_id: return_list}
         return return_dict
 
-    def hits_merge_transform(self, input_files: Iterable[str], output_file: str) -> int:
+    def hits_merge_transform(self, input_files: Iterable[str], output_file: str) -> subprocess.Process:
         """
 
         Args:
@@ -700,18 +730,13 @@ class ESDriver(BaseDriver):
         cmd += "export thePlatform=\"${SLURM_SPANK_SHIFTER_IMAGEREQUEST}\";"
         cmd += "source ${ATLAS_LOCAL_ROOT_BASE}/user/atlasLocalSetup.sh --swtype shifter -c $thePlatform -d -s none"
         cmd += f" -r \"{container_script}\" -e \"--clearenv\";RETURN_VAL=$?; rm -r {tmp_dir};exit $RETURN_VAL;"
-        sub_process = Popen(cmd,
-                            stdin=DEVNULL,
-                            stdout=DEVNULL,
-                            stderr=DEVNULL,
-                            shell=True,
-                            cwd=tmp_dir,
-                            close_fds=True)
-
-        while sub_process.poll() is None:
-            time.sleep(5)
-        self._logger.debug(f"Merge transform finished with return code {sub_process.poll()}")
-        return sub_process.returncode
+        return Popen(cmd,
+                     stdin=DEVNULL,
+                     stdout=DEVNULL,
+                     stderr=DEVNULL,
+                     shell=True,
+                     cwd=tmp_dir,
+                     close_fds=True)
 
     def tar_es_output(self, skip_time_check=False) -> None:
         """
