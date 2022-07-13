@@ -85,7 +85,7 @@ class ESDriver(BaseDriver):
 
         self._logger.debug(f"Raythena v{__version__} initializing, running Ray {ray.__version__} on {gethostname()}")
 
-        self.outputdir = os.path.expandvars(self.config.ray.get("outputdir", self.workdir))
+        self.outputdir = os.path.join(os.getcwd(), os.path.expandvars(self.config.ray.get("outputdir", self.workdir)))
         self.config.ray["outputdir"] = self.outputdir
         self.tar_merge_es_output_dir = self.outputdir
         self.tar_merge_es_files_dir = self.outputdir
@@ -327,9 +327,7 @@ class ESDriver(BaseDriver):
         Returns:
             None
         """
-        _, failed_events = self.bookKeeper.process_event_ranges_update(actor_id, data)
-        if failed_events:
-            self.requests_queue.put(failed_events)
+        self.bookKeeper.process_event_ranges_update(actor_id, data)
         self.actors_message_queue.append(self[actor_id].get_message.remote())
 
     def handle_update_job(self, actor_id: str, data: Any) -> None:

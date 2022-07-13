@@ -449,9 +449,7 @@ class BookKeeper(object):
             del self.files_ready_to_merge[merged_input_file]
         self.taskstatus[taskID].set_file_merged(merged_input_file, merged_output_file)
 
-    def process_event_ranges_update(
-        self, actor_id: str, event_ranges_update: Union[Sequence[PilotEventRangeUpdateDef], EventRangeUpdate]
-    ) -> Optional[Tuple[EventRangeUpdate, EventRangeUpdate]]:
+    def process_event_ranges_update(self, actor_id: str, event_ranges_update: Union[Sequence[PilotEventRangeUpdateDef], EventRangeUpdate]):
         """
         Process the event ranges update sent by the worker. This will update the status of event ranges in the update as well as building
         the list of event ranges to be tarred up for each input file.
@@ -475,8 +473,6 @@ class BookKeeper(object):
         task_status = self.taskstatus[self.jobs[panda_id]['taskID']]
         job_ranges = self.jobs.get_event_ranges(panda_id)
         actor_ranges = self.rangesID_by_actor[actor_id]
-        failed_events_list = []
-        failed_events = {panda_id: failed_events_list}
         for r in event_ranges_update[panda_id]:
             if 'eventRangeID' in r and r['eventRangeID'] in actor_ranges:
                 range_id = r['eventRangeID']
@@ -486,13 +482,10 @@ class BookKeeper(object):
                 elif r['eventStatus'] in [EventRange.FAILED, EventRange.FATAL]:
                     self._logger.info(f"Received failed event from {actor_id}: {r}")
                     task_status.set_eventrange_failed(job_ranges[range_id])
-                    failed_events_list.append(r)
         now = time.time()
         if now - self.last_status_print > 60:
             self.last_status_print = now
             self.print_status()
-        failed_events = EventRangeUpdate(failed_events) if failed_events_list else None
-        return event_ranges_update, failed_events
 
     def print_status(self) -> None:
         """

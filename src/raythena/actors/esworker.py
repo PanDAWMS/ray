@@ -111,6 +111,7 @@ class ESWorker(object):
             self.config.ray.get('workdir', os.getcwd()))
         if not os.path.isdir(self.workdir):
             self.workdir = os.getcwd()
+        self.output_dir = self.config.ray.get("outputdir", self.workdir)
         self.pilot_kill_file = os.path.expandvars(self.config.payload.get('pilotkillfile', 'pilot_kill_payload'))
         self.pilot_kill_time = self.config.payload.get('pilotkilltime', 600)
         self.time_monitor_file = os.path.expandvars(self.config.payload.get('timemonitorfile', 'RaythenaTimeMonitor.txt'))
@@ -448,10 +449,10 @@ class ESWorker(object):
             cfile = range_update.get(cfile_key, None)
             if cfile:
                 dst = os.path.join(
-                    self.payload_actor_output_dir,
+                    self.output_dir,
                     os.path.basename(cfile) if os.path.isabs(cfile) else cfile)
-                if os.path.isfile(cfile) and not os.path.isfile(dst):
-                    shutil.move(cfile, dst)
+                if os.path.isfile(cfile):
+                    os.replace(cfile, dst)
                     range_update[cfile_key] = dst
         return ranges
 
