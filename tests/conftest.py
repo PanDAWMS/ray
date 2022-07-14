@@ -29,6 +29,7 @@ def config(config_path):
                   ray_redis_port=None,
                   ray_workdir=None,
                   ray_outputdir=None,
+                  ray_eventsperfile=None,
                   harvester_endpoint=None,
                   panda_queue=None,
                   core_per_node=None)

@@ -23,6 +23,7 @@ ray:
   redispassword:
   workdir: $SCRATCH/raythena/workdir
   cachesizefactor: 4
+  eventsperfile: 500
   timeoutinterval: 600
   tarinterval: 60
   tarmaxfilesize: 5000000000

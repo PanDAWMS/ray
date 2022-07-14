@@ -44,6 +44,10 @@ from raythena.drivers.esdriver import ESDriver
     help='Output directory where state for the raythena job is saved. This should be the same amongst all raythena job in a single Panda task'
 )
 @click.option(
+    '--ray-eventsperfile',
+    help="Number of events per input file. Used to inform when merge tasks should be started"
+)
+@click.option(
     '--harvester-endpoint',
     help='Directory to use to communicate with harvester'
 )

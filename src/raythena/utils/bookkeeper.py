@@ -37,7 +37,7 @@ class TaskStatus:
         self.output_dir = config.ray.get("outputdir")
         self.filepath = os.path.join(self.output_dir, f"{self.job['taskID']}.json")
         self.tmpfilepath = f"{self.filepath}.tmp"
-        self._events_per_file = 500
+        self._events_per_file = self.config.ray.get('eventsperfile')
         self._status: Dict[str, Union[Dict[str, Dict[str, Dict[str, str]]], Dict[str, str]]] = dict()
         self._update_queue: Deque[Tuple[str, Union[EventRange, Tuple]]] = collections.deque()
         self._restore_status()
@@ -235,8 +235,8 @@ class TaskStatus:
             the number of events merged
         """
         if filename in self._status[TaskStatus.MERGED]:
-            return self._events_per_file  # TODO: update with nevents per file provided by Harvester
-        return len(self._status[TaskStatus.MERGED]) * self._events_per_file  # TODO: update with nevents per file provided by Harvester
+            return self._events_per_file
+        return len(self._status[TaskStatus.MERGED]) * self._events_per_file
 
 
 class BookKeeper(object):
@@ -248,6 +248,7 @@ class BookKeeper(object):
         self.jobs: PandaJobQueue = PandaJobQueue()
         self.config: Config = config
         self.output_dir = config.ray.get("outputdir")
+        self._events_per_file = self.config.ray.get('eventsperfile')
         self._logger = make_logger(self.config, "BookKeeper")
         self.actors: Dict[str, Optional[str]] = dict()
         self.rangesID_by_actor: Dict[str, Set[str]] = dict()
@@ -283,7 +284,7 @@ class BookKeeper(object):
             for input_file in simulated:
                 if input_file in self.files_ready_to_merge:
                     continue
-                if len(simulated[input_file]) + len(failed.get(input_file, empty)) == 500:
+                if len(simulated[input_file]) + len(failed.get(input_file, empty)) == self._events_per_file:
                     self.files_ready_to_merge[input_file] = list(map(lambda r: r["path"], simulated[input_file].values()))
 
     def stop_save_thread(self):
@@ -349,8 +350,7 @@ class BookKeeper(object):
                     continue
                 file_simulated_ranges = simulated_ranges.get(file)
                 file_failed_ranges = failed_ranges.get(file)
-                # TODO: get actual # of event ranges per file from Harvester
-                for i in range(1, 501):
+                for i in range(1, self._events_per_file + 1):
                     range_id = f"{file}-{i}"
                     if file_failed_ranges and range_id in file_failed_ranges or file_simulated_ranges and range_id in file_simulated_ranges:
                         continue

@@ -41,6 +41,7 @@ class Config(object):
             'redispassword': str,
             'timeoutinterval': int,
             'tarinterval': int,
+            'eventsperfile': int,
             'tarmaxfilesize': int,
             'tarmaxprocesses': int,
             'cachesizefactor': int,
@@ -93,7 +94,7 @@ class Config(object):
     def _parse_cli_args(self, config: str, debug: bool,
                         ray_head_ip: str,
                         ray_redis_password: str, ray_redis_port: str,
-                        ray_workdir: str, ray_outputdir: str, harvester_endpoint: str,
+                        ray_workdir: str, ray_outputdir: str, ray_eventsperfile: int, harvester_endpoint: str,
                         panda_queue: str, core_per_node: int) -> None:
         """
         Overrides config settings with settings specified via cli / env vars
@@ -127,6 +128,8 @@ class Config(object):
             self.ray['workdir'] = ray_workdir
         if ray_outputdir:
             self.ray['outputdir'] = ray_outputdir
+        if ray_eventsperfile:
+            self.ray['eventsperfile'] = ray_eventsperfile
         if harvester_endpoint:
             self.harvester['endpoint'] = harvester_endpoint
         if panda_queue:
