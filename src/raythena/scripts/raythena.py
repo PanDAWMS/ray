@@ -45,7 +45,11 @@ from raythena.drivers.esdriver import ESDriver
 )
 @click.option(
     '--ray-eventsperfile',
-    help="Number of events per input file. Used to inform when merge tasks should be started"
+    help="Number of events per input file"
+)
+@click.option(
+    '--ray-hitsperfile',
+    help="Number of hits to merge together per output file"
 )
 @click.option(
     '--harvester-endpoint',

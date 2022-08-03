@@ -24,10 +24,19 @@ class TaskStatus:
     therefore add synchronization overhead and latency for the main driver thread responsible for polling actors. Having a single thread
     updating and serializing the dictionary eliminate the need for synchronization however it also means that other thread reading the dictionary
     (e.g. from get_nsimulated) will get out of date information as there will most likely be update pending in the queue at any point in time
+
+    Keys set relation of each sub-dictionnary (simulated, merged, failed, merging):
+    - merged and merging key sets are disjoints -- when a file has been fully merged, its entry is removed from merging and moved into merged
+    - merged and simulated key sets are disjoints -- when a file has been fully merged, it is no longer necessary to keep track of individual event ranges;
+      they are removed from simulated
+    - merging is a subset of simulated -- it is possible for events from a given file to have been simulated
+      but no merge job has completed for that specific file.
+    - No specification for relations between failed and other key sets.
     """
 
     SIMULATED = "simulated"
     MERGED = "merged"
+    MERGING = "merging"
     FAILED = "failed"
 
     def __init__(self, job: PandaJob, config: Config) -> None:
@@ -37,8 +46,11 @@ class TaskStatus:
         self.output_dir = config.ray.get("outputdir")
         self.filepath = os.path.join(self.output_dir, f"{self.job['taskID']}.json")
         self.tmpfilepath = f"{self.filepath}.tmp"
-        self._events_per_file = self.config.ray.get('eventsperfile')
-        self._status: Dict[str, Union[Dict[str, Dict[str, Dict[str, str]]], Dict[str, str]]] = dict()
+        self._events_per_file = int(self.config.ray.get('eventsperfile'))
+        self._hits_per_file = int(self.config.ray.get('hitsperfile'))
+        assert self._events_per_file % self._hits_per_file == 0, "Expected number of events per input file to be a multiple of number of hits per merged file"
+        self._n_output_per_input_file = self._events_per_file // self._hits_per_file
+        self._status: Dict[str, Union[Dict[str, Dict[str, Dict[str, str]]], Dict[str, List[str]]]] = dict()
         self._update_queue: Deque[Tuple[str, Union[EventRange, Tuple]]] = collections.deque()
         self._restore_status()
 
@@ -47,6 +59,7 @@ class TaskStatus:
         Default initialization of the status dict
         """
         self._status[TaskStatus.SIMULATED] = dict()
+        self._status[TaskStatus.MERGING] = dict()
         self._status[TaskStatus.MERGED] = dict()
         self._status[TaskStatus.FAILED] = dict()
 
@@ -96,7 +109,7 @@ class TaskStatus:
             operation_type, data = self._update_queue.popleft()
             if operation_type == TaskStatus.SIMULATED:
                 self._set_eventrange_simulated(*data)
-            elif operation_type == TaskStatus.MERGED:
+            elif operation_type == TaskStatus.MERGING:
                 self._set_file_merged(*data)
             elif operation_type == TaskStatus.FAILED:
                 self._set_eventrange_failed(data)
@@ -113,7 +126,8 @@ class TaskStatus:
         except OSError as e:
             self._logger.error(f"Failed to save task status: {e.strerror}")
 
-    def _build_eventrange_dict(self, eventrange: EventRange, output_file: str = None) -> Dict[str, Any]:
+    @staticmethod
+    def build_eventrange_dict(eventrange: EventRange, output_file: str = None) -> Dict[str, Any]:
         """
         Takes an EventRange object and retuns the dict representation which should be saved in the state file
 
@@ -133,6 +147,7 @@ class TaskStatus:
 
         Args:
             eventrange: the event range
+            simulation_output_file: produced file
         """
         self._update_queue.append((TaskStatus.SIMULATED, (eventrange, simulation_output_file)))
 
@@ -142,36 +157,48 @@ class TaskStatus:
 
         Args:
             eventrange: the event range
+            simulation_output_file: produced file
         """
         filename = eventrange.PFN
         simulated_dict = self._status[TaskStatus.SIMULATED]
         if filename not in simulated_dict:
             simulated_dict[filename] = dict()
-        simulated_dict[filename][eventrange.eventRangeID] = self._build_eventrange_dict(eventrange, simulation_output_file)
+        simulated_dict[filename][eventrange.eventRangeID] = TaskStatus.build_eventrange_dict(eventrange, simulation_output_file)
 
-    def set_file_merged(self, inputfile: str, outputfile: str):
+    def set_file_merged(self, inputfile: str, outputfile: str, event_ranges: Mapping[str, Mapping[str, str]]):
         """
         Enqueue a message indicating that a file has been merged.
 
         Args:
-            eventrange: the event range
+            inputfile: source evnt file
+            outputfile: produced merged hits file
+            event_ranges: event ranges merged in the outputfile. Map of [event_range_id, [k, v]]
         """
-        self._update_queue.append((TaskStatus.MERGED, (inputfile, outputfile)))
+        self._update_queue.append((TaskStatus.MERGING, (inputfile, outputfile, event_ranges)))
 
-    def _set_file_merged(self, inputfile: str, outputfile: str):
+    def _set_file_merged(self, inputfile: str, outputfile: str, event_ranges: Mapping[str, Mapping[str, str]]):
         """
-        Performs the update of the internal dictionnary of a merged file
+        Performs the update of the internal dictionnary of a merged file.
 
         Args:
-            inputfile: the path to the corresponding input file
-            outputfile: the path to the merged file
+            inputfile: source evnt file
+            outputfile: produced merged hits file
+            event_ranges: event ranges merged in the outputfile
         """
 
-        # unlikely but we could have a file with only failed events
-        # do not delete entry of failed event ranges to keep track of it
-        if inputfile in self._status[TaskStatus.SIMULATED]:
+        assert len(event_ranges) == self._hits_per_file, f"Expected {self._hits_per_file} hits in {outputfile}, got {len(event_ranges)}"
+        if inputfile not in self._status[TaskStatus.MERGING]:
+            self._status[TaskStatus.MERGING][inputfile] = {outputfile: event_ranges}
+        else:
+            self._status[TaskStatus.MERGING][inputfile][outputfile] = event_ranges
+
+        if len(self._status[TaskStatus.MERGING][inputfile]) == self._n_output_per_input_file:
+            self._status[TaskStatus.MERGED][inputfile] = list(self._status[TaskStatus.MERGING][inputfile].keys())
+            del self._status[TaskStatus.MERGING][inputfile]
             del self._status[TaskStatus.SIMULATED][inputfile]
-        self._status[TaskStatus.MERGED][inputfile] = outputfile
+        else:
+            for event_range_id in event_ranges:
+                del self._status[TaskStatus.SIMULATED][inputfile][event_range_id]
 
     def set_eventrange_failed(self, eventrange: EventRange):
         """
@@ -193,7 +220,7 @@ class TaskStatus:
         failed_dict = self._status[TaskStatus.FAILED]
         if filename not in failed_dict:
             failed_dict[filename] = dict()
-        failed_dict[filename][eventrange.eventRangeID] = self._build_eventrange_dict(eventrange)
+        failed_dict[filename][eventrange.eventRangeID] = TaskStatus.build_eventrange_dict(eventrange)
 
     def get_nsimulated(self, filename=None) -> int:
         """
@@ -206,8 +233,15 @@ class TaskStatus:
             the number of events simulated
         """
         if filename:
-            return len(self._status[TaskStatus.SIMULATED].get(filename, []))
-        return reduce(lambda acc, cur: acc + len(cur), self._status[TaskStatus.SIMULATED].values(), 0)
+            merged = 0
+            if filename in self._status[TaskStatus.MERGED]:
+                return merged
+            elif filename in self._status[TaskStatus.MERGING]:
+                merged = len(self._status[TaskStatus.MERGING]) * self._hits_per_file
+            return len(self._status[TaskStatus.SIMULATED].get(filename, [])) - merged
+
+        return reduce(lambda acc, cur: acc + len(cur), self._status[TaskStatus.SIMULATED].values(), 0) - \
+            reduce(lambda acc, cur: acc + len(cur) * self._hits_per_file, self._status[TaskStatus.MERGING].values(), 0)
 
     def get_nfailed(self, filename=None) -> int:
         """
@@ -236,7 +270,10 @@ class TaskStatus:
         """
         if filename in self._status[TaskStatus.MERGED]:
             return self._events_per_file
-        return len(self._status[TaskStatus.MERGED]) * self._events_per_file
+        elif filename in self._status[TaskStatus.MERGING]:
+            return len(self._status[TaskStatus.MERGING][filename]) * self._hits_per_file
+        return len(self._status[TaskStatus.MERGED]) * self._events_per_file + \
+            reduce(lambda acc, cur: acc + len(cur) * self._hits_per_file, self._status[TaskStatus.MERGING].values(), 0)
 
 
 class BookKeeper(object):
@@ -248,11 +285,13 @@ class BookKeeper(object):
         self.jobs: PandaJobQueue = PandaJobQueue()
         self.config: Config = config
         self.output_dir = config.ray.get("outputdir")
-        self._events_per_file = self.config.ray.get('eventsperfile')
+        self._events_per_file = int(self.config.ray.get('eventsperfile'))
+        self._hits_per_file = int(self.config.ray.get('hitsperfile'))
         self._logger = make_logger(self.config, "BookKeeper")
         self.actors: Dict[str, Optional[str]] = dict()
         self.rangesID_by_actor: Dict[str, Set[str]] = dict()
-        self.files_ready_to_merge: Dict[str, List[str]] = dict()
+        self.files_ready_to_merge: Dict[str, List[List[Tuple[str, EventRange]]]] = dict()
+        self.ranges_to_merge: Dict[str, List[Tuple[str, EventRange]]] = dict()
         self.last_status_print = time.time()
         self.taskstatus: Dict[str, TaskStatus] = dict()
         self.stop_event = threading.Event()
@@ -277,15 +316,15 @@ class BookKeeper(object):
         Goes through the current task status, checks if a file has been entierly processed (event ranges all simulated or failed) and
         if so adds the file to self.files_ready_to_merge
         """
-        empty = []
-        for task_status in self.taskstatus.values():
-            simulated = task_status._status[TaskStatus.SIMULATED]
-            failed = task_status._status[TaskStatus.FAILED]
-            for input_file in simulated:
-                if input_file in self.files_ready_to_merge:
-                    continue
-                if len(simulated[input_file]) + len(failed.get(input_file, empty)) == self._events_per_file:
-                    self.files_ready_to_merge[input_file] = list(map(lambda r: r["path"], simulated[input_file].values()))
+        # TODO: improve check for mergeable file, check if remaining event per file + failed events per file < hits_per_file,
+        # add possibility to have multiple merge jobs for same imput file at the same time
+        for input_file, event_ranges in self.ranges_to_merge.items():
+            if len(event_ranges) >= self._hits_per_file:
+                ranges_to_merge = event_ranges[-self._hits_per_file:]
+                del event_ranges[-self._hits_per_file:]
+                if input_file not in self.files_ready_to_merge:
+                    self.files_ready_to_merge[input_file] = collections.deque()
+                self.files_ready_to_merge[input_file].append(ranges_to_merge)
 
     def stop_save_thread(self):
         """
@@ -343,20 +382,36 @@ class BookKeeper(object):
             scope = job["scopeIn"]
             event_ranges = []
             merged_files = task_status._status[TaskStatus.MERGED]
+            merging_files = task_status._status[TaskStatus.MERGING]
             simulated_ranges = task_status._status[TaskStatus.SIMULATED]
             failed_ranges = task_status._status[TaskStatus.FAILED]
             for file, guid in zip(files, guids):
+                # if all the event ranges in the input file have been merge, continue to the next
                 if file in merged_files:
                     continue
                 file_simulated_ranges = simulated_ranges.get(file)
                 file_failed_ranges = failed_ranges.get(file)
+                file_merging_ranges = merging_files.get(file).values()
                 for i in range(1, self._events_per_file + 1):
                     range_id = f"{file}-{i}"
-                    if file_failed_ranges and range_id in file_failed_ranges or file_simulated_ranges and range_id in file_simulated_ranges:
+                    # checks if the event rang has already been merged in one of the output file
+                    if file_merging_ranges:
+                        for ranges in file_merging_ranges:
+                            if range_id in ranges:
+                                continue
+
+                    event_range = EventRange(range_id, i, i, file, guid, scope)
+                    # event range hasn't been merged but already simulated, add it as ready to be merged
+                    if file_simulated_ranges and range_id in file_simulated_ranges:
+                        item = (file_simulated_ranges[range_id]["path"], event_range)
+                        if event_range.PFN not in self.ranges_to_merge:
+                            self.ranges_to_merge[event_range.PFN] = [item]
+                        else:
+                            self.ranges_to_merge[event_range.PFN].append(item)
+                    elif file_failed_ranges and range_id in file_failed_ranges:
                         continue
-                    else:
-                        event_range = EventRange(range_id, i, i, file, guid, scope)
-                        event_ranges.append(event_range)
+                    # event range hasn't been simulated, add it to the event range queue
+                    event_ranges.append(event_range)
             job.event_ranges_queue.add_new_event_ranges(event_ranges)
 
     def add_event_ranges(
@@ -444,10 +499,17 @@ class BookKeeper(object):
         self.rangesID_by_actor[actor_id].update(map(lambda e: e.eventRangeID, ranges))
         return ranges
 
-    def report_merged_file(self, taskID: str, merged_input_file: str, merged_output_file: str):
-        if merged_input_file in self.files_ready_to_merge:
-            del self.files_ready_to_merge[merged_input_file]
-        self.taskstatus[taskID].set_file_merged(merged_input_file, merged_output_file)
+    def get_file_to_merge(self) -> Optional[Tuple[str, List[List[Tuple[str, EventRange]]]]]:
+        """
+        Returns all the merge tasks available for a given input file
+        """
+        merge_tasks = None
+        if self.files_ready_to_merge:
+            merge_tasks = self.files_ready_to_merge.popitem()
+        return merge_tasks
+
+    def report_merged_file(self, taskID: str, merged_input_file: str, merged_output_file: str, merged_event_ranges: Mapping[str, Mapping[str, str]]):
+        self.taskstatus[taskID].set_file_merged(merged_input_file, merged_output_file, merged_event_ranges)
 
     def process_event_ranges_update(self, actor_id: str, event_ranges_update: Union[Sequence[PilotEventRangeUpdateDef], EventRangeUpdate]):
         """
@@ -478,7 +540,11 @@ class BookKeeper(object):
                 range_id = r['eventRangeID']
                 actor_ranges.remove(range_id)
                 if r['eventStatus'] == EventRange.DONE:
-                    task_status.set_eventrange_simulated(job_ranges[range_id], r['path'])
+                    evnt_range = job_ranges[range_id]
+                    task_status.set_eventrange_simulated(evnt_range, r['path'])
+                    if evnt_range.PFN not in self.ranges_to_merge:
+                        self.ranges_to_merge[evnt_range.PFN] = list()
+                    self.ranges_to_merge[evnt_range.PFN].append((r["path"], evnt_range))
                 elif r['eventStatus'] in [EventRange.FAILED, EventRange.FATAL]:
                     self._logger.info(f"Received failed event from {actor_id}: {r}")
                     task_status.set_eventrange_failed(job_ranges[range_id])

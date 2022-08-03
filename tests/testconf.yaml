@@ -23,7 +23,8 @@ ray:
   redispassword:
   cachesizefactor: 1
   workdir: .
-  eventsperfile: 500
+  eventsperfile: 4
+  hitsperfile: 2
   timeoutinterval: 600
   tarinterval: 120
   tarmaxfilesize: 5000000000

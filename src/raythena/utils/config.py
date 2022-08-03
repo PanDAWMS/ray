@@ -94,7 +94,7 @@ class Config(object):
     def _parse_cli_args(self, config: str, debug: bool,
                         ray_head_ip: str,
                         ray_redis_password: str, ray_redis_port: str,
-                        ray_workdir: str, ray_outputdir: str, ray_eventsperfile: int, harvester_endpoint: str,
+                        ray_workdir: str, ray_outputdir: str, ray_eventsperfile: int, ray_hitsperfile: int, harvester_endpoint: str,
                         panda_queue: str, core_per_node: int) -> None:
         """
         Overrides config settings with settings specified via cli / env vars
@@ -107,6 +107,8 @@ class Config(object):
             ray_redis_port: ray cluster port. Overrides ray.redisport
             ray_workdir: Base raythena workdir. Overrides ray.workdir
             ray_outputdir: Output directory where state for the raythena job is saved. Overrides ray.outputdir
+            ray_eventsperfile: Number of events per input file
+            ray_hitsperfile: Number of hits to merge together per output file
             harvester_endpoint: Directory used by harvester shared file messaging. Overrides harvester.endpoint
             panda_queue: Panda queue from which harvester is retrieving jobs. Overrides payload.pandaqueue
             core_per_node: Number of cores used by the payload. This is only user to determine event ranges cache size
@@ -130,6 +132,8 @@ class Config(object):
             self.ray['outputdir'] = ray_outputdir
         if ray_eventsperfile:
             self.ray['eventsperfile'] = ray_eventsperfile
+        if ray_eventsperfile:
+            self.ray['hitsperfile'] = ray_hitsperfile
         if harvester_endpoint:
             self.harvester['endpoint'] = harvester_endpoint
         if panda_queue:

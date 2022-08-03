@@ -27,7 +27,8 @@
                 "eventRangeID": "RANGEID4",
                 "path": ""
             }
-        }
+        },
+        "INPUTFILE3": {}
     },
     "failed": {
         "INPUTFILE1": {
@@ -38,9 +39,68 @@
             }
         }
     },
+    "merging": {
+        "INPUTFILE1": {
+            "OUTPUTFILE1-1": {
+                "RANGEID6": {
+                    "startEvent": "",
+                    "lastEvent": "",
+                    "eventRangeID": "RANGEID6",
+                    "path": ""
+                },
+                "RANGEID7": {
+                    "startEvent": "",
+                    "lastEvent": "",
+                    "eventRangeID": "RANGEID7",
+                    "path": ""
+                }
+            }
+        },
+        "INPUTFILE2": {
+            "OUTPUTFILE2-1": {
+                "RANGEID8": {
+                    "startEvent": "",
+                    "lastEvent": "",
+                    "eventRangeID": "RANGEID8",
+                    "path": ""
+                },
+                "RANGEID9": {
+                    "startEvent": "",
+                    "lastEvent": "",
+                    "eventRangeID": "RANGEID9",
+                    "path": ""
+                }
+            }
+        },
+        "INPUTFILE3": {
+            "OUTPUTFILE3-1": {
+                "RANGEID10": {
+                    "startEvent": "",
+                    "lastEvent": "",
+                    "eventRangeID": "RANGEID10",
+                    "path": ""
+                },
+                "RANGEID11": {
+                    "startEvent": "",
+                    "lastEvent": "",
+                    "eventRangeID": "RANGEID11",
+                    "path": ""
+                }
+            }
+        }
+    },
     "merged": {
-        "INPUTFILE3": "OUTPUTFILE3",
-        "INPUTFILE4": "OUTPUTFILE4",
-        "INPUTFILE5": "OUTPUTFILE5"
+        "INPUTFILE6": [
+            "OUTPUTFILE6-1",
+            "OUTPUTFILE6-2"
+        ],
+        "INPUTFILE7": [
+            "OUTPUTFILE7-1",
+            "OUTPUTFILE7-2"
+        ],
+        "INPUTFILE8": [
+            "OUTPUTFILE8-1",
+            "OUTPUTFILE8-2"
+        ]
     }
 }

@@ -20,7 +20,8 @@ def requires_ray(config):
 
 
 @pytest.fixture(scope="class")
-def config(config_path):
+def config(config_path, nevents, nfiles):
+    events_per_file = nevents // nfiles
     return Config(config_path,
                   config=None,
                   debug=False,
@@ -29,15 +30,16 @@ def config(config_path):
                   ray_redis_port=None,
                   ray_workdir=None,
                   ray_outputdir=None,
-                  ray_eventsperfile=None,
+                  ray_eventsperfile=events_per_file,
+                  ray_hitsperfile=events_per_file // 2,
                   harvester_endpoint=None,
                   panda_queue=None,
                   core_per_node=None)
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def nevents():
-    return 9
+    return 16
 
 
 @pytest.fixture
@@ -60,9 +62,9 @@ def pandaids(njobs):
     return res
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def nfiles():
-    return 3
+    return 4
 
 
 @pytest.fixture

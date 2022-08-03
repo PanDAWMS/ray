@@ -2,11 +2,9 @@ from asyncio import subprocess
 import concurrent.futures
 import os
 import shutil
-import sys
 import tempfile
 import time
 import traceback
-import zlib
 from math import ceil
 from queue import Empty, Queue
 from socket import gethostname
@@ -24,9 +22,9 @@ from raythena.drivers.communicators.baseCommunicator import (BaseCommunicator,
                                                              RequestData)
 from raythena.drivers.communicators.harvesterFileMessenger import \
     HarvesterFileCommunicator
-from raythena.utils.bookkeeper import BookKeeper
+from raythena.utils.bookkeeper import BookKeeper, TaskStatus
 from raythena.utils.config import Config
-from raythena.utils.eventservice import (EventRangeDef,
+from raythena.utils.eventservice import (EventRange, EventRangeDef,
                                          EventRangeRequest, EventRangeUpdate,
                                          JobDef, JobReport, Messages,
                                          PandaJobRequest
@@ -115,11 +113,9 @@ class ESDriver(BaseDriver):
         self.tar_timestamp = time.time()
         self.tarinterval = self.config.ray['tarinterval']
         self.tarmaxprocesses = self.config.ray['tarmaxprocesses']
-        self.ranges_to_tar: List[List[EventRangeDef]] = list()
-        self.running_tar_threads = dict()
         self.panda_taskid = None
-        self.running_merge_transforms: Dict[str, Tuple[str, Popen]] = dict()
-        self.processed_event_ranges = dict()
+        # {input_filename, {merged_output_filename, ([(event_range_id, EventRange)], subprocess handle)}}
+        self.running_merge_transforms: Dict[str, Dict[str, Tuple[List[Tuple[str, EventRange]], Popen]]] = dict()
         self.failed_actor_tasks_count = dict()
         self.available_events_per_actor = 0
         self.total_tar_tasks = 0
@@ -589,125 +585,54 @@ class ESDriver(BaseDriver):
                 self.terminated.append(actor_id)
 
     def handle_merge_transforms(self, wait_for_completion=False):
-        for input_filename, hits_files in self.bookKeeper.files_ready_to_merge.items():
+        """
+        Checks if the bookkeeper has files ready to be merged. If so, subprocesses for merge tasks are started.
+        After starting any subprocess, go through all the running subprocess and poll then to check if any completed and report status to the bookkeepr.
+
+        Args:
+            wait_for_completion: Wait for all the subprocesses (including those started by this call) to finish before returning
+        """
+        merge_files = self.bookKeeper.get_file_to_merge()
+        while merge_files:
+            (input_filename, event_ranges_per_output_file) = merge_files
             if input_filename not in self.running_merge_transforms:
-                output_filename = input_filename.replace("EVNT", "HITS")
-                sub_process = self.hits_merge_transform(hits_files, output_filename)
-                self.running_merge_transforms[input_filename] = (output_filename, sub_process)
+                self.running_merge_transforms[input_filename] = dict()
+            output_filename_base = input_filename.replace("EVNT", "HITS")
+            for event_ranges in event_ranges_per_output_file:
+                assert len(event_ranges) > 0
+                output_filename = f"{output_filename_base}-{event_ranges[0][1].eventRangeID.split('-')[-1]}"
+                sub_process = self.hits_merge_transform([e[0] for e in event_ranges], output_filename)
+                self.running_merge_transforms[input_filename][output_filename] = (event_ranges, sub_process)
+            merge_files = self.bookKeeper.get_file_to_merge()
 
         to_remove = []
-        for input_filename, (output_filename, sub_process) in self.running_merge_transforms.items():
-            if wait_for_completion:
-                while sub_process.poll() is None:
-                    time.sleep(5)
-            if sub_process.poll() is not None:
-                to_remove.append(input_filename)
-                if sub_process.returncode == 0:
-                    self.bookKeeper.report_merged_file(self.panda_taskid, input_filename, output_filename)
-                else:
-                    pass  # TODO handle errors
-        for k in to_remove:
-            del self.running_merge_transforms[k]
-
-    def create_tar_file(self, range_list: List[EventRangeDef]) -> Dict[str, List[EventRangeDef]]:
-        """
-        Use input range_list to create tar file and return list of tarred up event ranges and information needed by Harvester
-
-        Args:
-            range_list   list of event range dictionaries
-        Returns:
-            Dictionary - key PanDAid, item list of event ranges with information needed by Harvester
-        """
-        return_val = dict()
-        # test validity of range_list
-        if range_list and isinstance(range_list, list) and len(range_list) > 0:
-            # read first element in list to build temporary filename
-            file_base_name = "panda." + os.path.basename(range_list[0]['path']) + ".MRG"
-            file_path = os.path.join(self.tar_merge_es_output_dir, file_base_name)
-
-            # self.tar_merge_es_output_dir zip files
-            # self.tar_merge_es_files_dir  es files
-
-            PanDA_id = range_list[0]['PanDAID']
-
-            file_fsize = 0
-            try:
-                # create tar file looping over event ranges
-                return_code = self.hits_merge_transform(map(lambda x: x['path'], range_list), file_path)
-                if return_code != 0:
-                    raise Exception(f"Merged transform failed to execute with return code {return_code}")
-                file_fsize = os.path.getsize(file_path)
-                # calculate alder32 checksum
-                file_chksum = self.calc_adler32(file_path)
-                return_val = self.create_harvester_data(PanDA_id, file_path, file_chksum, file_fsize, range_list)
-                for event_range in range_list:
-                    lfn = os.path.basename(event_range["path"])
-                    pfn = os.path.join(self.tar_merge_es_files_dir, lfn)
-                    shutil.move(event_range["path"], pfn)
-                return return_val
-            except Exception:
-                raise
-        return return_val
-
-    def calc_adler32(self, file_name: str) -> str:
-        """
-        Calculate adler32 checksum for file
-
-        Args:
-           file_name - name of file to calculate checksum
-        Return:
-           string with Adler 32 checksum
-        """
-        val = 1
-        blockSize = 32 * 1024 * 1024
-        with open(file_name, 'rb') as fp:
-            while True:
-                data = fp.read(blockSize)
-                if not data:
-                    break
-                val = zlib.adler32(data, val)
-        if val < 0:
-            val += 2 ** 32
-        return hex(val)[2:10].zfill(8).lower()
-
-    def create_harvester_data(self, PanDA_id: str, file_path: str, file_chksum: str, file_fsize: int, range_list: list) -> Dict[str, List[EventRangeDef]]:
-        """
-        create data structure for telling Harvester what files are merged and ready to process
-
-        Args:
-             PanDA_id - Panda ID (as string)
-             file_path - path on disk to the merged es output "zip" file
-             file_chksum - adler32 checksum of file
-             file_fsize - file size in bytes
-             range_list - list of event ranges in the file
-        Return:
-             Dictionary with PanDA_id is the key and dictionary containing file info and list  Event range elements
-        """
-        return_dict = dict()
-        return_list = list()
-        for event_range in range_list:
-            return_list.append(
-                {
-                    "eventRangeID": event_range['eventRangeID'],
-                    "eventStatus": "finished",
-                    "path": file_path,
-                    "type": "zip_output",
-                    "chksum": file_chksum,
-                    "fsize": file_fsize
-                })
-        if return_list:
-            return_dict = {PanDA_id: return_list}
-        return return_dict
+        for input_filename, processes_for_input_file in self.running_merge_transforms.items():
+            for output_filename, (event_ranges, sub_process) in processes_for_input_file.items():
+                if wait_for_completion:
+                    while sub_process.poll() is None:
+                        time.sleep(5)
+                if sub_process.poll() is not None:
+                    to_remove.append((input_filename, output_filename))
+                    if sub_process.returncode == 0:
+                        event_ranges_map = {}
+                        for (event_range_output, event_range) in event_ranges:
+                            event_ranges_map[event_range.eventRangeID] = TaskStatus.build_eventrange_dict(event_range, event_range_output)
+                        self.bookKeeper.report_merged_file(self.panda_taskid, input_filename, output_filename, event_ranges_map)
+                    else:
+                        pass  # TODO handle errors
+        for (i, o) in to_remove:
+            del self.running_merge_transforms[i][o]
 
     def hits_merge_transform(self, input_files: Iterable[str], output_file: str) -> subprocess.Process:
         """
+        Prepare the shell command for the merging subprocess and starts it.
 
         Args:
-            input_files:
-            output_file:
+            input_files: individual hits files produced by the event service simulation to be merged
+            output_file: filename of the merged hits file
 
         Returns:
-            int:
+            Process: the handle to the subprocess
         """
         if not input_files:
             return
@@ -729,109 +654,3 @@ class ESDriver(BaseDriver):
                      shell=True,
                      cwd=tmp_dir,
                      close_fds=True)
-
-    def tar_es_output(self, skip_time_check=False) -> None:
-        """
-        Get from bookKeeper the event ranges arraigned by input file than need to put into output tar files
-
-        Args:
-            skip_time_check: flag to skip time interval check
-
-        Returns:
-            None
-        """
-        now = time.time()
-        if not skip_time_check and int(now - self.tar_timestamp) < self.tarinterval:
-            return
-
-        ranges_to_tar = list()
-        if self.bookKeeper.create_ranges_to_tar():
-            # add new ranges to tar to the list
-            ranges_to_tar = self.bookKeeper.get_ranges_to_tar()
-            self.tar_timestamp = now
-            self.ranges_to_tar.extend(ranges_to_tar)
-            try:
-                self.running_tar_threads.update(
-                    {self.tar_executor.submit(self.create_tar_file, range_list): range_list for range_list in
-                     self.ranges_to_tar})
-                self.total_tar_tasks += len(self.ranges_to_tar)
-                self.ranges_to_tar = list()
-            except Exception as exc:
-                self._logger.warning(f"tar_es_output: Exception {exc} when submitting tar subprocess")
-                pass
-
-            self._logger.debug(
-                f"tar_es_output: #tasks in queue : {len(self.running_tar_threads)}, #total tasks submitted since launch: {self.total_tar_tasks}")
-
-    def get_tar_results(self) -> None:
-        """
-        Checks the self.running_tar_threads dict for the Future objects. if thread is still running let it run otherwise
-        get the results of running, check for duplicates and  pass information onto Harvester
-
-        Returns:
-            None
-
-        """
-        if len(self.running_tar_threads) == 0:
-            return
-        done, not_done = concurrent.futures.wait(self.running_tar_threads, timeout=0.001,
-                                                 return_when=concurrent.futures.FIRST_COMPLETED)
-        final_update = EventRangeUpdate()
-        for future in done:
-            try:
-                result = future.result()
-                if result and isinstance(result, dict) and self.check_for_duplicates(result):
-                    final_update.merge_update(EventRangeUpdate(result))
-            except Exception as ex:
-                exc_type, exc_value, exc_traceback = sys.exc_info()
-                self._logger.info(f"get_tar_results: Caught exception {ex}")
-                self._logger.info(f"get_tar_results: Caught exception {repr(traceback.format_tb(exc_traceback))}")
-                pass
-                # raise
-            finally:
-                del self.running_tar_threads[future]
-        if final_update:
-            self.requests_queue.put(final_update)
-        if len(done):
-            self._logger.debug(f"get_tar_results #completed futures - {len(done)} #pending futures - {len(not_done)}")
-        return
-
-    def check_for_duplicates(self, tar_results: dict) -> bool:
-        """
-        Notify each worker that it should terminate then wait for actor to acknowledge
-        that the interruption was received
-
-        Args:
-            dictionary of event ranges from finished tar jobs
-        Returns:
-            True if no duplicate eventRanges
-        """
-        try:
-            return_val = True
-            if tar_results and isinstance(tar_results, dict):
-                # give results to BookKeeper to send to Harvester ????
-                # check for duplicates
-                for PanDA_id in tar_results:
-                    if PanDA_id not in self.processed_event_ranges:
-                        self.processed_event_ranges[PanDA_id] = dict()
-                    ranges_info = tar_results[PanDA_id]
-                    if ranges_info:
-                        for rangeInfo in ranges_info:
-                            eventRangeID = rangeInfo['eventRangeID']
-                            path = rangeInfo['path']
-                            if eventRangeID not in self.processed_event_ranges[PanDA_id]:
-                                self.processed_event_ranges[PanDA_id][eventRangeID] = list()
-                            self.processed_event_ranges[PanDA_id][eventRangeID].append(path)
-                    # loop over processed event ranges list the duplicate files
-                    for eventRangeID in self.processed_event_ranges[PanDA_id]:
-                        if len(self.processed_event_ranges[PanDA_id][eventRangeID]) > 1:
-                            # duplicate eventRangeID
-                            return_val = False
-                            self._logger.warning(f"ERROR duplicate eventRangeID - {eventRangeID}")
-                            for path in (self.processed_event_ranges[PanDA_id][eventRangeID]):
-                                self._logger.warning(f"ERROR duplicate eventRangeID - {eventRangeID} {path}")
-        except Exception as ex:
-            self._logger.info(f"check_for_duplicates Caught exception {ex}")
-            return_val = False
-            pass
-        return return_val

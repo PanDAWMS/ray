@@ -24,6 +24,7 @@ ray:
   workdir: $SCRATCH/raythena/workdir
   cachesizefactor: 4
   eventsperfile: 500
+  hitsperfile: 100
   timeoutinterval: 600
   tarinterval: 60
   tarmaxfilesize: 5000000000
