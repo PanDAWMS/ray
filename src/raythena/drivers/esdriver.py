@@ -26,7 +26,7 @@ from raythena.utils.bookkeeper import BookKeeper, TaskStatus
 from raythena.utils.config import Config
 from raythena.utils.eventservice import (EventRange, EventRangeDef,
                                          EventRangeRequest, EventRangeUpdate,
-                                         JobDef, JobReport, Messages,
+                                         JobDef, Messages,
                                          PandaJobRequest
                                          )
 from raythena.utils.exception import BaseRaythenaException
@@ -498,6 +498,7 @@ class ESDriver(BaseDriver):
         if len(jobs) > 1:
             self._logger.critical("Raythena can only handle one job")
             return
+        self._logger.debug("Adding job and generating event ranges...")
         self.bookKeeper.add_jobs(jobs)
         self.panda_taskid = list(jobs.values())[0]["taskID"]
 
@@ -536,14 +537,13 @@ class ESDriver(BaseDriver):
 
         self._logger.debug("Waiting on merge transforms")
         # Workers might have sent event ranges update since last check, create possible merge jobs
-        self.handle_merge_transforms(True)
         self.bookKeeper.stop_save_thread()
-        self.requests_queue.put(JobReport())
-
+        self.handle_merge_transforms(True)
+        # need to explicitely save as we stopped saver_thread
+        self.bookKeeper.save_status()
         self.communicator.stop()
         # self.cpu_monitor.stop()
         self.bookKeeper.print_status()
-        time.sleep(5)
         self._logger.debug("All driver threads stopped. Quitting...")
 
     def stop(self) -> None:

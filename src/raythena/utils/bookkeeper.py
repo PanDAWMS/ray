@@ -300,16 +300,18 @@ class BookKeeper(object):
     def _saver_thead_run(self):
 
         while not self.stop_event.is_set():
-            for task_status in self.taskstatus.values():
-                task_status.save_status()
+            self.save_status()
             self.check_mergeable_files()
             # wait for 60s before next update or until the stop condition is met
             self.stop_event.wait(60.0)
 
         # Perform a last drain of pending update before stopping
+        self.save_status()
+        self.check_mergeable_files()
+
+    def save_status(self):
         for task_status in self.taskstatus.values():
             task_status.save_status()
-        self.check_mergeable_files()
 
     def check_mergeable_files(self):
         """
