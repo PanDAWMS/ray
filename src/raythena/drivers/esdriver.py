@@ -96,6 +96,7 @@ class ESDriver(BaseDriver):
         self.communicator.start()
         self.requests_queue.put(PandaJobRequest())
         self.actors: Dict[str, ESWorker] = dict()
+        self.pending_objectref_to_actor: Dict[ObjectRef, str] = dict()
         self.actors_message_queue = list()
         self.bookKeeper = BookKeeper(self.config)
         self.terminated = list()
@@ -168,7 +169,8 @@ class ESDriver(BaseDriver):
         Returns:
             None
         """
-        self.actors_message_queue += [actor.get_message.remote() for actor in self.actors.values()]
+        for actor_id, worker in self.actors.items():
+            self.enqueue_actor_call(actor_id, worker.get_message().remote())
 
     def create_actors(self) -> None:
         """
@@ -224,13 +226,17 @@ class ESDriver(BaseDriver):
                 except RayActorError as e:
                     self._logger.error(f"RayActorError: {e.error_msg}")
                 except Exception as e:
-                    self._logger.error(f"Caught exception while fetching result from actor: {e}")
+                    self._logger.error(f"Caught exception while fetching result from {self.pending_objectref_to_actor[r]}: {e}")
                 else:
                     yield actor_id, message, data
         else:
             self._logger.debug(f"Start handling messages batch of {len(messages)} actors")
             for actor_id, message, data in messages:
                 yield actor_id, message, data
+
+    def enqueue_actor_call(self, actor_id: str, future: ObjectRef):
+        self.actors_message_queue.append(future)
+        self.pending_objectref_to_actor[future] = actor_id
 
     def handle_actors(self) -> None:
         """
@@ -244,8 +250,7 @@ class ESDriver(BaseDriver):
         while new_messages and self.running:
             for actor_id, message, data in self.retrieve_actors_messages(new_messages):
                 if message == Messages.IDLE or message == Messages.REPLY_OK:
-                    self.actors_message_queue.append(
-                        self[actor_id].get_message.remote())
+                    self.enqueue_actor_call(actor_id, self[actor_id].get_message.remote())
                 elif message == Messages.REQUEST_NEW_JOB:
                     self.handle_job_request(actor_id)
                 elif message == Messages.REQUEST_EVENT_RANGES:
@@ -301,7 +306,7 @@ class ESDriver(BaseDriver):
         # TODO: Temporary hack
         has_jobs = False
         if has_jobs:
-            self.actors_message_queue.append(self[actor_id].mark_new_job.remote())
+            self.enqueue_actor_call(actor_id, self[actor_id].mark_new_job.remote())
         else:
             self.terminated.append(actor_id)
             self.bookKeeper.process_actor_end(actor_id)
@@ -321,7 +326,7 @@ class ESDriver(BaseDriver):
             None
         """
         self.bookKeeper.process_event_ranges_update(actor_id, data)
-        self.actors_message_queue.append(self[actor_id].get_message.remote())
+        self.enqueue_actor_call(actor_id, self[actor_id].get_message.remote())
 
     def handle_update_job(self, actor_id: str, data: Any) -> None:
         """
@@ -334,8 +339,7 @@ class ESDriver(BaseDriver):
         Returns:
             None
         """
-        self.actors_message_queue.append(
-            self[actor_id].get_message.remote())
+        self.enqueue_actor_call(actor_id, self[actor_id].get_message.remote())
 
     def handle_request_event_ranges(self, actor_id: str, data: EventRangeRequest, total_sent: int) -> int:
         """
@@ -372,7 +376,7 @@ class ESDriver(BaseDriver):
         #         actor_id, n_ranges)
         if evt_range:
             total_sent += len(evt_range)
-        self.actors_message_queue.append(self[actor_id].receive_event_ranges.remote(
+        self.enqueue_actor_call(actor_id, self[actor_id].receive_event_ranges.remote(
             Messages.REPLY_OK if evt_range else
             Messages.REPLY_NO_MORE_EVENT_RANGES, evt_range))
         self._logger.info(f"Sending {len(evt_range)} events to {actor_id}")
@@ -394,9 +398,8 @@ class ESDriver(BaseDriver):
             # self.request_event_ranges(block=True)
             # job = self.bookKeeper.assign_job_to_actor(actor_id)
 
-        self.actors_message_queue.append(self[actor_id].receive_job.remote(
-            Messages.REPLY_OK
-            if job else Messages.REPLY_NO_MORE_JOBS, self.remote_jobdef_byid[job['PandaID']]))
+        self.enqueue_actor_call(actor_id, self[actor_id].receive_job.remote(Messages.REPLY_OK
+                                if job else Messages.REPLY_NO_MORE_JOBS, self.remote_jobdef_byid[job['PandaID']]))
 
     def request_event_ranges(self, block: bool = False) -> None:
         """
@@ -577,7 +580,7 @@ class ESDriver(BaseDriver):
 
         self.failed_actor_tasks_count[actor_id] += 1
         if self.failed_actor_tasks_count[actor_id] < self.max_retries_error_failed_tasks:
-            self.actors_message_queue.append(self[actor_id].get_message.remote())
+            self.enqueue_actor_call(actor_id, self[actor_id].get_message.remote())
             self._logger.warning(f"{actor_id} failed {self.failed_actor_tasks_count[actor_id]} times. Retrying...")
         else:
             self._logger.warning(f"{actor_id} failed too many times. No longer fetching messages from it")
