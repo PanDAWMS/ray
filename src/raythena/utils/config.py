@@ -40,10 +40,9 @@ class Config(object):
             'redisport': int,
             'redispassword': str,
             'timeoutinterval': int,
-            'tarinterval': int,
             'eventsperfile': int,
-            'tarmaxfilesize': int,
-            'tarmaxprocesses': int,
+            'hitsperfile': int,
+            'mergemaxprocesses': int,
             'cachesizefactor': int,
         },
         'resources': {

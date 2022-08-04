@@ -26,9 +26,7 @@ ray:
   eventsperfile: 500
   hitsperfile: 100
   timeoutinterval: 600
-  tarinterval: 60
-  tarmaxfilesize: 5000000000
-  tarmaxprocesses: 64
+  mergemaxprocesses: 64
 
 resources:
   corepernode: 128

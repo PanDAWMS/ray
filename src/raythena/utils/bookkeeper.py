@@ -239,7 +239,7 @@ class TaskStatus:
             if filename in self._status[TaskStatus.MERGED]:
                 return merged
             elif filename in self._status[TaskStatus.MERGING]:
-                merged = len(self._status[TaskStatus.MERGING]) * self._hits_per_file
+                merged = len(self._status[TaskStatus.MERGING][filename]) * self._hits_per_file
             return len(self._status[TaskStatus.SIMULATED].get(filename, [])) - merged
 
         return reduce(lambda acc, cur: acc + len(cur), self._status[TaskStatus.SIMULATED].values(), 0) - \
@@ -506,15 +506,13 @@ class BookKeeper(object):
         self.rangesID_by_actor[actor_id].update(map(lambda e: e.eventRangeID, ranges))
         return ranges
 
-    def get_file_to_merge(self) -> Optional[Tuple[str, List[List[Tuple[str, EventRange]]]]]:
+    def get_file_to_merge(self) -> Optional[Tuple[str, List[Tuple[str, EventRange]]]]:
         """
-        Returns all the merge tasks available for a given input file
+        Returns a merge tasks available for an arbitrary input file if available, None otherwise.
         """
-        self.check_mergeable_files()
-        merge_tasks = None
-        if self.files_ready_to_merge:
-            merge_tasks = self.files_ready_to_merge.popitem()
-        return merge_tasks
+        for file, ranges in self.files_ready_to_merge.items():
+            if ranges:
+                return (file, ranges.pop())
 
     def report_merged_file(self, taskID: str, merged_input_file: str, merged_output_file: str, merged_event_ranges: Mapping[str, Mapping[str, str]]):
         self.taskstatus[taskID].set_file_merged(merged_input_file, merged_output_file, merged_event_ranges)

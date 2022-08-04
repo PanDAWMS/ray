@@ -1,5 +1,4 @@
 from asyncio import subprocess
-import concurrent.futures
 import os
 import shutil
 import tempfile
@@ -110,18 +109,16 @@ class ESDriver(BaseDriver):
         self.n_actors = len(self.nodes)
         self.events_cache_size = self.cores_per_node * self.n_actors * self.cache_size_factor
         self.timeoutinterval = self.config.ray['timeoutinterval']
-        self.tar_timestamp = time.time()
-        self.tarinterval = self.config.ray['tarinterval']
-        self.tarmaxprocesses = self.config.ray['tarmaxprocesses']
+        self.max_running_merge_transforms = self.config.ray['mergemaxprocesses']
         self.panda_taskid = None
         # {input_filename, {merged_output_filename, ([(event_range_id, EventRange)], subprocess handle)}}
         self.running_merge_transforms: Dict[str, Dict[str, Tuple[List[Tuple[str, EventRange]], Popen]]] = dict()
+        self.total_running_merge_transforms = 0
         self.failed_actor_tasks_count = dict()
         self.available_events_per_actor = 0
         self.total_tar_tasks = 0
         self.remote_jobdef_byid = dict()
         self.config_remote = ray.put(self.config)
-        self.tar_executor = concurrent.futures.ThreadPoolExecutor(max_workers=self.tarmaxprocesses)
 
         # create the output directories if needed
         try:
@@ -586,7 +583,7 @@ class ESDriver(BaseDriver):
             if actor_id not in self.terminated:
                 self.terminated.append(actor_id)
 
-    def handle_merge_transforms(self, wait_for_completion=False):
+    def handle_merge_transforms(self, wait_for_completion=False) -> None:
         """
         Checks if the bookkeeper has files ready to be merged. If so, subprocesses for merge tasks are started.
         After starting any subprocess, go through all the running subprocess and poll then to check if any completed and report status to the bookkeepr.
@@ -594,18 +591,20 @@ class ESDriver(BaseDriver):
         Args:
             wait_for_completion: Wait for all the subprocesses (including those started by this call) to finish before returning
         """
+        self.bookKeeper.check_mergeable_files()
         merge_files = self.bookKeeper.get_file_to_merge()
         while merge_files:
-            (input_filename, event_ranges_per_output_file) = merge_files
+            (input_filename, event_ranges) = merge_files
+            assert len(event_ranges) > 0
             if input_filename not in self.running_merge_transforms:
                 self.running_merge_transforms[input_filename] = dict()
-            output_filename_base = input_filename.replace("EVNT", "HITS")
-            for event_ranges in event_ranges_per_output_file:
-                assert len(event_ranges) > 0
-                output_filename = f"{output_filename_base}-{event_ranges[0][1].eventRangeID.split('-')[-1]}"
-                sub_process = self.hits_merge_transform([e[0] for e in event_ranges], output_filename)
-                self._logger.debug(f"Starting merge transform for {input_filename} : {output_filename}")
-                self.running_merge_transforms[input_filename][output_filename] = (event_ranges, sub_process)
+            output_filename = f"{input_filename.replace('EVNT', 'HITS')}-{event_ranges[0][1].eventRangeID.split('-')[-1]}"
+            sub_process = self.hits_merge_transform([e[0] for e in event_ranges], output_filename)
+            self._logger.debug(f"Starting merge transform for {input_filename} : {output_filename}")
+            self.running_merge_transforms[input_filename][output_filename] = (event_ranges, sub_process)
+            self.total_running_merge_transforms += 1
+            if self.total_running_merge_transforms >= self.max_running_merge_transforms:
+                break
             merge_files = self.bookKeeper.get_file_to_merge()
 
         to_remove = []
@@ -616,6 +615,7 @@ class ESDriver(BaseDriver):
                         time.sleep(5)
                 if sub_process.poll() is not None:
                     to_remove.append((input_filename, output_filename))
+                    self.total_running_merge_transforms -= 1
                     if sub_process.returncode == 0:
                         event_ranges_map = {}
                         for (event_range_output, event_range) in event_ranges:
