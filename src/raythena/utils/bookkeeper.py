@@ -356,7 +356,7 @@ class BookKeeper(object):
         self.stop_saver.set()
         self.save_state_thread.join()
         self.save_state_thread = ExThread(target=self._saver_thead_run, name="status-saver-thread")
-    
+
     def stop_cleaner_thread(self):
         self.stop_cleaner.set()
         self.cleaner_thread.join()
