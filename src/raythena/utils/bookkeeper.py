@@ -303,13 +303,11 @@ class BookKeeper(object):
 
         while not self.stop_event.is_set():
             self.save_status()
-            self.check_mergeable_files()
             # wait for 60s before next update or until the stop condition is met
             self.stop_event.wait(60.0)
 
         # Perform a last drain of pending update before stopping
         self.save_status()
-        self.check_mergeable_files()
 
     def save_status(self):
         for task_status in self.taskstatus.values():
@@ -389,6 +387,7 @@ class BookKeeper(object):
             merging_files = task_status._status[TaskStatus.MERGING]
             simulated_ranges = task_status._status[TaskStatus.SIMULATED]
             failed_ranges = task_status._status[TaskStatus.FAILED]
+            skip_event = False
             for file, guid in zip(files, guids):
                 # if all the event ranges in the input file have been merge, continue to the next
                 if file in merged_files:
@@ -402,8 +401,11 @@ class BookKeeper(object):
                     if file_merging_ranges:
                         for ranges in file_merging_ranges.values():
                             if range_id in ranges:
-                                continue
-
+                                skip_event = True
+                                break
+                        if skip_event:
+                            skip_event = False
+                            continue
                     event_range = EventRange(range_id, i, i, file, guid, scope)
                     # event range hasn't been merged but already simulated, add it as ready to be merged
                     if file_simulated_ranges and range_id in file_simulated_ranges:
@@ -508,6 +510,7 @@ class BookKeeper(object):
         """
         Returns all the merge tasks available for a given input file
         """
+        self.check_mergeable_files()
         merge_tasks = None
         if self.files_ready_to_merge:
             merge_tasks = self.files_ready_to_merge.popitem()

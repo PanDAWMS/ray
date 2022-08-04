@@ -506,35 +506,37 @@ class ESDriver(BaseDriver):
         # self.request_event_ranges(block=True)
         if not self.bookKeeper.has_jobs_ready():
             # self.cpu_monitor.stop()
+            self.bookKeeper.stop_save_thread()
             self.communicator.stop()
             self._logger.critical("Couldn't fetch a job with event ranges, stopping...")
-            time.sleep(5)
             return
+        total_events = self.bookKeeper.n_ready(self.bookKeeper.jobs.next_job_id_to_process())
+        if total_events:
+            self.available_events_per_actor = max(1, ceil(total_events / self.n_actors))
+            for pandaID in self.bookKeeper.jobs:
+                cjob = self.bookKeeper.jobs[pandaID]
+                os.makedirs(
+                    os.path.join(self.config.ray['workdir'], cjob['PandaID']))
+                self.remote_jobdef_byid[pandaID] = ray.put(cjob)
 
-        self.available_events_per_actor = max(1, ceil(self.bookKeeper.n_ready(self.bookKeeper.jobs.next_job_id_to_process()) / self.n_actors))
-        for pandaID in self.bookKeeper.jobs:
-            cjob = self.bookKeeper.jobs[pandaID]
-            os.makedirs(
-                os.path.join(self.config.ray['workdir'], cjob['PandaID']))
-            self.remote_jobdef_byid[pandaID] = ray.put(cjob)
+            self.create_actors()
 
-        self.create_actors()
-
-        self.start_actors()
-        # self.request_event_ranges()
-        try:
-            self.handle_actors()
-        except Exception as e:
-            self._logger.error(f"{traceback.format_exc()}")
-            self._logger.error(f"Error while handling actors: {e}. stopping...")
-
-        if self.config.logging.get('copyraylogs', False):
-            ray_logs = os.path.join(self.workdir, "ray_logs")
+            self.start_actors()
+            # self.request_event_ranges()
             try:
-                shutil.copytree(self.session_log_dir, ray_logs)
+                self.handle_actors()
             except Exception as e:
-                self._logger.error(f"Failed to copy ray logs to workdir: {e}")
+                self._logger.error(f"{traceback.format_exc()}")
+                self._logger.error(f"Error while handling actors: {e}. stopping...")
 
+            if self.config.logging.get('copyraylogs', False):
+                ray_logs = os.path.join(self.workdir, "ray_logs")
+                try:
+                    shutil.copytree(self.session_log_dir, ray_logs)
+                except Exception as e:
+                    self._logger.error(f"Failed to copy ray logs to workdir: {e}")
+        else:
+            self._logger.info("No events to process, check for remaining merge jobs...")
         self._logger.debug("Waiting on merge transforms")
         # Workers might have sent event ranges update since last check, create possible merge jobs
         self.bookKeeper.stop_save_thread()
@@ -602,6 +604,7 @@ class ESDriver(BaseDriver):
                 assert len(event_ranges) > 0
                 output_filename = f"{output_filename_base}-{event_ranges[0][1].eventRangeID.split('-')[-1]}"
                 sub_process = self.hits_merge_transform([e[0] for e in event_ranges], output_filename)
+                self._logger.debug(f"Starting merge transform for {input_filename} : {output_filename}")
                 self.running_merge_transforms[input_filename][output_filename] = (event_ranges, sub_process)
             merge_files = self.bookKeeper.get_file_to_merge()
 
@@ -619,7 +622,7 @@ class ESDriver(BaseDriver):
                             event_ranges_map[event_range.eventRangeID] = TaskStatus.build_eventrange_dict(event_range, event_range_output)
                         self.bookKeeper.report_merged_file(self.panda_taskid, input_filename, output_filename, event_ranges_map)
                     else:
-                        pass  # TODO handle errors
+                        self._logger.debug(f"Merge transform failed with return code {sub_process.returncode}")
         for (i, o) in to_remove:
             del self.running_merge_transforms[i][o]
 
