@@ -591,6 +591,8 @@ class ESDriver(BaseDriver):
         Args:
             wait_for_completion: Wait for all the subprocesses (including those started by this call) to finish before returning
         """
+        if self.total_running_merge_transforms >= self.max_running_merge_transforms:
+            return
         self.bookKeeper.check_mergeable_files()
         merge_files = self.bookKeeper.get_file_to_merge()
         while merge_files:
