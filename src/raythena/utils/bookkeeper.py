@@ -296,15 +296,39 @@ class BookKeeper(object):
         self.ranges_to_merge: Dict[str, List[Tuple[str, EventRange]]] = dict()
         self.last_status_print = time.time()
         self.taskstatus: Dict[str, TaskStatus] = dict()
-        self.stop_event = threading.Event()
+        self.stop_saver = threading.Event()
+        self.stop_cleaner = threading.Event()
         self.save_state_thread = ExThread(target=self._saver_thead_run, name="status-saver-thread")
+        self.cleaner_thread = ExThread(target=self._cleaner_thead_run, name="cleaner-thread")
+
+    def _cleaner_thead_run(self):
+        """
+        Thread that cleans the internal dictionnary of the bookkeeper
+        """
+        removed = []
+        while not self.stop_cleaner.is_set():
+            files = set(os.listdir(self.output_dir))
+            removed.clear()
+            for task_status in self.taskstatus.values():
+                for merged_file in task_status._status[TaskStatus.MERGED].keys():
+                    if self.stop_cleaner.is_set():
+                        break
+                    for temp_file in files:
+                        if self.stop_cleaner.is_set():
+                            break
+                        if merged_file in temp_file:
+                            os.remove(os.path.join(self.output_dir, temp_file))
+                            removed.append(temp_file)
+                    for temp_file in removed:
+                        files.remove(temp_file)
+            self.stop_cleaner.wait(60)
 
     def _saver_thead_run(self):
 
-        while not self.stop_event.is_set():
+        while not self.stop_saver.is_set():
             self.save_status()
             # wait for 60s before next update or until the stop condition is met
-            self.stop_event.wait(60.0)
+            self.stop_saver.wait(60.0)
 
         # Perform a last drain of pending update before stopping
         self.save_status()
@@ -328,23 +352,28 @@ class BookKeeper(object):
                     self.files_ready_to_merge[input_file] = collections.deque()
                 self.files_ready_to_merge[input_file].append(ranges_to_merge)
 
-    def stop_save_thread(self):
-        """
-        Stop and join the thread writing task status to disk and prepare a new thread for execution.
-        """
-        self.stop_event.set()
+    def stop_saver_thread(self):
+        self.stop_saver.set()
         self.save_state_thread.join()
         self.save_state_thread = ExThread(target=self._saver_thead_run, name="status-saver-thread")
+    
+    def stop_cleaner_thread(self):
+        self.stop_cleaner.set()
+        self.cleaner_thread.join()
+        self.cleaner_thread = ExThread(target=self._cleaner_thead_run, name="cleaner-thread")
 
-    def start_save_thread(self):
+    def start_threads(self):
         """
         Start the thread responsible for writing task status to disk
         """
+        self.stop_saver.clear()
+        self.stop_cleaner.clear()
         if not self.save_state_thread.is_alive():
-            self.stop_event.clear()
             self.save_state_thread.start()
+        if not self.cleaner_thread.is_alive():
+            self.cleaner_thread.start()
 
-    def add_jobs(self, jobs: Mapping[str, JobDef], start_save_thread=True) -> None:
+    def add_jobs(self, jobs: Mapping[str, JobDef], start_threads=True) -> None:
         """
         Register new jobs. Event service jobs will not be assigned to worker until event ranges are added to the job.
         This will also automatically start the thread responsible for saving the task status to file if the parameter start_save_thread is True.
@@ -364,8 +393,8 @@ class BookKeeper(object):
                 ts = TaskStatus(job, self.config)
                 self.taskstatus[job['taskID']] = ts
                 self._generate_event_ranges(job, ts)
-        if start_save_thread:
-            self.start_save_thread()
+        if start_threads:
+            self.start_threads()
 
     def _generate_event_ranges(self, job: PandaJob, task_status: TaskStatus):
         """

@@ -536,8 +536,9 @@ class ESDriver(BaseDriver):
             self._logger.info("No events to process, check for remaining merge jobs...")
         self._logger.debug("Waiting on merge transforms")
         # Workers might have sent event ranges update since last check, create possible merge jobs
-        self.bookKeeper.stop_save_thread()
+        self.bookKeeper.stop_saver_thread()
         self.handle_merge_transforms(True)
+        self.bookKeeper.stop_cleaner_thread()
         # need to explicitely save as we stopped saver_thread
         self.bookKeeper.save_status()
         self.communicator.stop()
