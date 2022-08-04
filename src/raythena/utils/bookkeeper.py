@@ -72,6 +72,7 @@ class TaskStatus:
         if not os.path.isfile(filename):
             if not os.path.isfile(self.tmpfilepath):
                 # no savefile, init dict
+                self._logger.debug("No previous state found")
                 self._default_init_status()
                 return
             else:
@@ -80,6 +81,7 @@ class TaskStatus:
         try:
             with open(filename, 'r') as f:
                 self._status = json.load(f)
+            self._logger.debug(f"Found previous task status: {self._status}")
         except OSError as e:
             # failed to load status, try to read from a possible tmp file if it exists and not already done
             if filename != self.tmpfilepath and os.path.isfile(self.tmpfilepath):
@@ -412,8 +414,9 @@ class BookKeeper(object):
                             self.ranges_to_merge[event_range.PFN].append(item)
                     elif file_failed_ranges and range_id in file_failed_ranges:
                         continue
-                    # event range hasn't been simulated, add it to the event range queue
-                    event_ranges.append(event_range)
+                    else:
+                        # event range hasn't been simulated, add it to the event range queue
+                        event_ranges.append(event_range)
             job.event_ranges_queue.add_new_event_ranges(event_ranges)
 
     def add_event_ranges(
