@@ -391,12 +391,12 @@ class BookKeeper(object):
                     continue
                 file_simulated_ranges = simulated_ranges.get(file)
                 file_failed_ranges = failed_ranges.get(file)
-                file_merging_ranges = merging_files.get(file).values()
+                file_merging_ranges = merging_files.get(file)
                 for i in range(1, self._events_per_file + 1):
                     range_id = f"{file}-{i}"
                     # checks if the event rang has already been merged in one of the output file
                     if file_merging_ranges:
-                        for ranges in file_merging_ranges:
+                        for ranges in file_merging_ranges.values():
                             if range_id in ranges:
                                 continue
 

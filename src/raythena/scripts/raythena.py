@@ -2,6 +2,7 @@
 import functools
 import signal
 import types
+import traceback
 
 import click
 
@@ -87,6 +88,7 @@ def cli(*args, **kwargs):
         driver.run()
     except Exception as e:
         print(f"Caught exception in driver process {e}")
+        print(traceback.format_exc())
     finally:
         shutdown_ray(config)
 
