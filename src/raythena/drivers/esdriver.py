@@ -506,7 +506,8 @@ class ESDriver(BaseDriver):
         # self.request_event_ranges(block=True)
         if not self.bookKeeper.has_jobs_ready():
             # self.cpu_monitor.stop()
-            self.bookKeeper.stop_save_thread()
+            self.bookKeeper.stop_cleaner_thread()
+            self.bookKeeper.stop_saver_thread()
             self.communicator.stop()
             self._logger.critical("Couldn't fetch a job with event ranges, stopping...")
             return
