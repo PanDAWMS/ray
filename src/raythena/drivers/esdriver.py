@@ -170,7 +170,7 @@ class ESDriver(BaseDriver):
             None
         """
         for actor_id, worker in self.actors.items():
-            self.enqueue_actor_call(actor_id, worker.get_message().remote())
+            self.enqueue_actor_call(actor_id, worker.get_message.remote())
 
     def create_actors(self) -> None:
         """
