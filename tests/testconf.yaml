@@ -17,14 +17,11 @@ harvester:
   harvesterconf: tests/panda_harvester_test.cfg
 
 ray:
-  outputdir: .
   headip:
   redisport:
   redispassword:
   cachesizefactor: 1
   workdir: .
-  eventsperfile: 4
-  hitsperfile: 2
   timeoutinterval: 600
   mergemaxprocesses: 5
 

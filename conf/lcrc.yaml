@@ -13,7 +13,6 @@ harvester:
   harvesterconf: /home/dbenjamin/harvester-py3/etc/panda/panda_harvester.cfg
 
 ray:
-  outputdir:
   headip:
   redisport:
   redispassword:

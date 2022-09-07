@@ -46,8 +46,8 @@ class TaskStatus:
         self.output_dir = config.ray.get("outputdir")
         self.filepath = os.path.join(self.output_dir, f"{self.job['taskID']}.json")
         self.tmpfilepath = f"{self.filepath}.tmp"
-        self._events_per_file = int(self.config.ray.get('eventsperfile'))
-        self._hits_per_file = int(self.config.ray.get('hitsperfile'))
+        self._events_per_file = int(job['emergeSpec']['nEventsPerOutputFile'])
+        self._hits_per_file = int(job['nEventsPerInputFile'])
         assert self._events_per_file % self._hits_per_file == 0, "Expected number of events per input file to be a multiple of number of hits per merged file"
         self._n_output_per_input_file = self._events_per_file // self._hits_per_file
         self._status: Dict[str, Union[Dict[str, Dict[str, Dict[str, str]]], Dict[str, List[str]]]] = dict()
@@ -287,8 +287,6 @@ class BookKeeper(object):
         self.jobs: PandaJobQueue = PandaJobQueue()
         self.config: Config = config
         self.output_dir = config.ray.get("outputdir")
-        self._events_per_file = int(self.config.ray.get('eventsperfile'))
-        self._hits_per_file = int(self.config.ray.get('hitsperfile'))
         self._logger = make_logger(self.config, "BookKeeper")
         self.actors: Dict[str, Optional[str]] = dict()
         self.rangesID_by_actor: Dict[str, Set[str]] = dict()
@@ -405,7 +403,9 @@ class BookKeeper(object):
             job: the job to which the generated event ranges will be assigned
             task_status: current status of the panda task
         """
-
+        events_per_file = int(job['emergeSpec']['nEventsPerOutputFile'])
+        # We only ever get one job
+        self._hits_per_file = int(job['nEventsPerInputFile'])
         input_evnt_files = re.findall(r"\-\-inputEVNTFile=([\w\.\,]*) \-", job["jobPars"])
         if input_evnt_files:
             guids = job["GUID"].split(',')
@@ -424,7 +424,7 @@ class BookKeeper(object):
                 file_simulated_ranges = simulated_ranges.get(file)
                 file_failed_ranges = failed_ranges.get(file)
                 file_merging_ranges = merging_files.get(file)
-                for i in range(1, self._events_per_file + 1):
+                for i in range(1, events_per_file + 1):
                     range_id = f"{file}-{i}"
                     # checks if the event rang has already been merged in one of the output file
                     if file_merging_ranges:

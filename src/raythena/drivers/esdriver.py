@@ -82,10 +82,16 @@ class ESDriver(BaseDriver):
 
         self._logger.debug(f"Raythena v{__version__} initializing, running Ray {ray.__version__} on {gethostname()}")
 
-        self.outputdir = os.path.join(os.getcwd(), os.path.expandvars(self.config.ray.get("outputdir", self.workdir)))
-        self.config.ray["outputdir"] = self.outputdir
-        self.tar_merge_es_output_dir = self.outputdir
-        self.tar_merge_es_files_dir = self.outputdir
+        task_workdir_path_file = f"{workdir}/task_workdir_path.txt"
+        if not os.path.isfile(task_workdir_path_file):
+            self._logger.error(f"File {task_workdir_path_file} doesn't exist")
+            return
+
+        with open(task_workdir_path_file, 'r') as f:
+            self.output_dir = f.readline()
+        self.config.ray["outputdir"] = self.output_dir
+        self.tar_merge_es_output_dir = self.output_dir
+        self.tar_merge_es_files_dir = self.output_dir
         # self.cpu_monitor = CPUMonitor(os.path.join(workdir, "cpu_monitor_driver.json"))
         # self.cpu_monitor.start()
 
@@ -123,10 +129,10 @@ class ESDriver(BaseDriver):
 
         # create the output directories if needed
         try:
-            if not os.path.isdir(self.outputdir):
-                os.mkdir(self.outputdir)
+            if not os.path.isdir(self.output_dir):
+                os.mkdir(self.output_dir)
         except Exception:
-            self._logger.warning(f"Exception when creating the {self.outputdir}")
+            self._logger.warning(f"Exception when creating the {self.output_dir}")
             raise
         try:
             if not os.path.isdir(self.tar_merge_es_output_dir):
@@ -648,7 +654,7 @@ class ESDriver(BaseDriver):
             return
         tmp_dir = tempfile.mkdtemp()
         file_list = " ".join(input_files)
-        output_file = os.path.join(self.outputdir, output_file)
+        output_file = os.path.join(self.output_dir, output_file)
         container_script = "if [[ -f /alrb/postATLASReleaseSetup.sh ]]; then source /alrb/postATLASReleaseSetup.sh; fi;"
         container_script += f"HITSMerge_tf.py --inputHITSFile {file_list} --outputHITS_MRGFile {output_file};"
 

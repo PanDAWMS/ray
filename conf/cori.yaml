@@ -17,14 +17,11 @@ harvester:
   harvesterconf: /global/common/software/atlas/harvester/etc/panda/panda_harvester.cfg
 
 ray:
-  outputdir:
   headip:
   redisport:
   redispassword:
   workdir: $SCRATCH/raythena/workdir
   cachesizefactor: 4
-  eventsperfile: 500
-  hitsperfile: 100
   timeoutinterval: 600
   mergemaxprocesses: 64
 

@@ -111,7 +111,7 @@ class ESWorker(object):
             self.config.ray.get('workdir', os.getcwd()))
         if not os.path.isdir(self.workdir):
             self.workdir = os.getcwd()
-        self.output_dir = self.config.ray.get("outputdir", self.workdir)
+        self.output_dir = self.config.ray.get("outputdir")
         self.pilot_kill_file = os.path.expandvars(self.config.payload.get('pilotkillfile', 'pilot_kill_payload'))
         self.pilot_kill_time = self.config.payload.get('pilotkilltime', 600)
         self.time_monitor_file = os.path.expandvars(self.config.payload.get('timemonitorfile', 'RaythenaTimeMonitor.txt'))
