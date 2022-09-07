@@ -13,14 +13,14 @@ def config_path():
 
 
 @pytest.fixture(scope="class")
-def requires_ray(config):
-    setup_ray(config)
+def requires_ray(config_base):
+    setup_ray(config_base)
     yield
-    shutdown_ray(config)
+    shutdown_ray(config_base)
 
 
 @pytest.fixture(scope="class")
-def config(config_path):
+def config_base(config_path):
     return Config(config_path,
                   config=None,
                   debug=False,
@@ -31,6 +31,12 @@ def config(config_path):
                   harvester_endpoint=None,
                   panda_queue=None,
                   core_per_node=None)
+
+
+@pytest.fixture
+def config(config_base, tmp_path):
+    config_base.ray["outputdir"] = tmp_path
+    return config_base
 
 
 @pytest.fixture(scope="session")
