@@ -507,7 +507,9 @@ class ESDriver(BaseDriver):
         self._logger.debug("Adding job and generating event ranges...")
         self.bookKeeper.add_jobs(jobs)
         self.panda_taskid = list(jobs.values())[0]["taskID"]
-
+        self.merge_transform = list(jobs.values())[0]["emergeSpec"]["transPath"]
+        self.merge_transform_params = list(jobs.values())[0]["emergeSpec"]["jobParameters"]
+        self.container_name = list(jobs.values())[0]["container_name"]
         # sends an initial event range request
         # self.request_event_ranges(block=True)
         if not self.bookKeeper.has_jobs_ready():
@@ -630,6 +632,7 @@ class ESDriver(BaseDriver):
                     to_remove.append((input_filename, output_filename))
                     self.total_running_merge_transforms -= 1
                     if sub_process.returncode == 0:
+                        self._logger.info(f"Merge transform for file {output_filename} finished.")
                         event_ranges_map = {}
                         for (event_range_output, event_range) in event_ranges:
                             event_ranges_map[event_range.eventRangeID] = TaskStatus.build_eventrange_dict(event_range, event_range_output)
@@ -656,12 +659,12 @@ class ESDriver(BaseDriver):
         file_list = " ".join(input_files)
         output_file = os.path.join(self.output_dir, output_file)
         container_script = "if [[ -f /alrb/postATLASReleaseSetup.sh ]]; then source /alrb/postATLASReleaseSetup.sh; fi;"
-        container_script += f"HITSMerge_tf.py --inputHITSFile {file_list} --outputHITS_MRGFile {output_file};"
+        container_script += f"{self.merge_transform} {self.merge_transform_params} --inputHITSFile {file_list} --outputHITS_MRGFile {output_file};"
 
         cmd = str()
         cmd += "export ATLAS_LOCAL_ROOT_BASE=/cvmfs/atlas.cern.ch/repo/ATLASLocalRootBase;"
-        cmd += "export thePlatform=\"${SLURM_SPANK_SHIFTER_IMAGEREQUEST}\";"
-        cmd += "source ${ATLAS_LOCAL_ROOT_BASE}/user/atlasLocalSetup.sh --swtype shifter -c $thePlatform -d -s none"
+        cmd += f"export thePlatform=\"${self.container_name}\";"
+        cmd += f"source ${{ATLAS_LOCAL_ROOT_BASE}}/user/atlasLocalSetup.sh --swtype {self.config.payload['containerengine']} -c $thePlatform -d -s none"
         cmd += f" -r \"{container_script}\" -e \"--clearenv\";RETURN_VAL=$?; rm -r {tmp_dir};exit $RETURN_VAL;"
         return Popen(cmd,
                      stdin=DEVNULL,

@@ -4,7 +4,7 @@ payload:
   extrasetup: export ALRB_CONT_SWTYPE=shifter; export LD_LIBRARY_PATH=/global/common/software/atlas/yampl/yampl-v1.0-py3.7/install/lib:$LD_LIBRARY_PATH; export PYTHONPATH=/global/common/software/atlas/yampl/yampl-v1.0-py3.7/install/python-yampl:$PYTHONPATH;
   hpcresource: cori
   extrapostpayload:
-  containerengine:
+  containerengine: shifter
   containerextraargs:
   pilotkillfile: pilot_kill_payload
   pilotkilltime: 900
