@@ -195,7 +195,10 @@ class TaskStatus:
             self._status[TaskStatus.MERGING][inputfile][outputfile] = event_ranges
 
         if len(self._status[TaskStatus.MERGING][inputfile]) == self._n_output_per_input_file:
-            self._status[TaskStatus.MERGED][inputfile] = list(self._status[TaskStatus.MERGING][inputfile].keys())
+            merged_dict = dict()
+            self._status[TaskStatus.MERGED][inputfile] = merged_dict
+            for merged_outputfile in self._status[TaskStatus.MERGING][inputfile].keys():
+                merged_dict[merged_outputfile] = {"path": os.path.join(self.output_dir, merged_outputfile)}
             del self._status[TaskStatus.MERGING][inputfile]
             del self._status[TaskStatus.SIMULATED][inputfile]
         else:
