@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Mapping, Any
 
 import ray
 
@@ -6,9 +6,9 @@ from raythena.utils.config import Config
 
 
 def build_nodes_resource_list(config: Config,
-                              run_actor_on_head: bool = False) -> List[str]:
+                              run_actor_on_head: bool = False) -> List[Mapping[str, Any]]:
     """
-    Build and setup ray custom resources so that 'config.resources.workerpernode' actors can be scheduled on each node.
+    Build and setup ray custom resources.
     Actors should then be instantiated by requiring one of the resource in the returned list.
 
     Args:
@@ -24,13 +24,12 @@ def build_nodes_resource_list(config: Config,
         run_actor_on_head = True
     head_ip = config.ray['headip']
     resource_list = list()
-    workerpernode = config.resources.get('workerpernode', 1)
     for node in nodes:
         naddr = node['NodeManagerAddress']
         if not node['alive'] or (not run_actor_on_head and naddr == head_ip):
             continue
         else:
-            resource_list.extend([node] * workerpernode)
+            resource_list.extend([node])
     return resource_list
 
 
@@ -60,7 +59,7 @@ def is_external_cluster(config: Config) -> bool:
         'redisport'] is not None
 
 
-def setup_ray(config: Config) -> dict:
+def setup_ray(config: Config) -> Any:
     """
     Connect to / Setup the ray cluster
 

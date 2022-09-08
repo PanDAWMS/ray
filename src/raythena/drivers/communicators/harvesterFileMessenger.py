@@ -247,7 +247,7 @@ class HarvesterFileCommunicator(BaseCommunicator):
     def cleanup_tmp_files(self) -> None:
         tmp_status_dump_file = f"{self.eventstatusdumpjsonfile}.tmp"
         if os.path.isfile(tmp_status_dump_file):
-            self._logger.warn("About to quit with leftover temporary files... Last try to move it")
+            self._logger.warning("About to quit with leftover temporary files... Last try to move it")
             try:
                 with open(tmp_status_dump_file) as f:
                     current_update = json.load(f)

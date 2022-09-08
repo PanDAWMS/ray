@@ -2,20 +2,18 @@
 import functools
 import signal
 import types
+import traceback
 
 import click
 
 from raythena.drivers.baseDriver import BaseDriver
 from raythena.utils.config import Config
-from raythena.utils.plugins import PluginsRegistry
 from raythena.utils.ray import setup_ray, shutdown_ray
+
+from raythena.drivers.esdriver import ESDriver
 
 
 @click.command()
-@click.option(
-    '--payload-bindir',
-    help='Directory where payload source code is located.'
-)
 @click.option(
     '--config',
     required=True,
@@ -37,10 +35,6 @@ from raythena.utils.ray import setup_ray, shutdown_ray
 @click.option(
     '--ray-redis-password',
     help='Redis password setup in the ray cluster'
-)
-@click.option(
-    '--ray-driver',
-    help='Ray driver to start as <moduleName>:<ClassName>. The module should be placed in raythena.drivers'
 )
 @click.option(
     '--ray-workdir',
@@ -70,9 +64,7 @@ def cli(*args, **kwargs):
 
     cluster_config = setup_ray(config)
     try:
-        registry = PluginsRegistry()
-        driver_class = registry.get_plugin(config.ray['driver'])
-        driver = driver_class(config, cluster_config['session_dir'])
+        driver = ESDriver(config, cluster_config['session_dir'])
 
         signal.signal(signal.SIGINT, functools.partial(cleanup, config, driver))
         signal.signal(signal.SIGTERM, functools.partial(cleanup, config, driver))
@@ -84,6 +76,7 @@ def cli(*args, **kwargs):
         driver.run()
     except Exception as e:
         print(f"Caught exception in driver process {e}")
+        print(traceback.format_exc())
     finally:
         shutdown_ray(config)
 
@@ -104,5 +97,9 @@ def cleanup(config: Config, driver: BaseDriver, signum: signal.Signals, frame: t
     driver.stop()
 
 
-if __name__ == "__main__":
+def main():
     cli(auto_envvar_prefix='RAYTHENA')
+
+
+if __name__ == "__main__":
+    main()

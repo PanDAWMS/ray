@@ -6,7 +6,7 @@ import shlex
 import stat
 from asyncio import Queue, QueueEmpty, Event
 from subprocess import DEVNULL, Popen
-from typing import Union, Dict, List, Callable
+from typing import Dict, List, Callable, Optional, Iterable, Mapping
 from urllib.parse import parse_qs
 
 import uvloop
@@ -46,7 +46,7 @@ class AsyncRouter(object):
         Assign a handler to a http endpoint. If the http endpoint was already assigned, it is overrided
 
         Args:
-            endpoint:
+            endpoint: http endpoint
             handler: coroutine to be called when a http call is received
 
         Returns:
@@ -75,13 +75,14 @@ class AsyncRouter(object):
         return await self.routes[endpoint](*args, **kwargs)
 
 
-class Pilot2HttpPayload(ESPayload):
+class PilotHttpPayload(ESPayload):
     """
-    This payload plugin processes panda jobs using the ray <-> pilot 2 <-> AthenMP workflow on HPC. The plugin starts
-    a pilot process using Popen. Communication with the pilot process is done using HTTP using the same API
-    specification provided by panda-server so that it doesn't require any change in pilot 2. The HTTP server is
-    packaged in this class and started at the same time that the payload is started.
+    Pilot payload responsible for handling http requests and monitoring the subprocess.
+    Both the subprocess and the http server are started when the method start is called.
+    Messages from the payload can be retrieved by calling fetch_messages, fetch_ranges_update.
 
+    PilotHttpPayload.start() and PilotHttpPayloadstop() must be called at most once per instance. If a new subprocess is
+    required, a new instance of PilotHttpPayload must be created.
     """
 
     def __init__(self, worker_id: str, config: Config) -> None:
@@ -91,7 +92,6 @@ class Pilot2HttpPayload(ESPayload):
 
         Args:
             worker_id: actor worker_id
-            logging_actor: remote logger
             config: application config
         """
         super().__init__(worker_id, config)
@@ -130,13 +130,8 @@ class Pilot2HttpPayload(ESPayload):
     def _start_payload(self) -> None:
         """
         Build the payload command and starts the pilot process using Popen
-
-        Returns:
-            None
         """
-        command = self._build_pilot_container_command(
-        ) if self.config.payload.get('containerengine',
-                                     None) else self._build_pilot_command()
+        command = self._build_pilot_command()
         # using PIPE will cause the subprocess to hang because
         # we're not reading data using communicate() and the pipe buffer becomes full as pilot2
         # generates a lot of data to the stdout pipe
@@ -151,48 +146,36 @@ class Pilot2HttpPayload(ESPayload):
 
     def _build_pilot_command(self) -> str:
         """
-        Build the payload command for environment without using a container. Typically used when the ray cluster
-        itself is already running in a container.
+        Build the payload command to start the pilot wrapper. CVMFS is required as the pilot wrapper and pilot3 source
+        code is retrieved from CVMFS.
+
+        Side effect: creates a file in the current directory, to be executed by the command returned command.
 
         Returns:
-            command string to execute
+            command string to pass to Popen
+        Raises:
+            FailedPayload: if source code to be executed cannot be retrieved from CVMFS
         """
         cmd = str()
-
-        conda_activate = None
-        condabindir = self.config.payload.get('condabindir', None)
-        pilot_venv = self.config.payload.get('virtualenv', None)
-
-        if condabindir is not None:
-            conda_activate = os.path.expandvars(os.path.join(self.config.payload.get('condabindir', ''), 'activate'))
-
-        if conda_activate is not None and os.path.isfile(conda_activate) and pilot_venv is not None:
-            cmd += f"source {conda_activate} {pilot_venv};"
 
         extra_setup = self.config.payload.get('extrasetup', None)
         if extra_setup is not None:
             cmd += f"{extra_setup}{';' if not extra_setup.endswith(';') else ''}"
 
-        pilot_version = self.config.payload.get('pilotversion', None)
-        if pilot_version == 3:
-            pilot_base = "pilot3"
-            # pilot3 only supports python3, override conf
-            py3pilot = True
-        else:
-            pilot_base = "pilot2"
-            py3pilot = self.config.payload.get('py3pilot', None)
+        pilot_base = "pilot3"
 
-        pilot_src = f"{shlex.quote(self.config.ray['workdir'])}/{pilot_base}"
+        pilot_version = self.config.payload.get("pilotversion", "latest")
+
+        pilot_src = f"/cvmfs/atlas.cern.ch/repo/sw/PandaPilot/pilot3/{pilot_version}"
 
         if not os.path.isdir(pilot_src):
-            raise FailedPayload(self.worker_id)
+            raise FailedPayload(self.worker_id, f"Pilot release {pilot_src} not found")
 
         cmd += f"ln -s {pilot_src} {os.path.join(os.getcwd(), pilot_base)};"
 
         prod_source_label = shlex.quote(self.current_job['prodSourceLabel'])
 
-        pilotwrapper_bin = os.path.expandvars(
-            os.path.join(self.config.payload['bindir'], "runpilot2-wrapper.sh"))
+        pilotwrapper_bin = "/cvmfs/atlas.cern.ch/repo/sw/PandaPilotWrapper/latest/runpilot2-wrapper.sh"
 
         if not os.path.isfile(pilotwrapper_bin):
             raise FailedPayload(self.worker_id)
@@ -200,10 +183,7 @@ class Pilot2HttpPayload(ESPayload):
         queue_escaped = shlex.quote(self.config.payload['pandaqueue'])
         cmd += f"{shlex.quote(pilotwrapper_bin)} --localpy --piloturl local -q {queue_escaped} -r {queue_escaped} -s {queue_escaped} "
 
-        if pilot_version == 3:
-            cmd += "--pilotversion 3 --pythonversion 3 "
-        elif py3pilot:
-            cmd += "--pythonversion 3 "
+        cmd += "--pilotversion 3 --pythonversion 3 "
 
         cmd += f"-i PR -j {prod_source_label} --container --mute --pilot-user=atlas -t -u --es-executor-type=raythena -v 1 " \
             f"-d --cleanup=False -w generic --use-https False --allow-same-user=False --resource-type MCORE " \
@@ -222,89 +202,19 @@ class Pilot2HttpPayload(ESPayload):
         return (f"/bin/bash {cmd_script} "
                 f"> {payload_log} 2> {payload_log}.stderr")
 
-    def _build_pilot_container_command(self) -> str:
-        """
-        Build the payload command to run pilot 2 in a container. Container engine used in defined in the config file.
-        The payload command is written to a file which is then executed in the container environment
-
-        Returns:
-            command string to execute
-        """
-        cmd = str()
-        extra_setup = self.config.payload.get('extrasetup', '')
-        if extra_setup:
-            cmd += f"{extra_setup}{';' if not extra_setup.endswith(';') else ''}"
-
-        pilot_version = self.config.payload.get('pilotversion', None)
-        if pilot_version == 3:
-            pilot_base = "pilot3"
-            # pilot3 only supports python3, override conf
-            py3pilot = True
-        else:
-            pilot_base = "pilot2"
-            py3pilot = self.config.payload.get('py3pilot', None)
-
-        pilot_src = f"{shlex.quote(self.config.ray['workdir'])}/{pilot_base}"
-
-        if not os.path.isdir(pilot_src):
-            raise FailedPayload(self.worker_id)
-
-        cmd += f"ln -s {pilot_src} {os.path.join(os.getcwd(), pilot_base)};"
-        prod_source_label = shlex.quote(self.current_job['prodSourceLabel'])
-
-        pilotwrapper_bin = os.path.expandvars(
-            os.path.join(self.config.payload['bindir'], "runpilot2-wrapper.sh"))
-
-        if not os.path.isfile(pilotwrapper_bin):
-            raise FailedPayload(self.worker_id)
-
-        queue_escaped = shlex.quote(self.config.payload['pandaqueue'])
-
-        cmd += f"{shlex.quote(pilotwrapper_bin)} --localpy --piloturl local -q {queue_escaped} -r {queue_escaped} -s {queue_escaped} "
-
-        if pilot_version == 3:
-            cmd += "--pilotversion 3 --pythonversion 3 "
-        elif py3pilot:
-            cmd += "--pythonversion 3 "
-
-        cmd += f"-i PR -j {prod_source_label} --container --mute --pilot-user=atlas -t -u --es-executor-type=raythena -v 1 " \
-            f"-d --cleanup=False -w generic --url=http://{self.host} -p {self.port} --use-https False --allow-same-user=False --resource-type MCORE " \
-            f"--hpc-resource {shlex.quote(self.config.payload['hpcresource'])};"
-
-        extra_script = self.config.payload.get('extrapostpayload', '')
-        if extra_script:
-            cmd += f"{extra_script}{';' if not extra_script.endswith(';') else ''}"
-        cmd_script = os.path.join(os.getcwd(), "payload.sh")
-        with open(cmd_script, 'w') as f:
-            f.write(cmd)
-        st = os.stat(cmd_script)
-        os.chmod(cmd_script, st.st_mode | stat.S_IEXEC)
-        payload_log = shlex.quote(
-            self.config.payload.get('logfilename', 'wrapper'))
-        container = shlex.quote(self.config.payload.get('containerengine', ''))
-        container_args = self.config.payload.get('containerextraargs', '')
-        if container_args:
-            container_args = shlex.quote(container_args)
-        else:
-            container_args = ''
-        return (f"{container} {container_args} /bin/bash {cmd_script} "
-                f"> {payload_log} 2> {payload_log}.stderr")
-
     def stagein(self) -> None:
         """
-        Stage-in cric pandaqueues, queuedata and ddmendpoints info from harvester cacher
+        Stage-in cric pandaqueues, queuedata and ddmendpoints info from harvester cacher and CVMFS by creating symlinks.
 
-        Returns:
-            None
         """
         cwd = os.getcwd()
         harvester_home = os.path.expandvars(self.config.harvester.get("cacher", ''))
 
-        ddm_endpoints_file = os.path.join(harvester_home, "cric_ddmendpoints.json")
+        ddm_endpoints_file = "/cvmfs/atlas.cern.ch/repo/sw/local/etc/cric_ddmendpoints.json"
         if os.path.isfile(ddm_endpoints_file):
             os.symlink(ddm_endpoints_file, os.path.join(cwd, "cric_ddmendpoints.json"))
 
-        pandaqueues_file = os.path.join(harvester_home, "cric_pandaqueues.json")
+        pandaqueues_file = "/cvmfs/atlas.cern.ch/repo/sw/local/etc/cric_pandaqueues.json"
         if os.path.isfile(pandaqueues_file):
             os.symlink(pandaqueues_file, os.path.join(cwd, "cric_pandaqueues.json"))
 
@@ -317,14 +227,12 @@ class Pilot2HttpPayload(ESPayload):
         """
         Pass, stage-out if performed on-the-fly by the worker after each event ranges update
 
-        Returns:
-            None
         """
         pass
 
     def is_complete(self) -> bool:
         """
-        Checks if the payload subprocess ended.
+        Checks if the payload subprocess ended by polling.
 
         Returns:
             False if the payload has not finished yet, True otherwise
@@ -332,33 +240,22 @@ class Pilot2HttpPayload(ESPayload):
         return self.pilot_process is not None and self.pilot_process.poll(
         ) is not None
 
-    def return_code(self) -> int:
+    def return_code(self) -> Optional[int]:
         """
         Returns the subprocess return code, or None is the subprocess hasn't finished yet
 
         Returns:
-            None
+            None or the subprocess return code if the subprocess has finished
         """
         return self.pilot_process.poll()
 
-    def get_no_more_ranges(self) -> bool:
-        """
-        Returns the no_more_ranges bool
-
-        Returns:
-            None
-        """
-        return self.no_more_ranges
-
     def start(self, job: PandaJob) -> None:
         """
-        Starts the payload subprocess and the http server in a separate thread
+        Starts the payload subprocess and the http server in a separate thread.
+        No effects if this method has been called before.
 
         Args:
             job: the job spec that should be processed by the payload
-
-        Returns:
-            None
         """
         if not self.server_thread or not self.server_thread.is_alive():
             self.stop_event = Event()
@@ -375,9 +272,6 @@ class Pilot2HttpPayload(ESPayload):
         """
         Stops the payload. If the subprocess hasn't finished yet, sends a SIGTERM signal to terminate it
         and wait until it exits then stop the http server
-
-        Returns:
-            None
         """
         if self.server_thread and self.server_thread.is_alive():
 
@@ -390,20 +284,23 @@ class Pilot2HttpPayload(ESPayload):
                                              self.loop)
             self.server_thread.join()
 
-    def submit_new_range(self, event_range: Union[None, EventRange]) -> asyncio.Future:
+    def submit_new_range(self, event_range: Optional[EventRange]) -> asyncio.Future:
         """
-        Submits new event ranges to the payload thread but adding it to the event ranges queue
+        Submits a new evnet range to the payload thread by adding it to the event ranges queue.
 
         Args:
-            event_range: range to submit to the payload
-
-        Returns:
-            None
+            event_range: range to forward to pilot
         """
         return asyncio.run_coroutine_threadsafe(self.ranges_queue.put(event_range),
                                                 self.loop)
 
-    def submit_new_ranges(self, event_ranges: Union[None, List[EventRange]]) -> None:
+    def submit_new_ranges(self, event_ranges: Optional[Iterable[EventRange]]) -> None:
+        """
+        Wrapper for submit_new_range that accepts an iterable of event ranges.
+
+        Args:
+            event_ranges: iterable of event ranges to forward to pilot
+        """
         futures = list()
         if event_ranges:
             for r in event_ranges:
@@ -413,12 +310,12 @@ class Pilot2HttpPayload(ESPayload):
         for fut in futures:
             fut.result()
 
-    def fetch_job_update(self) -> Union[None, Dict[str, str]]:
+    def fetch_job_update(self) -> Optional[Mapping[str, str]]:
         """
         Tries to get a job update from the payload by polling the job queue
 
         Returns:
-            None if no job update update is available or a dict holding the update
+            None if no job update is available or a dict holding the update
         """
         try:
             res = self.job_update.get_nowait()
@@ -427,7 +324,7 @@ class Pilot2HttpPayload(ESPayload):
         except QueueEmpty:
             return None
 
-    def fetch_ranges_update(self) -> Union[None, Dict[str, str]]:
+    def fetch_ranges_update(self) -> Optional[Mapping[str, str]]:
         """
         Checks if event ranges update are available by polling the event ranges update queue
 
@@ -443,7 +340,10 @@ class Pilot2HttpPayload(ESPayload):
 
     def should_request_more_ranges(self) -> bool:
         """
-        Checks if the payload is ready to receive more event ranges
+        Checks if the payload is ready to receive more event ranges. If false is returned, then the payload is
+        not expecting to have more ranges assigned to it by calling submit_new_ranges. If this method ever returns false,
+        then any future to it will return false as well.
+        Event ranges submitted after this method returns false will be ignored and never sent to the pilot process.
 
         Returns:
             True if the worker should send new event ranges to the payload, False otherwise
@@ -511,7 +411,7 @@ class Pilot2HttpPayload(ESPayload):
         Returns:
             Status code
         """
-        _ = await Pilot2HttpPayload.parse_qs_body(request)
+        _ = await PilotHttpPayload.parse_qs_body(request)
         # Do not send job update as the driver is not doing anything with them
         # await self.job_update.put(body)
         res = {"StatusCode": 0}
@@ -521,9 +421,9 @@ class Pilot2HttpPayload(ESPayload):
     async def handle_get_event_ranges(self,
                                       request: web.BaseRequest) -> web.Response:
         """
-        Handler for getEventRanges call, retrieve event ranges from the queue and returns ranges to pilot 2.
+        Handler for getEventRanges call, retrieve event ranges from the queue and returns ranges to pilot.
         If not enough event ranges are available yet, wait until more ranges become available or a message indicating
-        that no more ranges are available for this job, in that case
+        that no more ranges are available for this job, in that case sends all the available ranges to the pilot.
 
         Args:
             request: http request received by the server
@@ -531,7 +431,7 @@ class Pilot2HttpPayload(ESPayload):
         Returns:
             json holding the event ranges
         """
-        body = await Pilot2HttpPayload.parse_qs_body(request)
+        body = await PilotHttpPayload.parse_qs_body(request)
         status = 0
         panda_id = body['pandaID'][0]
         ranges = list()
@@ -562,7 +462,7 @@ class Pilot2HttpPayload(ESPayload):
         Returns:
             status code
         """
-        body = await Pilot2HttpPayload.parse_qs_body(request)
+        body = await PilotHttpPayload.parse_qs_body(request)
         await self.ranges_update.put(body)
         res = {"StatusCode": 0}
         # self._logger.debug(f"event ranges queue size is {self.ranges_update.qsize()}")
@@ -571,7 +471,7 @@ class Pilot2HttpPayload(ESPayload):
     async def handle_update_jobs_in_bulk(
             self, request: web.BaseRequest) -> web.Response:
         """
-        Not used by pilot 2
+        Not used by pilot in the current workflow
 
         Args:
             request: http request received by the server
@@ -586,7 +486,7 @@ class Pilot2HttpPayload(ESPayload):
 
     async def handle_get_status(self, request: web.BaseRequest) -> web.Response:
         """
-        Not used by pilot 2
+         Not used by pilot in the current workflow
 
         Args:
             request: http request received by the server
@@ -602,7 +502,7 @@ class Pilot2HttpPayload(ESPayload):
     async def handle_get_key_pair(self,
                                   request: web.BaseRequest) -> web.Response:
         """
-        Not used by pilot 2
+         Not used by pilot in the current workflow
 
         Args:
             request: http request received by the server
@@ -632,18 +532,12 @@ class Pilot2HttpPayload(ESPayload):
     async def notify_stop_server_task(self) -> None:
         """
         Notify the server thread that the http server should stop listening
-
-        Returns:
-            None
         """
         self.stop_event.set()
 
     async def serve(self) -> None:
         """
-        Starts the http server then blocks until it receives an end notification
-
-        Returns:
-            None
+        Starts the http server then blocks until it receives a stop event
         """
         await self.startup_server()
         self._start_payload()
@@ -655,9 +549,6 @@ class Pilot2HttpPayload(ESPayload):
         """
         Http server target method setting up the asyncio event loop for the current thread and blocks until the server
         is stopped
-
-        Returns:
-            None
         """
         asyncio.set_event_loop(self.loop)
         self.loop.run_until_complete(self.serve())

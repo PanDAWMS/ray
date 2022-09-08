@@ -1,0 +1,106 @@
+{
+    "simulated": {
+        "INPUTFILE1": {
+            "RANGEID1": {
+                "startEvent": "",
+                "lastEvent": "",
+                "eventRangeID": "RANGEID1",
+                "path": ""
+            },
+            "RANGEID2": {
+                "startEvent": "",
+                "lastEvent": "",
+                "eventRangeID": "RANGEID2",
+                "path": ""
+            }
+        },
+        "INPUTFILE2": {
+            "RANGEID3": {
+                "startEvent": "",
+                "lastEvent": "",
+                "eventRangeID": "RANGEID3",
+                "path": ""
+            },
+            "RANGEID4": {
+                "startEvent": "",
+                "lastEvent": "",
+                "eventRangeID": "RANGEID4",
+                "path": ""
+            }
+        },
+        "INPUTFILE3": {}
+    },
+    "failed": {
+        "INPUTFILE1": {
+            "RANGEID5": {
+                "startEvent": "",
+                "lastEvent": "",
+                "eventRangeID": "RANGEID5"
+            }
+        }
+    },
+    "merging": {
+        "INPUTFILE1": {
+            "OUTPUTFILE1-1": {
+                "RANGEID6": {
+                    "startEvent": "",
+                    "lastEvent": "",
+                    "eventRangeID": "RANGEID6",
+                    "path": ""
+                },
+                "RANGEID7": {
+                    "startEvent": "",
+                    "lastEvent": "",
+                    "eventRangeID": "RANGEID7",
+                    "path": ""
+                }
+            }
+        },
+        "INPUTFILE2": {
+            "OUTPUTFILE2-1": {
+                "RANGEID8": {
+                    "startEvent": "",
+                    "lastEvent": "",
+                    "eventRangeID": "RANGEID8",
+                    "path": ""
+                },
+                "RANGEID9": {
+                    "startEvent": "",
+                    "lastEvent": "",
+                    "eventRangeID": "RANGEID9",
+                    "path": ""
+                }
+            }
+        },
+        "INPUTFILE3": {
+            "OUTPUTFILE3-1": {
+                "RANGEID10": {
+                    "startEvent": "",
+                    "lastEvent": "",
+                    "eventRangeID": "RANGEID10",
+                    "path": ""
+                },
+                "RANGEID11": {
+                    "startEvent": "",
+                    "lastEvent": "",
+                    "eventRangeID": "RANGEID11",
+                    "path": ""
+                }
+            }
+        }
+    },
+    "merged": {
+        "INPUTFILE6": [
+            "OUTPUTFILE6-1",
+            "OUTPUTFILE6-2"
+        ],
+        "INPUTFILE7": [
+            "OUTPUTFILE7-1",
+            "OUTPUTFILE7-2"
+        ],
+        "INPUTFILE8": [
+            "OUTPUTFILE8-1",
+            "OUTPUTFILE8-2"
+        ]
+    }
+}
