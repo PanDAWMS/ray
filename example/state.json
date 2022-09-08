@@ -90,17 +90,29 @@
         }
     },
     "merged": {
-        "INPUTFILE6": [
-            "OUTPUTFILE6-1",
-            "OUTPUTFILE6-2"
-        ],
-        "INPUTFILE7": [
-            "OUTPUTFILE7-1",
-            "OUTPUTFILE7-2"
-        ],
-        "INPUTFILE8": [
-            "OUTPUTFILE8-1",
-            "OUTPUTFILE8-2"
-        ]
+        "INPUTFILE6": {
+            "OUTPUTFILE6-1": {
+                "path": "/path/to/OUTPUTFILE6-1"
+            },
+            "OUTPUTFILE6-2": {
+                "path": "/path/to/OUTPUTFILE6-2"
+            }
+        },
+        "INPUTFILE7": {
+            "OUTPUTFILE7-1": {
+                "path": "/path/to/OUTPUTFILE7-1"
+            },
+            "OUTPUTFILE7-2": {
+                "path": "/path/to/OUTPUTFILE7-2"
+            }
+        },
+        "INPUTFILE8": {
+            "OUTPUTFILE8-1": {
+                "path": "/path/to/OUTPUTFILE8-1"
+            },
+            "OUTPUTFILE8-2": {
+                "path": "/path/to/OUTPUTFILE8-2"
+            }
+        }
     }
 }
