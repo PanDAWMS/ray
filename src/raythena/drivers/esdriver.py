@@ -1,16 +1,15 @@
-import concurrent.futures
+from asyncio import subprocess
 import os
 import shutil
-import sys
-import tarfile
+import tempfile
 import time
 import traceback
-import zlib
 from math import ceil
 from queue import Empty, Queue
 from socket import gethostname
-from typing import (Any, Dict, Iterator, List, Mapping, Sequence,
+from typing import (Any, Dict, Iterator, List, Mapping, Sequence, Iterable,
                     Tuple)
+from subprocess import DEVNULL, Popen
 
 import ray
 from ray.exceptions import RayActorError
@@ -22,11 +21,11 @@ from raythena.drivers.communicators.baseCommunicator import (BaseCommunicator,
                                                              RequestData)
 from raythena.drivers.communicators.harvesterFileMessenger import \
     HarvesterFileCommunicator
-from raythena.utils.bookkeeper import BookKeeper
+from raythena.utils.bookkeeper import BookKeeper, TaskStatus
 from raythena.utils.config import Config
-from raythena.utils.eventservice import (EventRangeDef,
+from raythena.utils.eventservice import (EventRange, EventRangeDef,
                                          EventRangeRequest, EventRangeUpdate,
-                                         JobDef, JobReport, Messages,
+                                         JobDef, Messages,
                                          PandaJobRequest
                                          )
 from raythena.utils.exception import BaseRaythenaException
@@ -83,10 +82,16 @@ class ESDriver(BaseDriver):
 
         self._logger.debug(f"Raythena v{__version__} initializing, running Ray {ray.__version__} on {gethostname()}")
 
-        self.outputdir = os.path.expandvars(self.config.ray.get("outputdir", self.workdir))
-        self.config.ray["outputdir"] = self.outputdir
-        self.tar_merge_es_output_dir = self.outputdir
-        self.tar_merge_es_files_dir = self.outputdir
+        task_workdir_path_file = f"{workdir}/task_workdir_path.txt"
+        if not os.path.isfile(task_workdir_path_file):
+            self._logger.error(f"File {task_workdir_path_file} doesn't exist")
+            return
+
+        with open(task_workdir_path_file, 'r') as f:
+            self.output_dir = f.readline()
+        self.config.ray["outputdir"] = self.output_dir
+        self.tar_merge_es_output_dir = self.output_dir
+        self.tar_merge_es_files_dir = self.output_dir
         # self.cpu_monitor = CPUMonitor(os.path.join(workdir, "cpu_monitor_driver.json"))
         # self.cpu_monitor.start()
 
@@ -97,6 +102,7 @@ class ESDriver(BaseDriver):
         self.communicator.start()
         self.requests_queue.put(PandaJobRequest())
         self.actors: Dict[str, ESWorker] = dict()
+        self.pending_objectref_to_actor: Dict[ObjectRef, str] = dict()
         self.actors_message_queue = list()
         self.bookKeeper = BookKeeper(self.config)
         self.terminated = list()
@@ -110,26 +116,23 @@ class ESDriver(BaseDriver):
         self.n_actors = len(self.nodes)
         self.events_cache_size = self.cores_per_node * self.n_actors * self.cache_size_factor
         self.timeoutinterval = self.config.ray['timeoutinterval']
-        self.tar_timestamp = time.time()
-        self.tarinterval = self.config.ray['tarinterval']
-        self.tarmaxprocesses = self.config.ray['tarmaxprocesses']
-        self.ranges_to_tar: List[List[EventRangeDef]] = list()
-        self.running_tar_threads = dict()
-        self.processed_event_ranges = dict()
-        self.finished_tar_tasks = set()
+        self.max_running_merge_transforms = self.config.ray['mergemaxprocesses']
+        self.panda_taskid = None
+        # {input_filename, {merged_output_filename, ([(event_range_id, EventRange)], subprocess handle)}}
+        self.running_merge_transforms: Dict[str, Dict[str, Tuple[List[Tuple[str, EventRange]], Popen]]] = dict()
+        self.total_running_merge_transforms = 0
         self.failed_actor_tasks_count = dict()
         self.available_events_per_actor = 0
         self.total_tar_tasks = 0
         self.remote_jobdef_byid = dict()
         self.config_remote = ray.put(self.config)
-        self.tar_executor = concurrent.futures.ThreadPoolExecutor(max_workers=self.tarmaxprocesses)
 
         # create the output directories if needed
         try:
-            if not os.path.isdir(self.outputdir):
-                os.mkdir(self.outputdir)
+            if not os.path.isdir(self.output_dir):
+                os.mkdir(self.output_dir)
         except Exception:
-            self._logger.warning(f"Exception when creating the {self.outputdir}")
+            self._logger.warning(f"Exception when creating the {self.output_dir}")
             raise
         try:
             if not os.path.isdir(self.tar_merge_es_output_dir):
@@ -172,7 +175,8 @@ class ESDriver(BaseDriver):
         Returns:
             None
         """
-        self.actors_message_queue += [actor.get_message.remote() for actor in self.actors.values()]
+        for actor_id, worker in self.actors.items():
+            self.enqueue_actor_call(actor_id, worker.get_message.remote())
 
     def create_actors(self) -> None:
         """
@@ -199,7 +203,8 @@ class ESDriver(BaseDriver):
                 event_ranges = self.bookKeeper.fetch_event_ranges(actor_id, events_per_actor)
                 if event_ranges:
                     kwargs['event_ranges'] = event_ranges
-                    self._logger.debug(f"Prefetched job {job['PandaID']} and {len(event_ranges)} event ranges for {actor_id}")
+                    self._logger.debug(
+                        f"Prefetched job {job['PandaID']} and {len(event_ranges)} event ranges for {actor_id}")
 
             actor = ESWorker.options(resources={node_constraint: 1}).remote(**kwargs)
             self.actors[actor_id] = actor
@@ -227,13 +232,17 @@ class ESDriver(BaseDriver):
                 except RayActorError as e:
                     self._logger.error(f"RayActorError: {e.error_msg}")
                 except Exception as e:
-                    self._logger.error(f"Caught exception while fetching result from actor: {e}")
+                    self._logger.error(f"Caught exception while fetching result from {self.pending_objectref_to_actor[r]}: {e}")
                 else:
                     yield actor_id, message, data
         else:
             self._logger.debug(f"Start handling messages batch of {len(messages)} actors")
             for actor_id, message, data in messages:
                 yield actor_id, message, data
+
+    def enqueue_actor_call(self, actor_id: str, future: ObjectRef):
+        self.actors_message_queue.append(future)
+        self.pending_objectref_to_actor[future] = actor_id
 
     def handle_actors(self) -> None:
         """
@@ -247,8 +256,7 @@ class ESDriver(BaseDriver):
         while new_messages and self.running:
             for actor_id, message, data in self.retrieve_actors_messages(new_messages):
                 if message == Messages.IDLE or message == Messages.REPLY_OK:
-                    self.actors_message_queue.append(
-                        self[actor_id].get_message.remote())
+                    self.enqueue_actor_call(actor_id, self[actor_id].get_message.remote())
                 elif message == Messages.REQUEST_NEW_JOB:
                     self.handle_job_request(actor_id)
                 elif message == Messages.REQUEST_EVENT_RANGES:
@@ -304,7 +312,7 @@ class ESDriver(BaseDriver):
         # TODO: Temporary hack
         has_jobs = False
         if has_jobs:
-            self.actors_message_queue.append(self[actor_id].mark_new_job.remote())
+            self.enqueue_actor_call(actor_id, self[actor_id].mark_new_job.remote())
         else:
             self.terminated.append(actor_id)
             self.bookKeeper.process_actor_end(actor_id)
@@ -323,10 +331,8 @@ class ESDriver(BaseDriver):
         Returns:
             None
         """
-        _, failed_events = self.bookKeeper.process_event_ranges_update(actor_id, data)
-        if failed_events:
-            self.requests_queue.put(failed_events)
-        self.actors_message_queue.append(self[actor_id].get_message.remote())
+        self.bookKeeper.process_event_ranges_update(actor_id, data)
+        self.enqueue_actor_call(actor_id, self[actor_id].get_message.remote())
 
     def handle_update_job(self, actor_id: str, data: Any) -> None:
         """
@@ -339,8 +345,7 @@ class ESDriver(BaseDriver):
         Returns:
             None
         """
-        self.actors_message_queue.append(
-            self[actor_id].get_message.remote())
+        self.enqueue_actor_call(actor_id, self[actor_id].get_message.remote())
 
     def handle_request_event_ranges(self, actor_id: str, data: EventRangeRequest, total_sent: int) -> int:
         """
@@ -377,7 +382,7 @@ class ESDriver(BaseDriver):
         #         actor_id, n_ranges)
         if evt_range:
             total_sent += len(evt_range)
-        self.actors_message_queue.append(self[actor_id].receive_event_ranges.remote(
+        self.enqueue_actor_call(actor_id, self[actor_id].receive_event_ranges.remote(
             Messages.REPLY_OK if evt_range else
             Messages.REPLY_NO_MORE_EVENT_RANGES, evt_range))
         self._logger.info(f"Sending {len(evt_range)} events to {actor_id}")
@@ -399,9 +404,8 @@ class ESDriver(BaseDriver):
             # self.request_event_ranges(block=True)
             # job = self.bookKeeper.assign_job_to_actor(actor_id)
 
-        self.actors_message_queue.append(self[actor_id].receive_job.remote(
-            Messages.REPLY_OK
-            if job else Messages.REPLY_NO_MORE_JOBS, self.remote_jobdef_byid[job['PandaID']]))
+        self.enqueue_actor_call(actor_id, self[actor_id].receive_job.remote(Messages.REPLY_OK
+                                if job else Messages.REPLY_NO_MORE_JOBS, self.remote_jobdef_byid[job['PandaID']]))
 
     def request_event_ranges(self, block: bool = False) -> None:
         """
@@ -462,8 +466,9 @@ class ESDriver(BaseDriver):
         Returns:
             None
         """
-        self.get_tar_results()
-        self.tar_es_output()
+        # self.get_tar_results()
+        # self.tar_es_output()
+        self.handle_merge_transforms()
         # self.request_event_ranges()
 
     def cleanup(self) -> None:
@@ -496,57 +501,61 @@ class ESDriver(BaseDriver):
         if not jobs:
             self._logger.critical("No jobs provided by communicator, stopping...")
             return
+        if len(jobs) > 1:
+            self._logger.critical("Raythena can only handle one job")
+            return
+        self._logger.debug("Adding job and generating event ranges...")
         self.bookKeeper.add_jobs(jobs)
-
+        self.panda_taskid = list(jobs.values())[0]["taskID"]
+        self.merge_transform = list(jobs.values())[0]["emergeSpec"]["transPath"]
+        self.merge_transform_params = list(jobs.values())[0]["emergeSpec"]["jobParameters"]
+        self.container_name = list(jobs.values())[0]["container_name"]
         # sends an initial event range request
         # self.request_event_ranges(block=True)
         if not self.bookKeeper.has_jobs_ready():
             # self.cpu_monitor.stop()
+            self.bookKeeper.stop_cleaner_thread()
+            self.bookKeeper.stop_saver_thread()
             self.communicator.stop()
             self._logger.critical("Couldn't fetch a job with event ranges, stopping...")
-            time.sleep(5)
             return
+        total_events = self.bookKeeper.n_ready(self.bookKeeper.jobs.next_job_id_to_process())
+        if total_events:
+            self.available_events_per_actor = max(1, ceil(total_events / self.n_actors))
+            for pandaID in self.bookKeeper.jobs:
+                cjob = self.bookKeeper.jobs[pandaID]
+                os.makedirs(
+                    os.path.join(self.config.ray['workdir'], cjob['PandaID']))
+                self.remote_jobdef_byid[pandaID] = ray.put(cjob)
 
-        self.available_events_per_actor = max(1, ceil(self.bookKeeper.n_ready(self.bookKeeper.jobs.next_job_id_to_process()) / self.n_actors))
-        for pandaID in self.bookKeeper.jobs:
-            cjob = self.bookKeeper.jobs[pandaID]
-            os.makedirs(
-                os.path.join(self.config.ray['workdir'], cjob['PandaID']))
-            self.remote_jobdef_byid[pandaID] = ray.put(cjob)
+            self.create_actors()
 
-        self.create_actors()
-
-        self.start_actors()
-        # self.request_event_ranges()
-        try:
-            self.handle_actors()
-        except Exception as e:
-            self._logger.error(f"{traceback.format_exc()}")
-            self._logger.error(f"Error while handling actors: {e}. stopping...")
-
-        if self.config.logging.get('copyraylogs', False):
-            ray_logs = os.path.join(self.workdir, "ray_logs")
+            self.start_actors()
+            # self.request_event_ranges()
             try:
-                shutil.copytree(self.session_log_dir, ray_logs)
+                self.handle_actors()
             except Exception as e:
-                self._logger.error(f"Failed to copy ray logs to workdir: {e}")
+                self._logger.error(f"{traceback.format_exc()}")
+                self._logger.error(f"Error while handling actors: {e}. stopping...")
 
-        self._logger.debug("Starting new tar tasks")
-        # Workers might have sent event ranges update since last check, create remaining tasks regardless of tar interval
-        self.tar_es_output(True)
-
-        self._logger.debug("Waiting on tar tasks to finish...")
-        while len(self.running_tar_threads) > 0:
-            self.get_tar_results()
-            time.sleep(1)
-
-        self.bookKeeper.stop_save_thread()
-        self.requests_queue.put(JobReport())
-
+            if self.config.logging.get('copyraylogs', False):
+                ray_logs = os.path.join(self.workdir, "ray_logs")
+                try:
+                    shutil.copytree(self.session_log_dir, ray_logs)
+                except Exception as e:
+                    self._logger.error(f"Failed to copy ray logs to workdir: {e}")
+        else:
+            self._logger.info("No events to process, check for remaining merge jobs...")
+        self._logger.debug("Waiting on merge transforms")
+        # Workers might have sent event ranges update since last check, create possible merge jobs
+        self.bookKeeper.stop_saver_thread()
+        self.handle_merge_transforms(True)
+        self.bookKeeper.stop_cleaner_thread()
+        # need to explicitely save as we stopped saver_thread
+        self.bookKeeper.save_status()
         self.communicator.stop()
         # self.cpu_monitor.stop()
         self.bookKeeper.print_status()
-        time.sleep(5)
         self._logger.debug("All driver threads stopped. Quitting...")
 
     def stop(self) -> None:
@@ -580,212 +589,86 @@ class ESDriver(BaseDriver):
 
         self.failed_actor_tasks_count[actor_id] += 1
         if self.failed_actor_tasks_count[actor_id] < self.max_retries_error_failed_tasks:
-            self.actors_message_queue.append(self[actor_id].get_message.remote())
+            self.enqueue_actor_call(actor_id, self[actor_id].get_message.remote())
             self._logger.warning(f"{actor_id} failed {self.failed_actor_tasks_count[actor_id]} times. Retrying...")
         else:
             self._logger.warning(f"{actor_id} failed too many times. No longer fetching messages from it")
             if actor_id not in self.terminated:
                 self.terminated.append(actor_id)
 
-    def create_tar_file(self, range_list: List[EventRangeDef]) -> Dict[str, List[EventRangeDef]]:
+    def handle_merge_transforms(self, wait_for_completion=False) -> None:
         """
-        Use input range_list to create tar file and return list of tarred up event ranges and information needed by Harvester
+        Checks if the bookkeeper has files ready to be merged. If so, subprocesses for merge tasks are started.
+        After starting any subprocess, go through all the running subprocess and poll then to check if any completed and report status to the bookkeepr.
 
         Args:
-            range_list   list of event range dictionaries
-        Returns:
-            Dictionary - key PanDAid, item list of event ranges with information needed by Harvester
+            wait_for_completion: Wait for all the subprocesses (including those started by this call) to finish before returning
         """
-        return_val = dict()
-        # test validity of range_list
-        if range_list and isinstance(range_list, list) and len(range_list) > 0:
-            # read first element in list to build temporary filename
-            file_base_name = "panda." + os.path.basename(range_list[0]['path']) + ".zip"
-            temp_file_base_name = file_base_name + ".tmpfile"
-            temp_file_path = os.path.join(self.tar_merge_es_output_dir, temp_file_base_name)
-            file_path = os.path.join(self.tar_merge_es_output_dir, file_base_name)
-
-            # self.tar_merge_es_output_dir zip files
-            # self.tar_merge_es_files_dir  es files
-
-            PanDA_id = range_list[0]['PanDAID']
-
-            file_fsize = 0
-            try:
-                tarred_ranges_list = list()
-                # create tar file looping over event ranges
-                with tarfile.open(temp_file_path, "w") as tar:
-                    for event_range in range_list:
-                        path = event_range['path']
-                        if os.path.isfile(path):
-                            tar.add(path)
-                            tarred_ranges_list.append(event_range)
-                        else:
-                            self._logger.warning((f"Could not add event {path} to tar, file does not exists. "
-                                                  f"Event status: {event_range['eventStatus']}"))
-                file_fsize = os.path.getsize(temp_file_path)
-                # calculate alder32 checksum
-                file_chksum = self.calc_adler32(temp_file_path)
-                return_val = self.create_harvester_data(PanDA_id, file_path, file_chksum, file_fsize, tarred_ranges_list)
-                for event_range in tarred_ranges_list:
-                    lfn = os.path.basename(event_range["path"])
-                    pfn = os.path.join(self.tar_merge_es_files_dir, lfn)
-                    shutil.move(event_range["path"], pfn)
-                # rename zip file (move)
-                shutil.move(temp_file_path, file_path)
-                return return_val
-            except Exception:
-                raise
-        return return_val
-
-    def calc_adler32(self, file_name: str) -> str:
-        """
-        Calculate adler32 checksum for file
-
-        Args:
-           file_name - name of file to calculate checksum
-        Return:
-           string with Adler 32 checksum
-        """
-        val = 1
-        blockSize = 32 * 1024 * 1024
-        with open(file_name, 'rb') as fp:
-            while True:
-                data = fp.read(blockSize)
-                if not data:
-                    break
-                val = zlib.adler32(data, val)
-        if val < 0:
-            val += 2 ** 32
-        return hex(val)[2:10].zfill(8).lower()
-
-    def create_harvester_data(self, PanDA_id: str, file_path: str, file_chksum: str, file_fsize: int, range_list: list) -> Dict[str, List[EventRangeDef]]:
-        """
-        create data structure for telling Harvester what files are merged and ready to process
-
-        Args:
-             PanDA_id - Panda ID (as string)
-             file_path - path on disk to the merged es output "zip" file
-             file_chksum - adler32 checksum of file
-             file_fsize - file size in bytes
-             range_list - list of event ranges in the file
-        Return:
-             Dictionary with PanDA_id is the key and dictionary containing file info and list  Event range elements
-        """
-        return_dict = dict()
-        return_list = list()
-        for event_range in range_list:
-            return_list.append(
-                {
-                    "eventRangeID": event_range['eventRangeID'],
-                    "eventStatus": "finished",
-                    "path": file_path,
-                    "type": "zip_output",
-                    "chksum": file_chksum,
-                    "fsize": file_fsize
-                })
-        if return_list:
-            return_dict = {PanDA_id: return_list}
-        return return_dict
-
-    def tar_es_output(self, skip_time_check = False) -> None:
-        """
-        Get from bookKeeper the event ranges arraigned by input file than need to put into output tar files
-
-        Args:
-            skip_time_check: flag to skip time interval check
-
-        Returns:
-            None
-        """
-        now = time.time()
-        if not skip_time_check and int(now - self.tar_timestamp) < self.tarinterval:
+        if self.total_running_merge_transforms >= self.max_running_merge_transforms:
             return
+        self.bookKeeper.check_mergeable_files()
+        merge_files = self.bookKeeper.get_file_to_merge()
+        while merge_files:
+            (input_filename, event_ranges) = merge_files
+            assert len(event_ranges) > 0
+            if input_filename not in self.running_merge_transforms:
+                self.running_merge_transforms[input_filename] = dict()
+            output_filename = f"{input_filename.replace('EVNT', 'HITS')}-{event_ranges[0][1].eventRangeID.split('-')[-1]}"
+            sub_process = self.hits_merge_transform([e[0] for e in event_ranges], output_filename)
+            self._logger.debug(f"Starting merge transform for {input_filename} : {output_filename}")
+            self.running_merge_transforms[input_filename][output_filename] = (event_ranges, sub_process)
+            self.total_running_merge_transforms += 1
+            if self.total_running_merge_transforms >= self.max_running_merge_transforms:
+                break
+            merge_files = self.bookKeeper.get_file_to_merge()
 
-        ranges_to_tar = list()
-        if self.bookKeeper.create_ranges_to_tar():
-            # add new ranges to tar to the list
-            ranges_to_tar = self.bookKeeper.get_ranges_to_tar()
-            self.tar_timestamp = now
-            self.ranges_to_tar.extend(ranges_to_tar)
-            try:
-                self.running_tar_threads.update({self.tar_executor.submit(self.create_tar_file, range_list): range_list for range_list in self.ranges_to_tar})
-                self.total_tar_tasks += len(self.ranges_to_tar)
-                self.ranges_to_tar = list()
-            except Exception as exc:
-                self._logger.warning(f"tar_es_output: Exception {exc} when submitting tar subprocess")
-                pass
+        to_remove = []
+        for input_filename, processes_for_input_file in self.running_merge_transforms.items():
+            for output_filename, (event_ranges, sub_process) in processes_for_input_file.items():
+                if wait_for_completion:
+                    while sub_process.poll() is None:
+                        time.sleep(5)
+                if sub_process.poll() is not None:
+                    to_remove.append((input_filename, output_filename))
+                    self.total_running_merge_transforms -= 1
+                    if sub_process.returncode == 0:
+                        self._logger.info(f"Merge transform for file {output_filename} finished.")
+                        event_ranges_map = {}
+                        for (event_range_output, event_range) in event_ranges:
+                            event_ranges_map[event_range.eventRangeID] = TaskStatus.build_eventrange_dict(event_range, event_range_output)
+                        self.bookKeeper.report_merged_file(self.panda_taskid, input_filename, output_filename, event_ranges_map)
+                    else:
+                        self._logger.debug(f"Merge transform failed with return code {sub_process.returncode}")
+        for (i, o) in to_remove:
+            del self.running_merge_transforms[i][o]
 
-            self._logger.debug(f"tar_es_output: #tasks in queue : {len(self.running_tar_threads)}, #total tasks submitted since launch: {self.total_tar_tasks}")
-
-    def get_tar_results(self) -> None:
+    def hits_merge_transform(self, input_files: Iterable[str], output_file: str) -> subprocess.Process:
         """
-        Checks the self.running_tar_threads dict for the Future objects. if thread is still running let it run otherwise
-        get the results of running, check for duplicates and  pass information onto Harvester
-
-        Returns:
-            None
-
-        """
-        if len(self.running_tar_threads) == 0:
-            return
-        done, not_done = concurrent.futures.wait(self.running_tar_threads, timeout=0.001, return_when=concurrent.futures.FIRST_COMPLETED)
-        final_update = EventRangeUpdate()
-        for future in done:
-            try:
-                self.finished_tar_tasks.add(future)
-                result = future.result()
-                if result and isinstance(result, dict) and self.check_for_duplicates(result):
-                    final_update.merge_update(EventRangeUpdate(result))
-                del self.running_tar_threads[future]
-            except Exception as ex:
-                exc_type, exc_value, exc_traceback = sys.exc_info()
-                self._logger.info(f"get_tar_results: Caught exception {ex}")
-                self._logger.info(f"get_tar_results: Caught exception {repr(traceback.format_tb(exc_traceback))}")
-                pass
-                # raise
-        if final_update:
-            self.requests_queue.put(final_update)
-        if len(done):
-            self._logger.debug(f"get_tar_results #completed futures - {len(done)} #pending futures - {len(not_done)}")
-        return
-
-    def check_for_duplicates(self, tar_results: dict) -> bool:
-        """
-        Notify each worker that it should terminate then wait for actor to acknowledge
-        that the interruption was received
+        Prepare the shell command for the merging subprocess and starts it.
 
         Args:
-            dictionary of event ranges from finished tar jobs
+            input_files: individual hits files produced by the event service simulation to be merged
+            output_file: filename of the merged hits file
+
         Returns:
-            True if no duplicate eventRanges
+            Process: the handle to the subprocess
         """
-        try:
-            return_val = True
-            if tar_results and isinstance(tar_results, dict):
-                # give results to BookKeeper to send to Harvester ????
-                # check for duplicates
-                for PanDA_id in tar_results:
-                    if PanDA_id not in self.processed_event_ranges:
-                        self.processed_event_ranges[PanDA_id] = dict()
-                    ranges_info = tar_results[PanDA_id]
-                    if ranges_info:
-                        for rangeInfo in ranges_info:
-                            eventRangeID = rangeInfo['eventRangeID']
-                            path = rangeInfo['path']
-                            if eventRangeID not in self.processed_event_ranges[PanDA_id]:
-                                self.processed_event_ranges[PanDA_id][eventRangeID] = list()
-                            self.processed_event_ranges[PanDA_id][eventRangeID].append(path)
-                    # loop over processed event ranges list the duplicate files
-                    for eventRangeID in self.processed_event_ranges[PanDA_id]:
-                        if len(self.processed_event_ranges[PanDA_id][eventRangeID]) > 1:
-                            # duplicate eventRangeID
-                            return_val = False
-                            self._logger.warning(f"ERROR duplicate eventRangeID - {eventRangeID}")
-                            for path in (self.processed_event_ranges[PanDA_id][eventRangeID]):
-                                self._logger.warning(f"ERROR duplicate eventRangeID - {eventRangeID} {path}")
-        except Exception as ex:
-            self._logger.info(f"check_for_duplicates Caught exception {ex}")
-            return_val = False
-            pass
-        return return_val
+        if not input_files:
+            return
+        tmp_dir = tempfile.mkdtemp()
+        file_list = " ".join(input_files)
+        output_file = os.path.join(self.output_dir, output_file)
+        container_script = f"{self.merge_transform} {self.merge_transform_params} --inputHITSFile {file_list} --outputHITS_MRGFile {output_file};"
+
+        cmd = str()
+        cmd += "export ATLAS_LOCAL_ROOT_BASE=/cvmfs/atlas.cern.ch/repo/ATLASLocalRootBase;"
+        cmd += f"export thePlatform=\"{self.container_name}\";"
+        cmd += f"source ${{ATLAS_LOCAL_ROOT_BASE}}/user/atlasLocalSetup.sh --swtype {self.config.payload['containerengine']} -c $thePlatform -d -s none"
+        cmd += f" -r \"{container_script}\" -e \"--clearenv\";RETURN_VAL=$?; rm -r {tmp_dir};exit $RETURN_VAL;"
+        return Popen(cmd,
+                     stdin=DEVNULL,
+                     stdout=DEVNULL,
+                     stderr=DEVNULL,
+                     shell=True,
+                     cwd=tmp_dir,
+                     close_fds=True)

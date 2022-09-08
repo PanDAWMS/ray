@@ -4,7 +4,7 @@ payload:
   extrasetup: export ALRB_CONT_SWTYPE=shifter; export LD_LIBRARY_PATH=/global/common/software/atlas/yampl/yampl-v1.0-py3.7/install/lib:$LD_LIBRARY_PATH; export PYTHONPATH=/global/common/software/atlas/yampl/yampl-v1.0-py3.7/install/python-yampl:$PYTHONPATH;
   hpcresource: cori
   extrapostpayload:
-  containerengine:
+  containerengine: shifter
   containerextraargs:
   pilotkillfile: pilot_kill_payload
   pilotkilltime: 900
@@ -17,16 +17,13 @@ harvester:
   harvesterconf: /global/common/software/atlas/harvester/etc/panda/panda_harvester.cfg
 
 ray:
-  outputdir:
   headip:
   redisport:
   redispassword:
   workdir: $SCRATCH/raythena/workdir
   cachesizefactor: 4
   timeoutinterval: 600
-  tarinterval: 60
-  tarmaxfilesize: 5000000000
-  tarmaxprocesses: 64
+  mergemaxprocesses: 64
 
 resources:
   corepernode: 128

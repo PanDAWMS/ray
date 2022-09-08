@@ -13,14 +13,14 @@ def config_path():
 
 
 @pytest.fixture(scope="class")
-def requires_ray(config):
-    setup_ray(config)
+def requires_ray(config_base):
+    setup_ray(config_base)
     yield
-    shutdown_ray(config)
+    shutdown_ray(config_base)
 
 
 @pytest.fixture(scope="class")
-def config(config_path):
+def config_base(config_path):
     return Config(config_path,
                   config=None,
                   debug=False,
@@ -28,15 +28,20 @@ def config(config_path):
                   ray_redis_password=None,
                   ray_redis_port=None,
                   ray_workdir=None,
-                  ray_outputdir=None,
                   harvester_endpoint=None,
                   panda_queue=None,
                   core_per_node=None)
 
 
 @pytest.fixture
+def config(config_base, tmp_path):
+    config_base.ray["outputdir"] = tmp_path
+    return config_base
+
+
+@pytest.fixture(scope="session")
 def nevents():
-    return 9
+    return 16
 
 
 @pytest.fixture
@@ -59,9 +64,19 @@ def pandaids(njobs):
     return res
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def nfiles():
-    return 3
+    return 4
+
+
+@pytest.fixture
+def nevents_per_file(nevents, nfiles):
+    return nevents // nfiles
+
+
+@pytest.fixture
+def nhits_per_file(nevents_per_file):
+    return nevents_per_file // 2
 
 
 @pytest.fixture
@@ -110,7 +125,7 @@ def sample_failed_rangeupdate(nevents):
 
 
 @pytest.fixture
-def sample_multijobs(request, is_eventservice, pandaids):
+def sample_multijobs(request, is_eventservice, pandaids, nhits_per_file, nevents_per_file):
     res = {}
     for pandaID in pandaids:
         hash = hashlib.md5()
@@ -131,6 +146,12 @@ def sample_multijobs(request, is_eventservice, pandaids):
         res[pandaID] = {
             u'jobsetID':
                 jobsetId,
+            u'nEventsPerInputFile': nevents_per_file,
+            u'emergeSpec': {
+                "transPath": "",
+                "jobParameters": "",
+                "nEventsPerOutputFile": nhits_per_file
+            },
             u'logGUID':
                 log_guid,
             u'cmtConfig':
@@ -241,7 +262,7 @@ def sample_multijobs(request, is_eventservice, pandaids):
 
 
 @pytest.fixture
-def sample_job(is_eventservice):
+def sample_job(is_eventservice, nhits_per_file, nevents_per_file):
     hash = hashlib.md5()
 
     hash.update(str(time.time()).encode('utf-8'))
@@ -263,6 +284,12 @@ def sample_job(is_eventservice):
                 jobsetId,
             u'logGUID':
                 log_guid,
+            u'nEventsPerInputFile': nevents_per_file,
+            u'emergeSpec': {
+                "transPath": "",
+                "jobParameters": "",
+                "nEventsPerOutputFile": nhits_per_file
+            },
             u'cmtConfig':
                 u'x86_64-slc6-gcc49-opt',
             u'prodDBlocks':

@@ -2,6 +2,7 @@
 import functools
 import signal
 import types
+import traceback
 
 import click
 
@@ -40,10 +41,6 @@ from raythena.drivers.esdriver import ESDriver
     help='Workdirectory for ray actors'
 )
 @click.option(
-    '--ray-outputdir',
-    help='Output directory where state for the raythena job is saved. This should be the same amongst all raythena job in a single Panda task'
-)
-@click.option(
     '--harvester-endpoint',
     help='Directory to use to communicate with harvester'
 )
@@ -79,6 +76,7 @@ def cli(*args, **kwargs):
         driver.run()
     except Exception as e:
         print(f"Caught exception in driver process {e}")
+        print(traceback.format_exc())
     finally:
         shutdown_ray(config)
 

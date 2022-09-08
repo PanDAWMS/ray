@@ -13,15 +13,12 @@ harvester:
   harvesterconf: /home/dbenjamin/harvester-py3/etc/panda/panda_harvester.cfg
 
 ray:
-  outputdir:
   headip:
   redisport:
   redispassword:
   workdir: /lcrc/group/ATLAS/harvester/raythena/workdir
   timeoutinterval: 600
-  tarinterval: 120
-  tarmaxfilesize: 5000000000
-  tarmaxprocesses: 5
+  mergemaxprocesses: 5
 
 resources:
   corepernode: 36
