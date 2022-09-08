@@ -658,12 +658,11 @@ class ESDriver(BaseDriver):
         tmp_dir = tempfile.mkdtemp()
         file_list = " ".join(input_files)
         output_file = os.path.join(self.output_dir, output_file)
-        container_script = "if [[ -f /alrb/postATLASReleaseSetup.sh ]]; then source /alrb/postATLASReleaseSetup.sh; fi;"
-        container_script += f"{self.merge_transform} {self.merge_transform_params} --inputHITSFile {file_list} --outputHITS_MRGFile {output_file};"
+        container_script = f"{self.merge_transform} {self.merge_transform_params} --inputHITSFile {file_list} --outputHITS_MRGFile {output_file};"
 
         cmd = str()
         cmd += "export ATLAS_LOCAL_ROOT_BASE=/cvmfs/atlas.cern.ch/repo/ATLASLocalRootBase;"
-        cmd += f"export thePlatform=\"${self.container_name}\";"
+        cmd += f"export thePlatform=\"{self.container_name}\";"
         cmd += f"source ${{ATLAS_LOCAL_ROOT_BASE}}/user/atlasLocalSetup.sh --swtype {self.config.payload['containerengine']} -c $thePlatform -d -s none"
         cmd += f" -r \"{container_script}\" -e \"--clearenv\";RETURN_VAL=$?; rm -r {tmp_dir};exit $RETURN_VAL;"
         return Popen(cmd,
