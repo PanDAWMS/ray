@@ -81,7 +81,6 @@ class TaskStatus:
         try:
             with open(filename, 'r') as f:
                 self._status = json.load(f)
-            self._logger.debug(f"Found previous task status: {self._status}")
         except OSError as e:
             # failed to load status, try to read from a possible tmp file if it exists and not already done
             if filename != self.tmpfilepath and os.path.isfile(self.tmpfilepath):
@@ -346,7 +345,7 @@ class BookKeeper(object):
         # TODO: improve check for mergeable file, check if remaining event per file + failed events per file < hits_per_file,
         # add possibility to have multiple merge jobs for same imput file at the same time
         for input_file, event_ranges in self.ranges_to_merge.items():
-            if len(event_ranges) >= self._hits_per_file:
+            while len(event_ranges) >= self._hits_per_file:
                 ranges_to_merge = event_ranges[-self._hits_per_file:]
                 del event_ranges[-self._hits_per_file:]
                 if input_file not in self.files_ready_to_merge:
