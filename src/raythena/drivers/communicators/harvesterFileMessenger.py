@@ -120,7 +120,7 @@ class HarvesterFileCommunicator(BaseCommunicator):
         except FileNotFoundError:
             pass
         try:
-            os.remove(self.jobspecfile)
+            os.rename(self.jobspecfile, f"{self.jobspecfile}.read")
         except FileNotFoundError:
             pass
         if job:
