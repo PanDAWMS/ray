@@ -44,10 +44,10 @@ class TaskStatus:
         self.job = job
         self._logger = make_logger(self.config, "TaskStatus")
         self.output_dir = config.ray.get("outputdir")
-        self.filepath = os.path.join(self.output_dir, f"{self.job['taskID']}.json")
+        self.filepath = os.path.join(self.output_dir, "state.json")
         self.tmpfilepath = f"{self.filepath}.tmp"
         self._events_per_file = int(job['nEventsPerInputFile'])
-        self._hits_per_file = int(job['emergeSpec']['nEventsPerOutputFile'])
+        self._hits_per_file = int(job['esmergeSpec']['nEventsPerOutputFile'])
         assert self._events_per_file % self._hits_per_file == 0, "Expected number of events per input file to be a multiple of number of hits per merged file"
         self._n_output_per_input_file = self._events_per_file // self._hits_per_file
         self._status: Dict[str, Union[Dict[str, Dict[str, Dict[str, str]]], Dict[str, List[str]]]] = dict()
@@ -407,7 +407,7 @@ class BookKeeper(object):
         """
         events_per_file = int(job['nEventsPerInputFile'])
         # We only ever get one job
-        self._hits_per_file = int(job['emergeSpec']['nEventsPerOutputFile'])
+        self._hits_per_file = int(job['esmergeSpec']['nEventsPerOutputFile'])
         input_evnt_files = re.findall(r"\-\-inputEVNTFile=([\w\.\,]*) \-", job["jobPars"])
         if input_evnt_files:
             guids = job["GUID"].split(',')

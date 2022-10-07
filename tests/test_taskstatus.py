@@ -9,7 +9,7 @@ class TestTaskStatus:
         job = PandaJob(list(sample_job.values())[0])
         ts = TaskStatus(job, config)
         ranges = list(sample_ranges.values())[0]
-        hits_per_file = int(job['emergeSpec']['nEventsPerOutputFile'])
+        hits_per_file = int(job['esmergeSpec']['nEventsPerOutputFile'])
         events_per_file = int(job['nEventsPerInputFile'])
         assert events_per_file % hits_per_file == 0
         n_output_per_input_file = events_per_file // hits_per_file
@@ -74,7 +74,7 @@ class TestTaskStatus:
             er = EventRange.build_from_dict(e)
             ts.set_eventrange_simulated(er, f"outputfile-{er.eventRangeID}")
 
-        hits_per_file = int(job['emergeSpec']['nEventsPerOutputFile'])
+        hits_per_file = int(job['esmergeSpec']['nEventsPerOutputFile'])
         events_per_file = int(job['nEventsPerInputFile'])
         assert events_per_file % hits_per_file == 0
         n_output_per_input_file = events_per_file // hits_per_file

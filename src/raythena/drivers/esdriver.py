@@ -82,16 +82,7 @@ class ESDriver(BaseDriver):
 
         self._logger.debug(f"Raythena v{__version__} initializing, running Ray {ray.__version__} on {gethostname()}")
 
-        task_workdir_path_file = f"{workdir}/task_workdir_path.txt"
-        if not os.path.isfile(task_workdir_path_file):
-            self._logger.error(f"File {task_workdir_path_file} doesn't exist")
-            return
-
-        with open(task_workdir_path_file, 'r') as f:
-            self.output_dir = f.readline()
-        self.config.ray["outputdir"] = self.output_dir
-        self.tar_merge_es_output_dir = self.output_dir
-        self.tar_merge_es_files_dir = self.output_dir
+        self.task_workdir_path_file = f"{workdir}/task_workdir_path.txt"
         # self.cpu_monitor = CPUMonitor(os.path.join(workdir, "cpu_monitor_driver.json"))
         # self.cpu_monitor.start()
 
@@ -125,27 +116,6 @@ class ESDriver(BaseDriver):
         self.available_events_per_actor = 0
         self.total_tar_tasks = 0
         self.remote_jobdef_byid = dict()
-        self.config_remote = ray.put(self.config)
-
-        # create the output directories if needed
-        try:
-            if not os.path.isdir(self.output_dir):
-                os.mkdir(self.output_dir)
-        except Exception:
-            self._logger.warning(f"Exception when creating the {self.output_dir}")
-            raise
-        try:
-            if not os.path.isdir(self.tar_merge_es_output_dir):
-                os.mkdir(self.tar_merge_es_output_dir)
-        except Exception:
-            self._logger.warning(f"Exception when creating the {self.tar_merge_es_output_dir}")
-            raise
-        try:
-            if not os.path.isdir(self.tar_merge_es_files_dir):
-                os.mkdir(self.tar_merge_es_files_dir)
-        except Exception:
-            self._logger.warning(f"Exception when creating the {self.tar_merge_es_files_dir}")
-            raise
 
     def __str__(self) -> str:
         """
@@ -504,12 +474,42 @@ class ESDriver(BaseDriver):
         if len(jobs) > 1:
             self._logger.critical("Raythena can only handle one job")
             return
+        self.panda_taskid = list(jobs.values())[0]["taskID"]
+        self.merge_transform = list(jobs.values())[0]["esmergeSpec"]["transPath"]
+        self.merge_transform_params = list(jobs.values())[0]["esmergeSpec"]["jobParameters"]
+
+        self.container_name = list(jobs.values())[0]["container_name"]
+        # TODO get base path fron config
+        self.output_dir = os.path.join("/global/cscratch1/sd/esseivaj", str(self.panda_taskid))
+        if not os.path.isfile(self.task_workdir_path_file):
+            with open(self.task_workdir_path_file, 'w') as f:
+                f.write(self.output_dir)
+
+        self.config.ray["outputdir"] = self.output_dir
+        self.tar_merge_es_output_dir = self.output_dir
+        self.tar_merge_es_files_dir = self.output_dir
+        self.config_remote = ray.put(self.config)
+        # create the output directories if needed
+        try:
+            if not os.path.isdir(self.output_dir):
+                os.mkdir(self.output_dir)
+        except Exception:
+            self._logger.warning(f"Exception when creating the {self.output_dir}")
+            raise
+        try:
+            if not os.path.isdir(self.tar_merge_es_output_dir):
+                os.mkdir(self.tar_merge_es_output_dir)
+        except Exception:
+            self._logger.warning(f"Exception when creating the {self.tar_merge_es_output_dir}")
+            raise
+        try:
+            if not os.path.isdir(self.tar_merge_es_files_dir):
+                os.mkdir(self.tar_merge_es_files_dir)
+        except Exception:
+            self._logger.warning(f"Exception when creating the {self.tar_merge_es_files_dir}")
+            raise
         self._logger.debug("Adding job and generating event ranges...")
         self.bookKeeper.add_jobs(jobs)
-        self.panda_taskid = list(jobs.values())[0]["taskID"]
-        self.merge_transform = list(jobs.values())[0]["emergeSpec"]["transPath"]
-        self.merge_transform_params = list(jobs.values())[0]["emergeSpec"]["jobParameters"]
-        self.container_name = list(jobs.values())[0]["container_name"]
         # sends an initial event range request
         # self.request_event_ranges(block=True)
         if not self.bookKeeper.has_jobs_ready():
