@@ -1,5 +1,6 @@
 from asyncio import subprocess
 import os
+import re
 import shutil
 import tempfile
 import time
@@ -656,10 +657,13 @@ class ESDriver(BaseDriver):
         if not input_files:
             return
         tmp_dir = tempfile.mkdtemp()
-        file_list = " ".join(input_files)
+        file_list = ",".join(input_files)
         output_file = os.path.join(self.output_dir, output_file)
-        container_script = f"{self.merge_transform} {self.merge_transform_params} --inputHITSFile {file_list} --outputHITS_MRGFile {output_file};"
 
+        transform_params = re.sub(r"@inputFor_\$\{OUTPUT0\}", file_list, self.merge_transform_params)
+        transform_params = re.sub(r"\$\{OUTPUT0\}", output_file, transform_params, count=1)
+        container_script = f"{self.merge_transform} {transform_params};"
+        self._logger.debug(f"Transform command: {container_script}")
         cmd = str()
         cmd += "export ATLAS_LOCAL_ROOT_BASE=/cvmfs/atlas.cern.ch/repo/ATLASLocalRootBase;"
         cmd += f"export thePlatform=\"{self.container_name}\";"
