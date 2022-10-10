@@ -146,11 +146,7 @@ class PandaJobQueue(object):
         if len(self.jobs) == 0:
             return None
 
-        for jobID, job in self.jobs.items():
-            if jobID in self.distributed_jobs_ids:
-                continue
-            elif 'eventService' not in job or job['eventService'].lower() == "false":
-                self.distributed_jobs_ids.append(jobID)
+        for jobID, _ in self.jobs.items():
             return jobID
 
     def has_job(self, panda_id: str) -> bool:

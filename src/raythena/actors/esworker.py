@@ -276,7 +276,7 @@ class ESWorker(object):
         Returns:
             True if current job is an eventservice job
         """
-        return self.job and self.job['eventService']
+        return True
 
     def receive_job(self, reply: int, job: PandaJob) -> WorkerResponse:
         """

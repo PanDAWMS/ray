@@ -412,7 +412,10 @@ class BookKeeper(object):
         if input_evnt_files:
             guids = job["GUID"].split(',')
             files = input_evnt_files[0].split(',')
-            scope = job["scopeIn"]
+            if "scopeIn" in job:
+                scope = job["scopeIn"]
+            else:
+                scope = ""
             event_ranges = []
             merged_files = task_status._status[TaskStatus.MERGED]
             merging_files = task_status._status[TaskStatus.MERGING]
@@ -450,6 +453,7 @@ class BookKeeper(object):
                     else:
                         # event range hasn't been simulated, add it to the event range queue
                         event_ranges.append(event_range)
+            self._logger.debug(f"Generated {len(event_ranges)} event ranges")
             job.event_ranges_queue.add_new_event_ranges(event_ranges)
 
     def add_event_ranges(
