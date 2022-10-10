@@ -482,9 +482,8 @@ class ESDriver(BaseDriver):
         self.container_name = list(jobs.values())[0]["container_name"]
         # TODO get base path fron config
         self.output_dir = os.path.join("/global/cscratch1/sd/esseivaj", str(self.panda_taskid))
-        if not os.path.isfile(self.task_workdir_path_file):
-            with open(self.task_workdir_path_file, 'w') as f:
-                f.write(self.output_dir)
+        with open(self.task_workdir_path_file, 'w') as f:
+            f.write(self.output_dir)
 
         self.config.ray["outputdir"] = self.output_dir
         self.tar_merge_es_output_dir = self.output_dir
@@ -494,23 +493,16 @@ class ESDriver(BaseDriver):
         try:
             if not os.path.isdir(self.output_dir):
                 os.mkdir(self.output_dir)
-        except Exception:
-            self._logger.warning(f"Exception when creating the {self.output_dir}")
-            raise
-        try:
             if not os.path.isdir(self.tar_merge_es_output_dir):
                 os.mkdir(self.tar_merge_es_output_dir)
-        except Exception:
-            self._logger.warning(f"Exception when creating the {self.tar_merge_es_output_dir}")
-            raise
-        try:
             if not os.path.isdir(self.tar_merge_es_files_dir):
                 os.mkdir(self.tar_merge_es_files_dir)
-        except Exception:
-            self._logger.warning(f"Exception when creating the {self.tar_merge_es_files_dir}")
+        except Exception as e:
+            self._logger.warning(f"Exception when creating directories: {e}")
             raise
         self._logger.debug("Adding job and generating event ranges...")
         self.bookKeeper.add_jobs(jobs)
+        self._logger.debug("done")
         # sends an initial event range request
         # self.request_event_ranges(block=True)
         if not self.bookKeeper.has_jobs_ready():
@@ -569,6 +561,9 @@ class ESDriver(BaseDriver):
         # check for running tar processes?
         self._logger.info("Interrupt received... Graceful shutdown")
         self.running = False
+        self.bookKeeper.stop_saver_thread()
+        self.bookKeeper.stop_cleaner_thread()
+        self.communicator.stop()
         self.cleanup()
 
     def handle_actor_exception(self, actor_id: str, ex: Exception) -> None:

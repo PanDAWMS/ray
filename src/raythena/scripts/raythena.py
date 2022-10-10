@@ -78,6 +78,7 @@ def cli(*args, **kwargs):
         print(f"Caught exception in driver process {e}")
         print(traceback.format_exc())
     finally:
+        driver.stop()
         shutdown_ray(config)
 
 
