@@ -475,11 +475,14 @@ class ESDriver(BaseDriver):
         if len(jobs) > 1:
             self._logger.critical("Raythena can only handle one job")
             return
-        self.panda_taskid = list(jobs.values())[0]["taskID"]
-        self.merge_transform = list(jobs.values())[0]["esmergeSpec"]["transPath"]
-        self.merge_transform_params = list(jobs.values())[0]["esmergeSpec"]["jobParameters"]
+        job = list(jobs.values())[0]
+        job["eventService"] = "true"
+        job["jobPars"] = f"--eventService=True {job['jobPars']}"
+        self.panda_taskid = job["taskID"]
+        self.merge_transform = job["esmergeSpec"]["transPath"]
+        self.merge_transform_params = job["esmergeSpec"]["jobParameters"]
 
-        self.container_name = list(jobs.values())[0]["container_name"]
+        self.container_name = job["container_name"]
         # TODO get base path fron config
         self.output_dir = os.path.join("/global/cscratch1/sd/esseivaj", str(self.panda_taskid))
         with open(self.task_workdir_path_file, 'w') as f:
