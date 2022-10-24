@@ -353,14 +353,16 @@ class BookKeeper(object):
                 self.files_ready_to_merge[input_file].append(ranges_to_merge)
 
     def stop_saver_thread(self):
-        self.stop_saver.set()
-        self.save_state_thread.join()
-        self.save_state_thread = ExThread(target=self._saver_thead_run, name="status-saver-thread")
+        if self.save_state_thread.is_alive():
+            self.stop_saver.set()
+            self.save_state_thread.join()
+            self.save_state_thread = ExThread(target=self._saver_thead_run, name="status-saver-thread")
 
     def stop_cleaner_thread(self):
-        self.stop_cleaner.set()
-        self.cleaner_thread.join()
-        self.cleaner_thread = ExThread(target=self._cleaner_thead_run, name="cleaner-thread")
+        if self.cleaner_thread.is_alive():
+            self.stop_cleaner.set()
+            self.cleaner_thread.join()
+            self.cleaner_thread = ExThread(target=self._cleaner_thead_run, name="cleaner-thread")
 
     def start_threads(self):
         """
