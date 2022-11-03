@@ -111,7 +111,7 @@ class ESDriver(BaseDriver):
         self.max_running_merge_transforms = self.config.ray['mergemaxprocesses']
         self.panda_taskid = None
         # {input_filename, {merged_output_filename, ([(event_range_id, EventRange)], subprocess handle)}}
-        self.running_merge_transforms: Dict[str, Dict[str, Tuple[List[Tuple[str, EventRange]], Popen]]] = dict()
+        self.running_merge_transforms: Dict[str, Tuple[List[Tuple[str, EventRange]], Popen]] = dict()
         self.total_running_merge_transforms = 0
         self.failed_actor_tasks_count = dict()
         self.available_events_per_actor = 0
@@ -603,43 +603,39 @@ class ESDriver(BaseDriver):
         Args:
             wait_for_completion: Wait for all the subprocesses (including those started by this call) to finish before returning
         """
-        if self.total_running_merge_transforms >= self.max_running_merge_transforms:
-            return
-        self.bookKeeper.check_mergeable_files()
-        merge_files = self.bookKeeper.get_file_to_merge()
-        while merge_files:
-            (input_filename, event_ranges) = merge_files
-            assert len(event_ranges) > 0
-            if input_filename not in self.running_merge_transforms:
-                self.running_merge_transforms[input_filename] = dict()
-            output_filename = f"{input_filename.replace('EVNT', 'HITS')}-{event_ranges[0][1].eventRangeID.split('-')[-1]}"
-            sub_process = self.hits_merge_transform([e[0] for e in event_ranges], output_filename)
-            self._logger.debug(f"Starting merge transform for {input_filename} : {output_filename}")
-            self.running_merge_transforms[input_filename][output_filename] = (event_ranges, sub_process)
-            self.total_running_merge_transforms += 1
-            if self.total_running_merge_transforms >= self.max_running_merge_transforms:
-                break
+        if self.total_running_merge_transforms < self.max_running_merge_transforms:
+            self.bookKeeper.check_mergeable_files()
             merge_files = self.bookKeeper.get_file_to_merge()
+            while merge_files:
+                (output_filename, event_ranges) = merge_files
+                assert len(event_ranges) > 0
+                sub_process = self.hits_merge_transform([e[0] for e in event_ranges], output_filename)
+                self._logger.debug(f"Starting merge transform for {output_filename}")
+                self.running_merge_transforms[output_filename] = (event_ranges, sub_process)
+                self.total_running_merge_transforms += 1
+                if self.total_running_merge_transforms >= self.max_running_merge_transforms:
+                    break
+                merge_files = self.bookKeeper.get_file_to_merge()
 
         to_remove = []
-        for input_filename, processes_for_input_file in self.running_merge_transforms.items():
-            for output_filename, (event_ranges, sub_process) in processes_for_input_file.items():
-                if wait_for_completion:
-                    while sub_process.poll() is None:
-                        time.sleep(5)
-                if sub_process.poll() is not None:
-                    to_remove.append((input_filename, output_filename))
-                    self.total_running_merge_transforms -= 1
-                    if sub_process.returncode == 0:
-                        self._logger.info(f"Merge transform for file {output_filename} finished.")
-                        event_ranges_map = {}
-                        for (event_range_output, event_range) in event_ranges:
-                            event_ranges_map[event_range.eventRangeID] = TaskStatus.build_eventrange_dict(event_range, event_range_output)
-                        self.bookKeeper.report_merged_file(self.panda_taskid, input_filename, output_filename, event_ranges_map)
-                    else:
-                        self._logger.debug(f"Merge transform failed with return code {sub_process.returncode}")
-        for (i, o) in to_remove:
-            del self.running_merge_transforms[i][o]
+        for output_filename, (event_ranges, sub_process) in self.running_merge_transforms.items():
+            if wait_for_completion:
+                while sub_process.poll() is None:
+                    time.sleep(5)
+            if sub_process.poll() is not None:
+                to_remove.append(output_filename)
+                self.total_running_merge_transforms -= 1
+                if sub_process.returncode == 0:
+                    self._logger.info(f"Merge transform for file {output_filename} finished.")
+                    event_ranges_map = {}
+                    for (event_range_output, event_range) in event_ranges:
+                        event_ranges_map[event_range.eventRangeID] = TaskStatus.build_eventrange_dict(event_range, event_range_output)
+                    self.bookKeeper.report_merged_file(self.panda_taskid, output_filename, event_ranges_map)
+                else:
+                    self.bookKeeper.report_failed_merge_transform(self.panda_taskid, output_filename)
+                    self._logger.debug(f"Merge transform failed with return code {sub_process.returncode}")
+        for o in to_remove:
+            del self.running_merge_transforms[o]
 
     def hits_merge_transform(self, input_files: Iterable[str], output_file: str) -> subprocess.Process:
         """
