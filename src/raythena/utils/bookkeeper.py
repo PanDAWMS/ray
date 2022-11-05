@@ -316,20 +316,24 @@ class BookKeeper(object):
         """
         removed = []
         while not self.stop_cleaner.is_set():
-            files = set(os.listdir(self.output_dir))
-            removed.clear()
-            for task_status in self.taskstatus.values():
-                for merged_file in task_status._status[TaskStatus.MERGED].keys():
-                    if self.stop_cleaner.is_set():
-                        break
-                    for temp_file in files:
+            if os.path.isdir(self.output_dir):
+                files = set(os.listdir(self.output_dir))
+                self._logger.debug(f"files in task dir: {files}")
+                removed.clear()
+                for task_status in self.taskstatus.values():
+                    for merged_file in task_status._status[TaskStatus.MERGED].keys():
                         if self.stop_cleaner.is_set():
                             break
-                        if merged_file in temp_file:
-                            os.remove(os.path.join(self.output_dir, temp_file))
-                            removed.append(temp_file)
-                    for temp_file in removed:
-                        files.remove(temp_file)
+                        for temp_file in files:
+                            if self.stop_cleaner.is_set():
+                                break
+                            if merged_file in temp_file:
+                                os.remove(os.path.join(self.output_dir, temp_file))
+                                removed.append(temp_file)
+                        for temp_file in removed:
+                            files.remove(temp_file)
+            else:
+                self._logger.debug(f"Dir {self.output_dir} doesn't exist")
             self.stop_cleaner.wait(60)
 
     def _saver_thead_run(self):
@@ -383,13 +387,13 @@ class BookKeeper(object):
     def stop_saver_thread(self):
         if self.save_state_thread.is_alive():
             self.stop_saver.set()
-            self.save_state_thread.join()
+            self.save_state_thread.join_with_ex()
             self.save_state_thread = ExThread(target=self._saver_thead_run, name="status-saver-thread")
 
     def stop_cleaner_thread(self):
         if self.cleaner_thread.is_alive():
             self.stop_cleaner.set()
-            self.cleaner_thread.join()
+            self.cleaner_thread.join_with_ex()
             self.cleaner_thread = ExThread(target=self._cleaner_thead_run, name="cleaner-thread")
 
     def start_threads(self):
@@ -416,12 +420,15 @@ class BookKeeper(object):
         Returns:
             None
         """
+        assert len(jobs) == 1
         self.jobs.add_jobs(jobs)
         for pandaID in self.jobs:
             job = self.jobs[pandaID]
             if job["taskID"] not in self.taskstatus:
                 ts = TaskStatus(job, self.config)
                 self.taskstatus[job['taskID']] = ts
+                # TODO: have esdriver provide outputdir to make sure both are consistent
+                self.output_dir = os.path.join(os.path.expandvars(self.config.ray.get("taskprogressbasedir")), str(job['taskID']))
                 self._generate_input_output_mapping(job)
                 self._generate_event_ranges(job, ts)
         if start_threads:

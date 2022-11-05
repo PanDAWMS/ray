@@ -424,7 +424,6 @@ class ESDriver(BaseDriver):
                     if n_received_events == 0:
                         self.stop()
                 self.bookKeeper.add_event_ranges(ranges)
-                # TODO do not reference pandaID befoore checking if non-null
                 self.available_events_per_actor = max(1, ceil(self.bookKeeper.n_ready(pandaID) / self.n_actors))
                 self.n_eventsrequest -= 1
             except Empty:
@@ -483,8 +482,7 @@ class ESDriver(BaseDriver):
         self.merge_transform_params = job["esmergeSpec"]["jobParameters"]
 
         self.container_name = job["container_name"]
-        # TODO get base path fron config
-        self.output_dir = os.path.join("/global/cscratch1/sd/esseivaj", str(self.panda_taskid))
+        self.output_dir = os.path.join(os.path.expandvars(self.config.ray.get("taskprogressbasedir")), str(self.panda_taskid))
         with open(self.task_workdir_path_file, 'w') as f:
             f.write(self.output_dir)
 
