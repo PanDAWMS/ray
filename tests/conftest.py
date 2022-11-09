@@ -285,7 +285,7 @@ def sample_job(is_eventservice, nhits_per_file, nevents_per_file):
             u'logGUID':
                 log_guid,
             u'nEventsPerInputFile': nevents_per_file,
-            u'emergeSpec': {
+            u'esmergeSpec': {
                 "transPath": "",
                 "jobParameters": "",
                 "nEventsPerOutputFile": nhits_per_file
