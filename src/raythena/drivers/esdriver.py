@@ -456,6 +456,27 @@ class ESDriver(BaseDriver):
                 self.terminated.append(name)
         ray.get(handles)
 
+    def setup_dirs(self):
+        self.output_dir = os.path.join(os.path.expandvars(self.config.ray.get("taskprogressbasedir")), str(self.panda_taskid))
+        with open(self.task_workdir_path_file, 'w') as f:
+            f.write(self.output_dir)
+
+        self.config.ray["outputdir"] = self.output_dir
+        self.tar_merge_es_output_dir = self.output_dir
+        self.tar_merge_es_files_dir = self.output_dir
+        self.config_remote = ray.put(self.config)
+        # create the output directories if needed
+        try:
+            if not os.path.isdir(self.output_dir):
+                os.mkdir(self.output_dir)
+            if not os.path.isdir(self.tar_merge_es_output_dir):
+                os.mkdir(self.tar_merge_es_output_dir)
+            if not os.path.isdir(self.tar_merge_es_files_dir):
+                os.mkdir(self.tar_merge_es_files_dir)
+        except Exception as e:
+            self._logger.warning(f"Exception when creating directories: {e}")
+            raise
+
     def run(self) -> None:
         """
         Method used to start the driver, initializing actors, retrieving initial job and event ranges,
@@ -482,25 +503,7 @@ class ESDriver(BaseDriver):
         self.merge_transform_params = job["esmergeSpec"]["jobParameters"]
 
         self.container_name = job["container_name"]
-        self.output_dir = os.path.join(os.path.expandvars(self.config.ray.get("taskprogressbasedir")), str(self.panda_taskid))
-        with open(self.task_workdir_path_file, 'w') as f:
-            f.write(self.output_dir)
-
-        self.config.ray["outputdir"] = self.output_dir
-        self.tar_merge_es_output_dir = self.output_dir
-        self.tar_merge_es_files_dir = self.output_dir
-        self.config_remote = ray.put(self.config)
-        # create the output directories if needed
-        try:
-            if not os.path.isdir(self.output_dir):
-                os.mkdir(self.output_dir)
-            if not os.path.isdir(self.tar_merge_es_output_dir):
-                os.mkdir(self.tar_merge_es_output_dir)
-            if not os.path.isdir(self.tar_merge_es_files_dir):
-                os.mkdir(self.tar_merge_es_files_dir)
-        except Exception as e:
-            self._logger.warning(f"Exception when creating directories: {e}")
-            raise
+        self.setup_dirs()
         self._logger.debug("Adding job and generating event ranges...")
         self.bookKeeper.add_jobs(jobs)
         self._logger.debug("done")

@@ -48,7 +48,8 @@ class TaskStatus:
         self.tmpfilepath = f"{self.filepath}.tmp"
         self._events_per_file = int(job['nEventsPerInputFile'])
         self._hits_per_file = int(job['esmergeSpec']['nEventsPerOutputFile'])
-        assert (self._events_per_file % self._hits_per_file == 0) or (self._hits_per_file % self._events_per_file == 0), "Expected number of events per input file to be a multiple of number of hits per merged file"
+        assert (self._events_per_file % self._hits_per_file == 0) or (
+            self._hits_per_file % self._events_per_file == 0), "Expected number of events per input file to be a multiple of number of hits per merged file"
         # if _hits_per_file > _events_per_file, each input file has a single output file
         self._n_output_per_input_file = max(1, self._events_per_file // self._hits_per_file)
         self._status: Dict[str, Union[Dict[str, Dict[str, Dict[str, str]]], Dict[str, List[str]]]] = dict()
@@ -294,7 +295,7 @@ class BookKeeper(object):
         self._logger = make_logger(self.config, "BookKeeper")
         self.actors: Dict[str, Optional[str]] = dict()
         self.rangesID_by_actor: Dict[str, Set[str]] = dict()
-        # Output files for which we are ready to launch a merge transform
+        #  Output files for which we are ready to launch a merge transform
         self.files_ready_to_merge: Dict[str, List[Tuple[str, EventRange]]] = dict()
         # Event ranges for a given input file which have been simulated and a ready to be merged
         self.ranges_to_merge: Dict[str, List[Tuple[str, EventRange]]] = dict()
@@ -318,7 +319,7 @@ class BookKeeper(object):
         while not self.stop_cleaner.is_set():
             if os.path.isdir(self.output_dir):
                 files = set(os.listdir(self.output_dir))
-                self._logger.debug(f"files in task dir: {files}")
+                # self._logger.debug(f"files in task dir: {files}")
                 removed.clear()
                 for task_status in self.taskstatus.values():
                     for merged_file in task_status._status[TaskStatus.MERGED].keys():
