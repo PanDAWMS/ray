@@ -20,6 +20,7 @@ ray:
   headip:
   redisport:
   redispassword:
+  taskprogressbasedir:
   cachesizefactor: 1
   workdir: .
   timeoutinterval: 600
