@@ -21,6 +21,7 @@ ray:
   redisport:
   redispassword:
   workdir: $SCRATCH/raythena/workdir
+  taskprogressbasedir: $SCRATCH
   cachesizefactor: 4
   timeoutinterval: 600
   mergemaxprocesses: 64

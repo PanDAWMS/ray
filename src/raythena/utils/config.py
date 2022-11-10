@@ -35,6 +35,7 @@ class Config(object):
         },
         'ray': {
             'workdir': str,
+            'taskprogressbasedir': str,
             'headip': str,
             'redisport': int,
             'redispassword': str,

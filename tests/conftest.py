@@ -80,9 +80,11 @@ def nhits_per_file(nevents_per_file):
 
 
 @pytest.fixture
-def sample_ranges(nevents, pandaids, nfiles):
+def sample_ranges(nevents, pandaids, input_output_file_list):
     res = {}
-    files = [f"/path/to/file_{i}" for i in range(nfiles)]
+    (input_files, _) = input_output_file_list
+    nfiles = len(input_files)
+    files = [f"/path/to/{i}" for i in input_files]
     for pandaID in pandaids:
         range_list = list()
         res[pandaID] = range_list
@@ -125,8 +127,24 @@ def sample_failed_rangeupdate(nevents):
 
 
 @pytest.fixture
-def sample_multijobs(request, is_eventservice, pandaids, nhits_per_file, nevents_per_file):
+def input_output_file_list(nfiles, nhits_per_file, nevents_per_file):
+    if nhits_per_file > nevents_per_file:
+        assert nhits_per_file % nevents_per_file == 0
+        n = nhits_per_file // nevents_per_file
+        n_output_files = nfiles // n
+    else:
+        assert nevents_per_file % nhits_per_file == 0
+        n = nevents_per_file // nhits_per_file
+        n_output_files = nfiles * n
+    output_files = [f"HITS_{i}.pool.root.1" for i in range(n_output_files)]
+    input_files = [f"EVNT_{i}.pool.root.1" for i in range(nfiles)]
+    return (input_files, output_files)
+
+
+@pytest.fixture
+def sample_multijobs(request, input_output_file_list, is_eventservice, pandaids, nhits_per_file, nevents_per_file):
     res = {}
+    (input_files, output_files) = input_output_file_list
     for pandaID in pandaids:
         hash = hashlib.md5()
 
@@ -142,12 +160,14 @@ def sample_multijobs(request, is_eventservice, pandaids, nhits_per_file, nevents
         guid = '0'
         scope = "13Mev"
         panda_queue_name = f"pandaqueue_{hash.hexdigest()}"
-        inFiles = "EVNT-2.pool.root.1"
+        inFiles = ",".join(input_files)
+        outFiles = ",".join(output_files)
+        outFilesShort = f"[{','.join([str(i) for i in range(len(outFiles))])}]"
         res[pandaID] = {
             u'jobsetID':
                 jobsetId,
             u'nEventsPerInputFile': nevents_per_file,
-            u'emergeSpec': {
+            u'esmergeSpec': {
                 "transPath": "",
                 "jobParameters": "",
                 "nEventsPerOutputFile": nhits_per_file
@@ -224,7 +244,7 @@ def sample_multijobs(request, is_eventservice, pandaids, nhits_per_file, nevents
                 '--preInclude sim:SimulationJobOptions/preInclude.FrozenShowersFCalOnly.py,SimulationJobOptions/preInclude.BeamPipeKill.py '
                 '--geometryVersion ATLAS-R2-2016-01-00-00_VALIDATION --physicsList QGSP_BERT --randomSeed 1234 --conditionsTag OFLCOND-MC12-SIM-00 '
                 '--maxEvents=-1 --inputEvgenFile %s --outputHitsFile HITS_%s.pool.root)'
-                % (str(is_eventservice), inFiles, job_name)),
+                % (str(is_eventservice), inFiles, outFilesShort)),
             u'attemptNr':
                 0,
             u'swRelease':
@@ -234,7 +254,7 @@ def sample_multijobs(request, is_eventservice, pandaids, nhits_per_file, nevents
             u'maxCpuCount':
                 0,
             u'outFiles':
-                u'HITS_%s.pool.root,%s.job.log.tgz' % (job_name, job_name),
+                outFiles,
             u'currentPriority':
                 1000,
             u'scopeIn':
@@ -262,9 +282,9 @@ def sample_multijobs(request, is_eventservice, pandaids, nhits_per_file, nevents
 
 
 @pytest.fixture
-def sample_job(is_eventservice, nhits_per_file, nevents_per_file):
+def sample_job(is_eventservice, input_output_file_list, nhits_per_file, nevents_per_file):
     hash = hashlib.md5()
-
+    (input_files, output_files) = input_output_file_list
     hash.update(str(time.time()).encode('utf-8'))
     log_guid = hash.hexdigest()
 
@@ -277,7 +297,9 @@ def sample_job(is_eventservice, nhits_per_file, nevents_per_file):
     guid = '0'
     scope = "13Mev"
     panda_queue_name = "pandaqueue"
-    inFiles = "EVNT-2.pool.root.1"
+    inFiles = ",".join(input_files)
+    outFiles = ",".join(output_files)
+    outFilesShort = f"[{','.join([str(i) for i in range(len(outFiles))])}]"
     return {
         pandaID: {
             u'jobsetID':
@@ -285,7 +307,7 @@ def sample_job(is_eventservice, nhits_per_file, nevents_per_file):
             u'logGUID':
                 log_guid,
             u'nEventsPerInputFile': nevents_per_file,
-            u'emergeSpec': {
+            u'esmergeSpec': {
                 "transPath": "",
                 "jobParameters": "",
                 "nEventsPerOutputFile": nhits_per_file
@@ -360,7 +382,7 @@ def sample_job(is_eventservice, nhits_per_file, nevents_per_file):
                 '--preInclude sim:SimulationJobOptions/preInclude.FrozenShowersFCalOnly.py,SimulationJobOptions/preInclude.BeamPipeKill.py '
                 '--geometryVersion ATLAS-R2-2016-01-00-00_VALIDATION --physicsList QGSP_BERT --randomSeed 1234 --conditionsTag OFLCOND-MC12-SIM-00 '
                 '--maxEvents=-1 --inputEvgenFile %s --outputHitsFile HITS_%s.pool.root)'
-                % (str(is_eventservice), inFiles, job_name)),
+                % (str(is_eventservice), inFiles, outFilesShort)),
             u'attemptNr':
                 0,
             u'swRelease':
@@ -370,7 +392,7 @@ def sample_job(is_eventservice, nhits_per_file, nevents_per_file):
             u'maxCpuCount':
                 0,
             u'outFiles':
-                u'HITS_%s.pool.root,%s.job.log.tgz' % (job_name, job_name),
+                outFiles,
             u'currentPriority':
                 1000,
             u'scopeIn':
