@@ -80,9 +80,11 @@ def nhits_per_file(nevents_per_file):
 
 
 @pytest.fixture
-def sample_ranges(nevents, pandaids, nfiles):
+def sample_ranges(nevents, pandaids, input_output_file_list):
     res = {}
-    files = [f"/path/to/file_{i}" for i in range(nfiles)]
+    (input_files, _) = input_output_file_list
+    nfiles = len(input_files)
+    files = [f"/path/to/{i}" for i in input_files]
     for pandaID in pandaids:
         range_list = list()
         res[pandaID] = range_list
