@@ -44,14 +44,7 @@ export RAYTHENA_RAY_REDIS_PORT=6379
 export RAYTHENA_CONFIG=$CONFDIR/cori.yaml
 export RAYTHENA_DEBUG=1
 export RAYTHENA_RAY_HEAD_IP=$(hostname -i)
-if [[ "$RAYTHENA_RAY_HEAD_IP" == *" "* ]]; then
-IFS=' ' read -ra ADDR <<<"$RAYTHENA_RAY_HEAD_IP"
-if [[ ${#ADDR[0]} -gt 16 ]]; then
-  export RAYTHENA_RAY_HEAD_IP=${ADDR[1]}
-else
-  export RAYTHENA_RAY_HEAD_IP=${ADDR[0]}
-fi
-fi
+read -d ' ' RAYTHENA_RAY_HEAD_IP <<<"$RAYTHENA_RAY_HEAD_IP"
 export RAYTHENA_PANDA_QUEUE=$PANDA_QUEUE
 export NWORKERS=$((HARVESTER_NNODE - 1))
 export RAYTHENA_CORE_PER_NODE=128
