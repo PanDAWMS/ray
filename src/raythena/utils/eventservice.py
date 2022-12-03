@@ -341,7 +341,8 @@ class EventRangeQueue(object):
         """
         self.event_ranges_by_id: Dict[str, EventRange] = dict()
         self.rangesID_by_state: Dict[str, Set[str]] = dict()
-        self.event_ranges_count = dict()
+        self.rangesID_by_file: Dict[str, Set[str]] = dict()
+        self.event_ranges_count: Dict[str, int] = dict()
         for s in EventRange.STATES:
             self.event_ranges_count[s] = 0
             self.rangesID_by_state[s] = set()
@@ -362,6 +363,8 @@ class EventRangeQueue(object):
             raise Exception(f"Specified key '{k}' should be equals to the event range id '{v.eventRangeID}' ")
         if k in self.event_ranges_by_id:
             self.rangesID_by_state[v.status].remove(k)
+            if v.PFN in self.rangesID_by_file:
+                self.rangesID_by_file[v.PFN].discard(k)
             self.event_ranges_by_id.pop(k)
             self.event_ranges_count[v.status] -= 1
         self.append(v)
@@ -409,6 +412,11 @@ class EventRangeQueue(object):
         event_range.status = new_state
         self.rangesID_by_state[event_range.status].add(range_id)
         self.event_ranges_count[event_range.status] += 1
+        # rangesID_by_file only hold ids of ranges that are ready to be assigned
+        if new_state != EventRange.READY:
+            self.rangesID_by_file[event_range.PFN].remove(range_id)
+        else:
+            self.rangesID_by_file[event_range.PFN].add(range_id)
         return event_range
 
     def assign_ready_ranges(self, n_ranges=1) -> List['EventRange']:
@@ -418,14 +426,24 @@ class EventRangeQueue(object):
         res: List[Optional['EventRange']] = [None] * n_ranges  # pre-allocate list
         ready = self.rangesID_by_state[EventRange.READY]
         assigned = self.rangesID_by_state[EventRange.ASSIGNED]
-        for n in range(n_ranges):
-            range_id = ready.pop()
-            assigned.add(range_id)
-            self.event_ranges_by_id[range_id].status = EventRange.ASSIGNED
-            res[n] = self.event_ranges_by_id[range_id]
 
-        self.event_ranges_count[EventRange.READY] -= n_ranges
-        self.event_ranges_count[EventRange.ASSIGNED] += n_ranges
+        n_ranges_to_assign = n_ranges
+        for ids_file in self.rangesID_by_file.values():
+            if not ids_file:
+                continue
+            n_file = min(n_ranges_to_assign, len(ids_file))
+            for n in range(n_file):
+                range_id = ids_file.pop()
+                ready.remove(range_id)
+                assigned.add(range_id)
+                self.event_ranges_by_id[range_id].status = EventRange.ASSIGNED
+                res[n] = self.event_ranges_by_id[range_id]
+
+            self.event_ranges_count[EventRange.READY] -= n_file
+            self.event_ranges_count[EventRange.ASSIGNED] += n_file
+            n_ranges_to_assign -= n_file
+            if not n_ranges_to_assign:
+                break
         return res
 
     def update_ranges(self, ranges_update: Sequence[EventRangeDef]) -> None:
@@ -512,6 +530,9 @@ class EventRangeQueue(object):
 
         self.event_ranges_by_id[event_range.eventRangeID] = event_range
         self.rangesID_by_state[event_range.status].add(event_range.eventRangeID)
+        if event_range.PFN not in self.rangesID_by_file:
+            self.rangesID_by_file[event_range.PFN] = set()
+        self.rangesID_by_file[event_range.PFN].add(event_range.eventRangeID)
         self.event_ranges_count[event_range.status] += 1
 
     def add_new_event_ranges(self, ranges: Sequence['EventRange']) -> None:
@@ -520,6 +541,9 @@ class EventRangeQueue(object):
         self.event_ranges_count[EventRange.READY] += len(ranges)
         for r in ranges:
             self.event_ranges_by_id[r.eventRangeID] = r
+            if r.PFN not in self.rangesID_by_file:
+                self.rangesID_by_file[r.PFN] = set()
+            self.rangesID_by_file[r.PFN].add(r.eventRangeID)
 
     def concat(self, ranges: Sequence[Union[EventRangeDef, 'EventRange']]) -> None:
         """
