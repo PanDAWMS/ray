@@ -406,6 +406,10 @@ class EventRangeQueue(object):
                 f"Trying to update non-existing eventrange {range_id}")
 
         event_range = self.event_ranges_by_id[range_id]
+        if new_state != EventRange.READY and event_range.status == EventRange.READY:
+            self.rangesID_by_file[event_range.PFN].remove(range_id)
+        elif new_state == EventRange.READY:
+            self.rangesID_by_file[event_range.PFN].add(range_id)
 
         self.rangesID_by_state[event_range.status].remove(range_id)
         self.event_ranges_count[event_range.status] -= 1
@@ -413,10 +417,6 @@ class EventRangeQueue(object):
         self.rangesID_by_state[event_range.status].add(range_id)
         self.event_ranges_count[event_range.status] += 1
         # rangesID_by_file only hold ids of ranges that are ready to be assigned
-        if new_state != EventRange.READY:
-            self.rangesID_by_file[event_range.PFN].remove(range_id)
-        else:
-            self.rangesID_by_file[event_range.PFN].add(range_id)
         return event_range
 
     def assign_ready_ranges(self, n_ranges=1) -> List['EventRange']:
