@@ -423,7 +423,8 @@ class EventRangeQueue(object):
         n_ranges = min(self.nranges_available(), n_ranges)
         if not n_ranges:
             return list()
-        res: List[Optional['EventRange']] = []
+        res: List[Optional['EventRange']] = [None] * n_ranges
+        res_idx = 0
         ready = self.rangesID_by_state[EventRange.READY]
         assigned = self.rangesID_by_state[EventRange.ASSIGNED]
 
@@ -437,7 +438,8 @@ class EventRangeQueue(object):
                 ready.remove(range_id)
                 assigned.add(range_id)
                 self.event_ranges_by_id[range_id].status = EventRange.ASSIGNED
-                res.append(self.event_ranges_by_id[range_id])
+                res[res_idx] = self.event_ranges_by_id[range_id]
+                res_idx += 1
 
             self.event_ranges_count[EventRange.READY] -= n_file
             self.event_ranges_count[EventRange.ASSIGNED] += n_file
