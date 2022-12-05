@@ -217,7 +217,7 @@ class PilotHttpPayload(ESPayload):
         if os.path.isfile(pandaqueues_file):
             os.symlink(pandaqueues_file, os.path.join(cwd, "cric_pandaqueues.json"))
 
-        queue_escaped = "/cvmfs/atlas.cern.ch/repo/sw/local/etc/cric_pandaqueues.json"
+        queue_escaped = "/cvmfs/atlas.cern.ch/repo/sw/local/etc/agis_schedconf.json"
         if os.path.isfile(queue_escaped):
             os.symlink(queue_escaped, os.path.join(cwd, "queuedata.json"))
 

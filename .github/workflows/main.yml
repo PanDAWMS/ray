@@ -9,17 +9,17 @@ on:
 jobs:
   tests:
     name: tests
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v1
+        uses: actions/checkout@v3
       - name: Setup python version
-        uses: actions/setup-python@v1
+        uses: actions/setup-python@v4
         with:
           python-version: 3.7
           architecture: x64
       - name: Restore cached deps
-        uses: actions/cache@v1
+        uses: actions/cache@v3
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ hashFiles('**/setup.py') }}
@@ -35,5 +35,5 @@ jobs:
           flake8 .
       - name: Run tests
         run: |
-          pip install pytest requests
+          pip install pytest requests six
           pytest
