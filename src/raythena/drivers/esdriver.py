@@ -659,7 +659,6 @@ class ESDriver(BaseDriver):
         transform_params = re.sub(r"\$\{OUTPUT0\}", output_file, transform_params, count=1)
         transform_params = re.sub(r"--autoConfiguration=everything", "", transform_params)
         container_script = f"{self.merge_transform} {transform_params};"
-        self._logger.debug(f"Transform command: {container_script}")
         cmd = str()
         cmd += "export ATLAS_LOCAL_ROOT_BASE=/cvmfs/atlas.cern.ch/repo/ATLASLocalRootBase;"
         cmd += f"export thePlatform=\"{self.container_name}\";"
