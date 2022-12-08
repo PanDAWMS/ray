@@ -304,6 +304,7 @@ class BookKeeper(object):
         self.output_merge_queue: Dict[str, List[Tuple[str, EventRange]]] = dict()
         # Keep tracks of merge job definition that have been distributed to the driver for which we expect an update
         self.ditributed_merge_tasks: Dict[str, List[Tuple[str, EventRange]]] = dict()
+        self.failed_count_by_file: Dict[str, int] = dict()
         self.last_status_print = time.time()
         self.taskstatus: Dict[str, TaskStatus] = dict()
         self.stop_saver = threading.Event()
@@ -365,7 +366,7 @@ class BookKeeper(object):
 
     def _check_mergeable_files_1_n(self):
         for input_file, event_ranges in self.ranges_to_merge.items():
-            while len(event_ranges) >= self._hits_per_file:
+            while len(event_ranges) + self.failed_count_by_file.get(input_file, 0) >= self._hits_per_file:
                 ranges_to_merge = event_ranges[-self._hits_per_file:]
                 del event_ranges[-self._hits_per_file:]
                 output_file = self._input_output_mapping[input_file].pop()
@@ -374,7 +375,7 @@ class BookKeeper(object):
     def _check_mergeable_files_n_1(self):
         for input_file, event_ranges in self.ranges_to_merge.items():
             # input file has been entierly processed
-            if len(event_ranges) == self._events_per_file:
+            if len(event_ranges) + self.failed_count_by_file.get(input_file, 0) == self._events_per_file:
                 # N-1 / 1-1 --> each input file has a predefined single output file name
                 output_filename = self._input_output_mapping[input_file][0]
                 if output_filename not in self.output_merge_queue:
@@ -516,19 +517,25 @@ class BookKeeper(object):
                             continue
                     event_range = EventRange(range_id, i, i, file, guid, scope)
                     # event range hasn't been merged but already simulated, add it as ready to be merged
-                    if file_simulated_ranges and range_id in file_simulated_ranges:
+                    if file_simulated_ranges is not None and range_id in file_simulated_ranges:
                         item = (file_simulated_ranges[range_id]["path"], event_range)
                         if event_range.PFN not in self.ranges_to_merge:
                             self.ranges_to_merge[event_range.PFN] = [item]
                         else:
                             self.ranges_to_merge[event_range.PFN].append(item)
-                    elif file_failed_ranges and range_id in file_failed_ranges:
-                        continue
+                    elif file_failed_ranges is not None and range_id in file_failed_ranges:
+                        self.add_failed_range(file)
                     else:
                         # event range hasn't been simulated, add it to the event range queue
                         event_ranges.append(event_range)
             self._logger.debug(f"Generated {len(event_ranges)} event ranges")
             job.event_ranges_queue.add_new_event_ranges(event_ranges)
+
+    def add_failed_range(self, file):
+        if file not in self.failed_count_by_file:
+            self.failed_count_by_file[file] = 1
+        else:
+            self.failed_count_by_file[file] += 1
 
     def add_event_ranges(
             self, event_ranges: Mapping[str, Sequence[EventRangeDef]]) -> None:
@@ -672,6 +679,7 @@ class BookKeeper(object):
                 elif r['eventStatus'] in [EventRange.FAILED, EventRange.FATAL]:
                     self._logger.info(f"Received failed event from {actor_id}: {r}")
                     task_status.set_eventrange_failed(job_ranges[range_id])
+                    self.add_failed_range(evnt_range.PFN)
         now = time.time()
         if now - self.last_status_print > 60:
             self.last_status_print = now
