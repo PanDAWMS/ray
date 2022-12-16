@@ -378,11 +378,15 @@ class BookKeeper(object):
             if len(event_ranges) + self.failed_count_by_file.get(input_file, 0) == self._events_per_file:
                 # N-1 / 1-1 --> each input file has a predefined single output file name
                 output_filename = self._input_output_mapping[input_file][0]
+                total_failed_for_output = 0
+                input_files = self._output_input_mapping[output_filename]
+                for filename in input_files:
+                    total_failed_for_output += self.failed_count_by_file.get(filename, 0)
                 if output_filename not in self.output_merge_queue:
                     self.output_merge_queue[output_filename] = []
                 self.output_merge_queue[output_filename].extend(event_ranges)
                 event_ranges.clear()
-                if len(self.output_merge_queue[output_filename]) == self._hits_per_file:
+                if len(self.output_merge_queue[output_filename]) + total_failed_for_output == self._hits_per_file:
                     ranges_to_merge = self.output_merge_queue[output_filename]
                     self.files_ready_to_merge[output_filename] = ranges_to_merge
 
