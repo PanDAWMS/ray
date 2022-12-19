@@ -188,8 +188,12 @@ class TaskStatus:
             outputfile: produced merged hits file
             event_ranges: event ranges merged in the outputfile
         """
-
-        assert len(event_ranges) == self._hits_per_file, f"Expected {self._hits_per_file} hits in {outputfile}, got {len(event_ranges)}"
+        total_failed = 0
+        failed_dict = self._status[TaskStatus.FAILED]
+        for file in input_files:
+            if file in failed_dict:
+                total_failed += len(failed_dict[file])
+        assert len(event_ranges) + total_failed == self._hits_per_file, f"Expected {self._hits_per_file} hits in {outputfile}, got {len(event_ranges)}"
         for inputfile in input_files:
             if inputfile not in self._status[TaskStatus.MERGING]:
                 self._status[TaskStatus.MERGING][inputfile] = {outputfile: event_ranges}
