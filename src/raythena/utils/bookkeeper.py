@@ -674,8 +674,8 @@ class BookKeeper(object):
             if 'eventRangeID' in r and r['eventRangeID'] in actor_ranges:
                 range_id = r['eventRangeID']
                 actor_ranges.remove(range_id)
+                evnt_range = job_ranges[range_id]
                 if r['eventStatus'] == EventRange.DONE:
-                    evnt_range = job_ranges[range_id]
                     task_status.set_eventrange_simulated(evnt_range, r['path'])
                     if evnt_range.PFN not in self.ranges_to_merge:
                         self.ranges_to_merge[evnt_range.PFN] = list()
