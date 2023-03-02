@@ -463,8 +463,7 @@ class EventRangeQueue(object):
         for r in ranges_update:
             range_id = r['eventRangeID']
             range_status = r['eventStatus']
-            if range_id not in self.event_ranges_by_id or \
-                    range_id in self.rangesID_by_state[EventRange.READY]:
+            if range_id not in self.event_ranges_by_id:
                 raise Exception()
             self.update_range_state(range_id, range_status)
 
