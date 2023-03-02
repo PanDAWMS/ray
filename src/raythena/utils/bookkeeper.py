@@ -361,8 +361,6 @@ class BookKeeper(object):
         Goes through the current task status, checks if a file has been entierly processed (event ranges all simulated or failed) and
         if so adds the file to self.files_ready_to_merge
         """
-        # TODO: improve check for mergeable file, check if remaining event per file + failed events per file < hits_per_file,
-        # add possibility to have multiple merge jobs for same imput file at the same time
         if self._hits_per_file >= self._events_per_file:
             self._check_mergeable_files_n_1()
         else:
@@ -370,7 +368,7 @@ class BookKeeper(object):
 
     def _check_mergeable_files_1_n(self):
         for input_file, event_ranges in self.ranges_to_merge.items():
-            while len(event_ranges) + self.failed_count_by_file.get(input_file, 0) >= self._hits_per_file:
+            while len(event_ranges) >= self._hits_per_file:
                 ranges_to_merge = event_ranges[-self._hits_per_file:]
                 del event_ranges[-self._hits_per_file:]
                 output_file = self._input_output_mapping[input_file].pop()
@@ -379,20 +377,16 @@ class BookKeeper(object):
     def _check_mergeable_files_n_1(self):
         for input_file, event_ranges in self.ranges_to_merge.items():
             # input file has been entierly processed
-            if len(event_ranges) + self.failed_count_by_file.get(input_file, 0) == self._events_per_file:
+            if len(event_ranges) == self._events_per_file:
                 # N-1 / 1-1 --> each input file has a predefined single output file name
                 output_filename = self._input_output_mapping[input_file][0]
-                total_failed_for_output = 0
-                input_files = self._output_input_mapping[output_filename]
-                for filename in input_files:
-                    total_failed_for_output += self.failed_count_by_file.get(filename, 0)
                 if output_filename not in self.output_merge_queue:
                     self.output_merge_queue[output_filename] = []
                 self.output_merge_queue[output_filename].extend(event_ranges)
                 event_ranges.clear()
-                if len(self.output_merge_queue[output_filename]) + total_failed_for_output == self._hits_per_file:
-                    ranges_to_merge = self.output_merge_queue[output_filename]
-                    self.files_ready_to_merge[output_filename] = ranges_to_merge
+                if len(self.output_merge_queue[output_filename]) == self._hits_per_file:
+                    self.files_ready_to_merge[output_filename] = self.output_merge_queue[output_filename]
+                    del self.output_merge_queue[output_filename]
 
     def stop_saver_thread(self):
         if self.save_state_thread.is_alive():
