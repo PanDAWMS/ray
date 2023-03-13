@@ -341,6 +341,7 @@ class EventRangeQueue(object):
         """
         self.event_ranges_by_id: Dict[str, EventRange] = dict()
         self.rangesID_by_state: Dict[str, Set[str]] = dict()
+        #only holds event ranges that are ready
         self.rangesID_by_file: Dict[str, Set[str]] = dict()
         self.event_ranges_count: Dict[str, int] = dict()
         for s in EventRange.STATES:
