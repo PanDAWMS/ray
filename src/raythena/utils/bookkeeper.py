@@ -477,7 +477,7 @@ class BookKeeper(object):
 
     @staticmethod
     def generate_event_range_id(file: str, n: str):
-        return f"{file}-n"
+        return f"{file}-{n}"
 
     def _generate_event_ranges(self, job: PandaJob, task_status: TaskStatus):
         """
