@@ -232,7 +232,7 @@ class TaskStatus:
         if filename not in failed_dict:
             failed_dict[filename] = dict()
         failed_dict[filename][eventrange.eventRangeID] = TaskStatus.build_eventrange_dict(eventrange)
-        if eventrange.eventRangeID in self._status[TaskStatus.SIMULATED].get(filename,{}):
+        if eventrange.eventRangeID in self._status[TaskStatus.SIMULATED].get(filename, {}):
             del self._status[TaskStatus.SIMULATED][eventrange.eventRangeID]
 
     def get_nsimulated(self, filename=None) -> int:
@@ -514,13 +514,13 @@ class BookKeeper(object):
                 file_failed_ranges = failed_ranges.get(file)
                 # in n_to_one case, ranges from one input file all go into the same output file
                 # so if we have a single failed range from that file, the entire file can be flagged as failed
-                # in 1_to_n case, the input file is split in many output files so we can still partially process it.
+                # in 1_to_n case, the input file is split in many output files so we can still partially process it.
                 is_file_failed = file in failed_ranges and is_n_to_one
                 file_merging_ranges = merging_files.get(file)
                 for i in range(1, self._events_per_file + 1):
                     range_id = BookKeeper.generate_event_range_id(file, i)
                     event_range = EventRange(range_id, i, i, file, guid, scope)
-                    # the file is marked as failed; all event ranges in the file are failed
+                    # the file is marked as failed; all event ranges in the file are failed
                     if is_file_failed:
                         self.add_failed_range(event_range, file)
                         if file_failed_ranges is not None and range_id not in file_failed_ranges:
