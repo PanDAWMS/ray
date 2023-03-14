@@ -451,9 +451,7 @@ class EventRangeQueue(object):
 
     def update_ranges(self, ranges_update: Sequence[EventRangeDef]) -> None:
         """
-        Process a range update sent by the payload by updating the range status to the new status. It is only
-        possible to update event ranges which are in the assigned, or failed state, trying to update an unassigned or
-         finished range will raise an exception
+        Process a range update sent by the payload by updating the range status to the new status.
 
         Args:
             ranges_update: update sent by the payload

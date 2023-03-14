@@ -117,9 +117,6 @@ class TestEventRangeQueue:
         failed_ranges_update = EventRangeUpdate.build_from_dict(
             pandaID, sample_failed_rangeupdate)[pandaID][nsuccess:]
 
-        with pytest.raises(Exception):
-            ranges_queue.update_ranges(ranges_update)
-
         ranges_queue.get_next_ranges(nevents)
         ranges_queue.update_ranges(ranges_update)
         assert len(ranges_update) == ranges_queue.nranges_done()

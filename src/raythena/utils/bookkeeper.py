@@ -553,7 +553,7 @@ class BookKeeper(object):
 
     def add_failed_range(self, evnt_range: EventRange, file):
 
-        input_file_for_range = evnt_range.PFN
+        input_file_for_range = os.path.basename(evnt_range.PFN)
         output_file_for_range = self._input_output_mapping[input_file_for_range]
 
         # case N-1 / 1-1 : we need to invalidate all the event ranges that should have been merged together
