@@ -341,6 +341,7 @@ class EventRangeQueue(object):
         """
         self.event_ranges_by_id: Dict[str, EventRange] = dict()
         self.rangesID_by_state: Dict[str, Set[str]] = dict()
+        # only holds event ranges that are ready
         self.rangesID_by_file: Dict[str, Set[str]] = dict()
         self.event_ranges_count: Dict[str, int] = dict()
         for s in EventRange.STATES:
@@ -450,9 +451,7 @@ class EventRangeQueue(object):
 
     def update_ranges(self, ranges_update: Sequence[EventRangeDef]) -> None:
         """
-        Process a range update sent by the payload by updating the range status to the new status. It is only
-        possible to update event ranges which are in the assigned, or failed state, trying to update an unassigned or
-         finished range will raise an exception
+        Process a range update sent by the payload by updating the range status to the new status.
 
         Args:
             ranges_update: update sent by the payload
@@ -463,8 +462,7 @@ class EventRangeQueue(object):
         for r in ranges_update:
             range_id = r['eventRangeID']
             range_status = r['eventStatus']
-            if range_id not in self.event_ranges_by_id or \
-                    range_id in self.rangesID_by_state[EventRange.READY]:
+            if range_id not in self.event_ranges_by_id:
                 raise Exception()
             self.update_range_state(range_id, range_status)
 
