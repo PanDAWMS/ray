@@ -54,6 +54,9 @@ export ATHENA_PROC_NUMBER=$RAYTHENA_CORE_PER_NODE
 export ATHENA_CORE_NUMBER=$RAYTHENA_CORE_PER_NODE
 echo "Running $RAYTHENA_CORE_PER_NODE workers per Athena"
 
+# when starting harvester, we setup rucio, xrootd from cvmfs which have libraries in PYTHONPATH incompatible with ray
+unset PYTHONPATH
+
 #export RAY_BACKEND_LOG_LEVEL=debug
 
 # Create a file with current timestamp and job time limit
