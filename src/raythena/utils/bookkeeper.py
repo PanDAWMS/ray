@@ -310,7 +310,6 @@ class BookKeeper(object):
         self.output_merge_queue: Dict[str, List[Tuple[str, EventRange]]] = dict()
         # Keep tracks of merge job definition that have been distributed to the driver for which we expect an update
         self.ditributed_merge_tasks: Dict[str, List[Tuple[str, EventRange]]] = dict()
-        self.failed_count_by_file: Dict[str, int] = dict()
         self.last_status_print = time.time()
         self.taskstatus: Dict[str, TaskStatus] = dict()
         self.stop_saver = threading.Event()
@@ -492,10 +491,9 @@ class BookKeeper(object):
         # We only ever get one job
         self._hits_per_file = int(job['esmergeSpec']['nEventsPerOutputFile'])
         is_n_to_one = self._hits_per_file >= self._events_per_file
-        input_evnt_files = re.findall(r"\-\-inputEVNTFile=([\w\.\,]*) \-", job["jobPars"])
-        if input_evnt_files:
+        files = job["inFiles"].split(',')
+        if files:
             guids = job["GUID"].split(',')
-            files = input_evnt_files[0].split(',')
             if "scopeIn" in job:
                 scope = job["scopeIn"]
             else:
@@ -506,26 +504,42 @@ class BookKeeper(object):
             simulated_ranges = task_status._status[TaskStatus.SIMULATED]
             failed_ranges = task_status._status[TaskStatus.FAILED]
             skip_event = False
+            failed_input_files = []
+            # First pass to find all files that are failed, only necessary in n-to-one jobs
+            if is_n_to_one:
+                files_guids = {}
+                for file, guid in zip(files, guids):
+                    files_guids[file] = guid
+                    if file in failed_input_files:
+                        continue
+                    if file in failed_ranges:
+                        output_for_current = self._input_output_mapping[file]
+                        assert len(output_for_current) == 1
+                        merged_with_current = self._output_input_mapping[output_for_current[0]]
+                        assert file in merged_with_current
+                        failed_input_files.extend(merged_with_current)
+                failed_event_ranges = []
+                for file in failed_input_files:
+                    guid = files_guids[file]
+                    for i in range(1, self._events_per_file + 1):
+                        range_id = BookKeeper.generate_event_range_id(file, i)
+                        event_range = EventRange(range_id, i, i, file, guid, scope)
+                        event_range.status = EventRange.FAILED
+                        failed_event_ranges.append(event_range)
+                        task_status.set_eventrange_failed(event_range)
+                job.event_ranges_queue.concat(failed_event_ranges)
+                    
+            # Second pass handling only merged, simulated and not processed files
             for file, guid in zip(files, guids):
-                # if all the event ranges in the input file have been merge, continue to the next
-                if file in merged_files:
+                # if all the event ranges in the input file have been merge, or the file was declared as failed in the first pass, move to the next
+                if file in merged_files or file in failed_input_files:
                     continue
                 file_simulated_ranges = simulated_ranges.get(file)
                 file_failed_ranges = failed_ranges.get(file)
-                # in n_to_one case, ranges from one input file all go into the same output file
-                # so if we have a single failed range from that file, the entire file can be flagged as failed
-                # in 1_to_n case, the input file is split in many output files so we can still partially process it.
-                is_file_failed = file in failed_ranges and is_n_to_one
                 file_merging_ranges = merging_files.get(file)
                 for i in range(1, self._events_per_file + 1):
                     range_id = BookKeeper.generate_event_range_id(file, i)
                     event_range = EventRange(range_id, i, i, file, guid, scope)
-                    # the file is marked as failed; all event ranges in the file are failed
-                    if is_file_failed:
-                        self.add_failed_range(event_range, file)
-                        if file_failed_ranges is not None and range_id not in file_failed_ranges:
-                            task_status.set_eventrange_failed(event_range)
-                        continue
                     # checks if the event rang has already been merged in one of the output file
                     if file_merging_ranges:
                         for ranges in file_merging_ranges.values():
@@ -542,16 +556,17 @@ class BookKeeper(object):
                             self.ranges_to_merge[event_range.PFN] = [item]
                         else:
                             self.ranges_to_merge[event_range.PFN].append(item)
-                    # only for 1-to-n jobs
+                    # only for 1-to-n jobs, failure in n-t-1 have been handled in the 1st pass
                     elif file_failed_ranges is not None and range_id in file_failed_ranges:
-                        self.add_failed_range(event_range, file)
+                        event_range.status = EventRange.FAILED
+                        job.event_ranges_queue.append(event_range)
                     # event range hasn't been simulated, add it to the event range queue
                     else:
                         event_ranges.append(event_range)
             self._logger.debug(f"Generated {len(event_ranges)} event ranges")
             job.event_ranges_queue.add_new_event_ranges(event_ranges)
 
-    def add_failed_range(self, evnt_range: EventRange, file):
+    def add_failed_range(self, evnt_range: EventRange):
 
         input_file_for_range = os.path.basename(evnt_range.PFN)
         output_file_for_range = self._input_output_mapping[input_file_for_range]
@@ -570,10 +585,6 @@ class BookKeeper(object):
         # case 1-N : we don't need to do anything as we can still potentially merge part of the input file
         else:
             pass
-        if file not in self.failed_count_by_file:
-            self.failed_count_by_file[file] = 1
-        else:
-            self.failed_count_by_file[file] += 1
 
     def add_event_ranges(
             self, event_ranges: Mapping[str, Sequence[EventRangeDef]]) -> None:
@@ -717,7 +728,7 @@ class BookKeeper(object):
                 elif r['eventStatus'] in [EventRange.FAILED, EventRange.FATAL]:
                     self._logger.info(f"Received failed event from {actor_id}: {r}")
                     task_status.set_eventrange_failed(job_ranges[range_id])
-                    self.add_failed_range(evnt_range, evnt_range.PFN)
+                    self.add_failed_range(evnt_range)
         now = time.time()
         if now - self.last_status_print > 60:
             self.last_status_print = now

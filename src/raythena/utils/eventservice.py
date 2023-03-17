@@ -530,9 +530,10 @@ class EventRangeQueue(object):
 
         self.event_ranges_by_id[event_range.eventRangeID] = event_range
         self.rangesID_by_state[event_range.status].add(event_range.eventRangeID)
-        if event_range.PFN not in self.rangesID_by_file:
-            self.rangesID_by_file[event_range.PFN] = set()
-        self.rangesID_by_file[event_range.PFN].add(event_range.eventRangeID)
+        if event_range.status == EventRange.READY:
+            if event_range.PFN not in self.rangesID_by_file:
+                self.rangesID_by_file[event_range.PFN] = set()
+            self.rangesID_by_file[event_range.PFN].add(event_range.eventRangeID)
         self.event_ranges_count[event_range.status] += 1
 
     def add_new_event_ranges(self, ranges: Sequence['EventRange']) -> None:
