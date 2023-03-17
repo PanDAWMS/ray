@@ -11,7 +11,6 @@ from typing import Deque, Dict, Set, Optional, List, Mapping, Sequence, Union, T
 
 import time
 import os
-import re
 
 
 class TaskStatus:
@@ -480,6 +479,9 @@ class BookKeeper(object):
         return f"{file}-{n}"
 
     def get_files_to_merge_with(self, file: str):
+        """
+        Find all the input file names that should be merged with the given file. 
+        """
         if self._events_per_file > self._hits_per_file:
             return [file]
         output_for_current = self._input_output_mapping[file]
@@ -533,7 +535,7 @@ class BookKeeper(object):
                         failed_event_ranges.append(event_range)
                         task_status.set_eventrange_failed(event_range)
                 job.event_ranges_queue.concat(failed_event_ranges)
-                    
+
             # Second pass handling only merged, simulated and not processed files
             for file, guid in zip(files, guids):
                 # if all the event ranges in the input file have been merge, or the file was declared as failed in the first pass, move to the next
@@ -570,26 +572,6 @@ class BookKeeper(object):
                         event_ranges.append(event_range)
             self._logger.debug(f"Generated {len(event_ranges)} event ranges")
             job.event_ranges_queue.add_new_event_ranges(event_ranges)
-
-    def add_failed_range(self, evnt_range: EventRange):
-
-        input_file_for_range = os.path.basename(evnt_range.PFN)
-        output_file_for_range = self._input_output_mapping[input_file_for_range]
-
-        # case N-1 / 1-1 : we need to invalidate all the event ranges that should have been merged together
-        if len(output_file_for_range) == 1:
-            # retrieve other input files that should be merged together
-            input_files = self._output_input_mapping[output_file_for_range[0]]
-            assert input_file_for_range in input_files
-            job: PandaJob = self.jobs[list(iter(self.jobs))[0]]
-            for file in input_files:
-                for i in range(self._events_per_file):
-                    range_id = BookKeeper.generate_event_range_id(file, i)
-                    job.event_ranges_queue.update_range_state(range_id, EventRange.FAILED)
-
-        # case 1-N : we don't need to do anything as we can still potentially merge part of the input file
-        else:
-            pass
 
     def add_event_ranges(
             self, event_ranges: Mapping[str, Sequence[EventRangeDef]]) -> None:
@@ -731,7 +713,7 @@ class BookKeeper(object):
                 if evnt_range.PFN in failed_files:
                     continue
                 failed_files.extend(self.get_files_to_merge_with(evnt_range.PFN))
-        
+
         for file in failed_files:
             for i in range(1, self._events_per_file + 1):
                 event_range_id = BookKeeper.generate_event_range_id(file, i)
