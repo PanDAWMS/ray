@@ -310,6 +310,7 @@ class BookKeeper(object):
         self.output_merge_queue: Dict[str, List[Tuple[str, EventRange]]] = dict()
         # Keep tracks of merge job definition that have been distributed to the driver for which we expect an update
         self.ditributed_merge_tasks: Dict[str, List[Tuple[str, EventRange]]] = dict()
+        self.files_guids: Dict[str, str] = dict()
         self.last_status_print = time.time()
         self.taskstatus: Dict[str, TaskStatus] = dict()
         self.stop_saver = threading.Event()
@@ -478,6 +479,13 @@ class BookKeeper(object):
     def generate_event_range_id(file: str, n: str):
         return f"{file}-{n}"
 
+    def get_files_to_merge_with(self, file: str):
+        if self._events_per_file > self._hits_per_file:
+            return [file]
+        output_for_current = self._input_output_mapping[file]
+        assert len(output_for_current) == 1
+        return self._output_input_mapping[output_for_current[0]]
+
     def _generate_event_ranges(self, job: PandaJob, task_status: TaskStatus):
         """
         Generates all the event ranges which still need to be simulated and adds them to the
@@ -494,6 +502,8 @@ class BookKeeper(object):
         files = job["inFiles"].split(',')
         if files:
             guids = job["GUID"].split(',')
+            for file, guid in zip(files, guids):
+                self.files_guids[file] = guid
             if "scopeIn" in job:
                 scope = job["scopeIn"]
             else:
@@ -507,20 +517,15 @@ class BookKeeper(object):
             failed_input_files = []
             # First pass to find all files that are failed, only necessary in n-to-one jobs
             if is_n_to_one:
-                files_guids = {}
-                for file, guid in zip(files, guids):
-                    files_guids[file] = guid
+                for file in failed_ranges:
                     if file in failed_input_files:
                         continue
-                    if file in failed_ranges:
-                        output_for_current = self._input_output_mapping[file]
-                        assert len(output_for_current) == 1
-                        merged_with_current = self._output_input_mapping[output_for_current[0]]
-                        assert file in merged_with_current
-                        failed_input_files.extend(merged_with_current)
+                    merged_with_current = self.get_files_to_merge_with(file)
+                    assert file in merged_with_current
+                    failed_input_files.extend(merged_with_current)
                 failed_event_ranges = []
                 for file in failed_input_files:
-                    guid = files_guids[file]
+                    guid = self.files_guids[file]
                     for i in range(1, self._events_per_file + 1):
                         range_id = BookKeeper.generate_event_range_id(file, i)
                         event_range = EventRange(range_id, i, i, file, guid, scope)
@@ -715,20 +720,36 @@ class BookKeeper(object):
         task_status = self.taskstatus[self.jobs[panda_id]['taskID']]
         job_ranges = self.jobs.get_event_ranges(panda_id)
         actor_ranges = self.rangesID_by_actor[actor_id]
+
+        # 1st pass for failed ranges
+        failed_files = []
+        for r in event_ranges_update[panda_id]:
+            status = r['eventStatus']
+            if 'eventRangeID' in r and r['eventRangeID'] in actor_ranges and status in [EventRange.FAILED, EventRange.FATAL]:
+                self._logger.info(f"Received failed event from {actor_id}: {r}")
+                evnt_range = job_ranges[r['eventRangeID']]
+                if evnt_range.PFN in failed_files:
+                    continue
+                failed_files.extend(self.get_files_to_merge_with(evnt_range.PFN))
+        
+        for file in failed_files:
+            for i in range(1, self._events_per_file + 1):
+                event_range_id = BookKeeper.generate_event_range_id(file, i)
+                job_ranges.update_range_state(event_range_id, EventRange.FAILED)
+                task_status.set_eventrange_failed(job_ranges[event_range_id])
+
         for r in event_ranges_update[panda_id]:
             if 'eventRangeID' in r and r['eventRangeID'] in actor_ranges:
                 range_id = r['eventRangeID']
                 actor_ranges.remove(range_id)
                 evnt_range = job_ranges[range_id]
+                if evnt_range.PFN in failed_files:
+                    continue
                 if r['eventStatus'] == EventRange.DONE:
                     task_status.set_eventrange_simulated(evnt_range, r['path'])
                     if evnt_range.PFN not in self.ranges_to_merge:
                         self.ranges_to_merge[evnt_range.PFN] = list()
                     self.ranges_to_merge[evnt_range.PFN].append((r["path"], evnt_range))
-                elif r['eventStatus'] in [EventRange.FAILED, EventRange.FATAL]:
-                    self._logger.info(f"Received failed event from {actor_id}: {r}")
-                    task_status.set_eventrange_failed(job_ranges[range_id])
-                    self.add_failed_range(evnt_range)
         now = time.time()
         if now - self.last_status_print > 60:
             self.last_status_print = now
