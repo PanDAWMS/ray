@@ -50,27 +50,8 @@ class TestBookKeeper:
         assert bookKeeper.has_jobs_ready()
 
         for pandaID in sample_multijobs:
-            assert not bookKeeper.is_flagged_no_more_events(pandaID)
-            assert bookKeeper.n_ready(pandaID) == 0
-
-        bookKeeper.add_event_ranges(sample_ranges)
-
-        assert bookKeeper.has_jobs_ready()
-        for pandaID in sample_multijobs:
+            print(bookKeeper.jobs[pandaID].event_ranges_queue.event_ranges_by_id)
             assert bookKeeper.n_ready(pandaID) == nevents
-
-        assert bookKeeper.has_jobs_ready()
-        for pandaID in sample_multijobs:
-            assert bookKeeper.n_ready(pandaID) == nevents
-
-        for pandaID in sample_ranges:
-            sample_ranges[pandaID] = []
-
-        bookKeeper.add_event_ranges(sample_ranges)
-
-        for jobID in bookKeeper.jobs:
-            assert bookKeeper.is_flagged_no_more_events(jobID)
-        assert bookKeeper.has_jobs_ready()
 
     def test_fetch_event_ranges(self, is_eventservice, config, sample_multijobs,
                                 njobs, nevents, sample_ranges):
@@ -106,7 +87,6 @@ class TestBookKeeper:
         def __inner__(range_update, failed=False):
             bookKeeper = BookKeeper(config)
             bookKeeper.add_jobs(sample_multijobs, False)
-            bookKeeper.add_event_ranges(sample_ranges)
 
             for i in range(njobs):
                 job = bookKeeper.assign_job_to_actor(actor_id)
@@ -126,7 +106,6 @@ class TestBookKeeper:
 
         bookKeeper = BookKeeper(config)
         bookKeeper.add_jobs(sample_multijobs, False)
-        bookKeeper.add_event_ranges(sample_ranges)
         for _ in range(njobs):
             job = bookKeeper.assign_job_to_actor(actor_id)
             print(bookKeeper.jobs.get_event_ranges(job.get_id()).event_ranges_count)
@@ -164,7 +143,6 @@ class TestBookKeeper:
 
         bookKeeper = BookKeeper(config)
         bookKeeper.add_jobs(sample_multijobs, False)
-        bookKeeper.add_event_ranges(sample_ranges)
 
         job = bookKeeper.assign_job_to_actor(actor_id_1)
         pandaID = job['PandaID']

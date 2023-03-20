@@ -78,6 +78,9 @@ def nevents_per_file(nevents, nfiles):
 def nhits_per_file(nevents_per_file):
     return nevents_per_file // 2
 
+@pytest.fixture
+def range_ids(nfiles, nevents_per_file):
+    return [f"EVNT_{file}.pool.root.1-{event}" for event in range(1, nevents_per_file + 1) for file in range(nfiles)]
 
 @pytest.fixture
 def sample_ranges(nevents, pandaids, input_output_file_list):
@@ -101,10 +104,10 @@ def sample_ranges(nevents, pandaids, input_output_file_list):
 
 
 @pytest.fixture
-def sample_rangeupdate(nevents):
+def sample_rangeupdate(range_ids):
     return [{
         "zipFile": {
-            "numEvents": nevents,
+            "numEvents": len(range_ids),
             "lfn": "EventService_premerge_Range-00000.tar",
             "adler32": "36503831",
             "objstoreID": 1641,
@@ -112,18 +115,18 @@ def sample_rangeupdate(nevents):
             "pathConvention": 1000
         },
         "eventRanges": [{
-            "eventRangeID": f"Range-{i:05}",
+            "eventRangeID": r,
             "eventStatus": "finished"
-        } for i in range(nevents)]
+        } for r in range_ids]
     }]
 
 
 @pytest.fixture
-def sample_failed_rangeupdate(nevents):
+def sample_failed_rangeupdate(range_ids):
     return [{
-        "eventRangeID": f"Range-{i:05}",
+        "eventRangeID": r,
         "eventStatus": "failed"
-    } for i in range(nevents)]
+    } for r in range_ids]
 
 
 @pytest.fixture
@@ -189,7 +192,7 @@ def sample_multijobs(request, input_output_file_list, is_eventservice, pandaids,
             u'prodUserID':
                 u'no_one',
             u'GUID':
-                guid,
+                ",".join([f"{guid}{i}" for i in range(len(input_files))]),
             u'realDatasetsIn':
                 u'user.mlassnig:user.mlassnig.pilot.test.single.hits',
             u'nSent':
