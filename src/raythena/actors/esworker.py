@@ -184,6 +184,7 @@ class ESWorker(object):
             nums = match_tuple[1].split(",")
             dummy_name = f"{prefix}{nums[0]}{suffix}"
             cmd = re.sub(r"--outputHITSFile=[0-9A-Z._]+\[[0-9,]+\].pool.root", f"--outputHITSFile={dummy_name}", cmd)
+        cmd = f"--multiprocess {cmd}"
         job["jobPars"] = cmd
         return job
 
