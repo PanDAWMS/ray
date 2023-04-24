@@ -78,9 +78,11 @@ def nevents_per_file(nevents, nfiles):
 def nhits_per_file(nevents_per_file):
     return nevents_per_file // 2
 
+
 @pytest.fixture
 def range_ids(nfiles, nevents_per_file):
     return [f"EVNT_{file}.pool.root.1-{event}" for event in range(1, nevents_per_file + 1) for file in range(nfiles)]
+
 
 @pytest.fixture
 def sample_ranges(nevents, pandaids, input_output_file_list):
