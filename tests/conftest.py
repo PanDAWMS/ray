@@ -78,13 +78,16 @@ def nevents_per_file(nevents, nfiles):
 def nhits_per_file(nevents_per_file):
     return nevents_per_file // 2
 
+
 @pytest.fixture
 def range_ids(nfiles, nevents_per_file):
     return [f"EVNT_{file}.pool.root.1-{event}" for event in range(1, nevents_per_file + 1) for file in range(nfiles)]
 
+
 @pytest.fixture
-def sample_ranges(nevents, pandaids, input_output_file_list):
+def sample_ranges(range_ids, pandaids, input_output_file_list):
     res = {}
+    nevents = len(range_ids)
     (input_files, _) = input_output_file_list
     nfiles = len(input_files)
     files = [f"/path/to/{i}" for i in input_files]
@@ -94,7 +97,7 @@ def sample_ranges(nevents, pandaids, input_output_file_list):
         for i in range(nevents):
             range_list.append({
                 'lastEvent': i,
-                'eventRangeID': f"Range-{i:05}",
+                'eventRangeID': range_ids[i],
                 'startEvent': i,
                 'scope': '13Mev',
                 'LFN': files[i % nfiles],

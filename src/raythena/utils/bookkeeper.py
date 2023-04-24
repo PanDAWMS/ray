@@ -480,7 +480,7 @@ class BookKeeper(object):
 
     def get_files_to_merge_with(self, file: str):
         """
-        Find all the input file names that should be merged with the given file. 
+        Find all the input file names that should be merged with the given file.
         """
         if self._events_per_file > self._hits_per_file:
             return [file]
