@@ -22,7 +22,7 @@ def validate_job(job_dir, job_state_file):
 
         current_event_numbers = set(info["evt_number"])
         if len(info["evt_number"]) != len(current_event_numbers):
-            print("Duplicate events in file " + output_file + "(" + str(len(current_event_numbers)) + ", " + str(len(info["evt_number"])) + "): " + str(info["evt_number"]))
+            print("Duplicate events in file " + output_file + "(" +  str(len(info["evt_number"]) - len(current_event_numbers))  + "): ")
             exit(1)
         print(str(len(current_event_numbers)) + " events in file " + output_file)
         if not current_event_numbers.isdisjoint(event_numbers):
