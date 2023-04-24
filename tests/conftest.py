@@ -85,8 +85,9 @@ def range_ids(nfiles, nevents_per_file):
 
 
 @pytest.fixture
-def sample_ranges(nevents, pandaids, input_output_file_list):
+def sample_ranges(range_ids, pandaids, input_output_file_list):
     res = {}
+    nevents = len(range_ids)
     (input_files, _) = input_output_file_list
     nfiles = len(input_files)
     files = [f"/path/to/{i}" for i in input_files]
@@ -96,7 +97,7 @@ def sample_ranges(nevents, pandaids, input_output_file_list):
         for i in range(nevents):
             range_list.append({
                 'lastEvent': i,
-                'eventRangeID': f"Range-{i:05}",
+                'eventRangeID': range_ids[i],
                 'startEvent': i,
                 'scope': '13Mev',
                 'LFN': files[i % nfiles],
