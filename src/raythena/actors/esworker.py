@@ -184,6 +184,13 @@ class ESWorker(object):
             nums = match_tuple[1].split(",")
             dummy_name = f"{prefix}{nums[0]}{suffix}"
             cmd = re.sub(r"--outputHITSFile=[0-9A-Z._]+\[[0-9,]+\].pool.root", f"--outputHITSFile={dummy_name}", cmd)
+
+        if "Atlas-23" in str(job["swRelease"]):
+            # Patch command. Should be configured correctly from panda in the first place
+            cmd = cmd.replace("--multithreaded=True", "")
+            if "--multiprocess" not in cmd:
+                cmd = f"--multiprocess=True {cmd}"
+
         job["jobPars"] = cmd
         return job
 

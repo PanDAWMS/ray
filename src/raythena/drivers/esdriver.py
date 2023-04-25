@@ -1,6 +1,8 @@
 from asyncio import subprocess
+import configparser
 import os
 import re
+import json
 import shutil
 import tempfile
 import time
@@ -110,6 +112,31 @@ class ESDriver(BaseDriver):
         self.timeoutinterval = self.config.ray['timeoutinterval']
         self.max_running_merge_transforms = self.config.ray['mergemaxprocesses']
         self.panda_taskid = None
+        self.pandaqueue = self.config.payload['pandaqueue']
+        parser = configparser.ConfigParser()
+        harvester_config = self.config.harvester['harvesterconf']
+        self.queuedata_file = str()
+        self.container_options = str()
+        self.container_type = str()
+        if not os.path.isfile(harvester_config):
+            self._logger.warning(f"Couldn't find harvester config file {harvester_config}")
+        else:
+            parser.read(harvester_config)
+            queuedata_config = [queue.split('|')[-1] for queue in parser["cacher"]["data"].splitlines() if queue.startswith(self.pandaqueue)]
+            if not queuedata_config:
+                self._logger.warning(f"No queuedata config found for {self.pandaqueue}")
+            elif not os.path.isfile(queuedata_config[0]):
+                self._logger.warning(f"cached queudata file not found: {queuedata_config[0]}")
+            else:
+                self.queuedata_file = queuedata_config[0]
+                with open(self.queuedata_file, 'r') as f:
+                    queuedata = json.load(f)
+                    self.container_options = queuedata["container_options"]
+                    self.container_type = queuedata["container_type"].split(":")[0]
+                    if self.container_type != self.config.payload['containerengine']:
+                        self._logger.warning("Mismatch between pandaqueue and raythena container type. Overriding raythena config")
+                        self.config.payload['containerengine'] = self.container_type
+
         # {input_filename, {merged_output_filename, ([(event_range_id, EventRange)], subprocess handle)}}
         self.running_merge_transforms: Dict[str, Tuple[List[Tuple[str, EventRange]], Popen]] = dict()
         self.total_running_merge_transforms = 0
@@ -663,7 +690,7 @@ class ESDriver(BaseDriver):
         cmd += "export ATLAS_LOCAL_ROOT_BASE=/cvmfs/atlas.cern.ch/repo/ATLASLocalRootBase;"
         cmd += f"export thePlatform=\"{self.container_name}\";"
         cmd += f"source ${{ATLAS_LOCAL_ROOT_BASE}}/user/atlasLocalSetup.sh --swtype {self.config.payload['containerengine']} -c $thePlatform -d -s none"
-        cmd += f" -r \"{container_script}\" -e \"--clearenv\";RETURN_VAL=$?; rm -r {tmp_dir};exit $RETURN_VAL;"
+        cmd += f" -r \"{container_script}\" -e \"--clearenv {self.container_options}\";RETURN_VAL=$?; rm -r {tmp_dir};exit $RETURN_VAL;"
         return Popen(cmd,
                      stdin=DEVNULL,
                      stdout=DEVNULL,
