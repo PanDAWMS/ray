@@ -122,7 +122,7 @@ class ESDriver(BaseDriver):
             self._logger.warning(f"Couldn't find harvester config file {harvester_config}")
         else:
             parser.read(harvester_config)
-            queuedata_config = [l.split('|')[-1] for l in parser["cacher"]["data"].splitlines() if l.startswith(self.pandaqueue)]
+            queuedata_config = [queue.split('|')[-1] for queue in parser["cacher"]["data"].splitlines() if queue.startswith(self.pandaqueue)]
             if not queuedata_config:
                 self._logger.warning(f"No queuedata config found for {self.pandaqueue}")
             elif not os.path.isfile(queuedata_config[0]):
@@ -136,7 +136,7 @@ class ESDriver(BaseDriver):
                     if self.container_type != self.config.payload['containerengine']:
                         self._logger.warning("Mismatch between pandaqueue and raythena container type. Overriding raythena config")
                         self.config.payload['containerengine'] = self.container_type
-                
+
         # {input_filename, {merged_output_filename, ([(event_range_id, EventRange)], subprocess handle)}}
         self.running_merge_transforms: Dict[str, Tuple[List[Tuple[str, EventRange]], Popen]] = dict()
         self.total_running_merge_transforms = 0
