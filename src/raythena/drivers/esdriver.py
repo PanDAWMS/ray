@@ -1,4 +1,3 @@
-from asyncio import subprocess
 import configparser
 import os
 import re
