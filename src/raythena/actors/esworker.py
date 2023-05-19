@@ -167,6 +167,7 @@ class ESWorker(object):
         if "jobPars" not in job:
             return job
         cmd = job["jobPars"]
+        # Convert the list of relative input file paths to a single absolute input file path
         input_evnt_file = re.findall(r"\-\-inputEVNTFile=([\w\.\,]*) \-", cmd)
         if len(input_evnt_file) != 1:
             return job
@@ -174,6 +175,22 @@ class ESWorker(object):
                     for x in input_evnt_file[0].split(",")]
         in_files = ",".join(in_files[0:1])
         cmd = re.sub(r"\-\-inputEVNTFile=([\w\.\,]*) \-", f"--inputEVNTFile={in_files} -", cmd)
+        # convert args of the form --outputHITSFile=HITS.30737678._[011001,...].pool.root to --outputHITSFile=HITS.30737678._011001.pool.root
+        match = re.findall(r"--outputHITSFile=([0-9A-Z._]+)\[([0-9,]+)\](.pool.root)", cmd)
+        if match:
+            match_tuple = match[0]
+            prefix = match_tuple[0]
+            suffix = match_tuple[2]
+            nums = match_tuple[1].split(",")
+            dummy_name = f"{prefix}{nums[0]}{suffix}"
+            cmd = re.sub(r"--outputHITSFile=[0-9A-Z._]+\[[0-9,]+\].pool.root", f"--outputHITSFile={dummy_name}", cmd)
+
+        if "Atlas-23" in str(job["swRelease"]):
+            # Patch command. Should be configured correctly from panda in the first place
+            cmd = cmd.replace("--multithreaded=True", "")
+            if "--multiprocess" not in cmd:
+                cmd = f"--multiprocess=True {cmd}"
+
         job["jobPars"] = cmd
         return job
 
@@ -276,7 +293,7 @@ class ESWorker(object):
         Returns:
             True if current job is an eventservice job
         """
-        return self.job and self.job['eventService']
+        return True
 
     def receive_job(self, reply: int, job: PandaJob) -> WorkerResponse:
         """

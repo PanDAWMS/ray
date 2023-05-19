@@ -22,6 +22,7 @@ setup(
         'bin/ray_start_head',
         'bin/ray_start_worker',
         'bin/ray_sync',
+        'bin/validate-raythena-job.py',
         'example/setup_ray_cluster_slurm.sh',
         'example/standalone_ray_test_hello_world.py',
     ],
@@ -38,7 +39,6 @@ setup(
         'aiohttp',
         'click',
         'setproctitle',
-        # temporary pin to old release: https://github.com/protocolbuffers/protobuf/issues/10051
-        'protobuf==3.20.1',
+        'protobuf',
     ]
 )

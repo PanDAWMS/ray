@@ -6,6 +6,7 @@ payload:
   hpcresource: cori
   containerengine: docker
   containerextraargs: run
+  containerextrasetup:
   pilotversion: 3.2.2.22
   pilotkillfile: pilot_kill_payload
   pilotkilltime: 900
@@ -20,6 +21,7 @@ ray:
   headip:
   redisport:
   redispassword:
+  taskprogressbasedir: /tmp
   cachesizefactor: 1
   workdir: .
   timeoutinterval: 600

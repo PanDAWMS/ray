@@ -74,7 +74,7 @@ def setup_ray(config: Config) -> Any:
         ray_url = f"{config.ray['headip']}:{config.ray['redisport']}"
         return ray.init(address=ray_url, _redis_password=config.ray['redispassword'], log_to_driver=log_to_driver)
     else:
-        return ray.init(_system_config={"num_heartbeats_timeout": 60000}, log_to_driver=log_to_driver)
+        return ray.init(log_to_driver=log_to_driver)
 
 
 def shutdown_ray(config: Config) -> None:

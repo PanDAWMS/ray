@@ -1,5 +1,7 @@
-from asyncio import subprocess
+import configparser
 import os
+import re
+import json
 import shutil
 import tempfile
 import time
@@ -82,16 +84,7 @@ class ESDriver(BaseDriver):
 
         self._logger.debug(f"Raythena v{__version__} initializing, running Ray {ray.__version__} on {gethostname()}")
 
-        task_workdir_path_file = f"{workdir}/task_workdir_path.txt"
-        if not os.path.isfile(task_workdir_path_file):
-            self._logger.error(f"File {task_workdir_path_file} doesn't exist")
-            return
-
-        with open(task_workdir_path_file, 'r') as f:
-            self.output_dir = f.readline()
-        self.config.ray["outputdir"] = self.output_dir
-        self.tar_merge_es_output_dir = self.output_dir
-        self.tar_merge_es_files_dir = self.output_dir
+        self.task_workdir_path_file = f"{workdir}/task_workdir_path.txt"
         # self.cpu_monitor = CPUMonitor(os.path.join(workdir, "cpu_monitor_driver.json"))
         # self.cpu_monitor.start()
 
@@ -118,34 +111,38 @@ class ESDriver(BaseDriver):
         self.timeoutinterval = self.config.ray['timeoutinterval']
         self.max_running_merge_transforms = self.config.ray['mergemaxprocesses']
         self.panda_taskid = None
+        self.pandaqueue = self.config.payload['pandaqueue']
+        parser = configparser.ConfigParser()
+        harvester_config = self.config.harvester['harvesterconf']
+        self.queuedata_file = str()
+        self.container_options = str()
+        self.container_type = str()
+        if not os.path.isfile(harvester_config):
+            self._logger.warning(f"Couldn't find harvester config file {harvester_config}")
+        else:
+            parser.read(harvester_config)
+            queuedata_config = [queue.split('|')[-1] for queue in parser["cacher"]["data"].splitlines() if queue.startswith(self.pandaqueue)]
+            if not queuedata_config:
+                self._logger.warning(f"No queuedata config found for {self.pandaqueue}")
+            elif not os.path.isfile(queuedata_config[0]):
+                self._logger.warning(f"cached queudata file not found: {queuedata_config[0]}")
+            else:
+                self.queuedata_file = queuedata_config[0]
+                with open(self.queuedata_file, 'r') as f:
+                    queuedata = json.load(f)
+                    self.container_options = queuedata["container_options"]
+                    self.container_type = queuedata["container_type"].split(":")[0]
+                    if self.container_type != self.config.payload['containerengine']:
+                        self._logger.warning("Mismatch between pandaqueue and raythena container type. Overriding raythena config")
+                        self.config.payload['containerengine'] = self.container_type
+
         # {input_filename, {merged_output_filename, ([(event_range_id, EventRange)], subprocess handle)}}
-        self.running_merge_transforms: Dict[str, Dict[str, Tuple[List[Tuple[str, EventRange]], Popen]]] = dict()
+        self.running_merge_transforms: Dict[str, Tuple[List[Tuple[str, EventRange]], Popen]] = dict()
         self.total_running_merge_transforms = 0
         self.failed_actor_tasks_count = dict()
         self.available_events_per_actor = 0
         self.total_tar_tasks = 0
         self.remote_jobdef_byid = dict()
-        self.config_remote = ray.put(self.config)
-
-        # create the output directories if needed
-        try:
-            if not os.path.isdir(self.output_dir):
-                os.mkdir(self.output_dir)
-        except Exception:
-            self._logger.warning(f"Exception when creating the {self.output_dir}")
-            raise
-        try:
-            if not os.path.isdir(self.tar_merge_es_output_dir):
-                os.mkdir(self.tar_merge_es_output_dir)
-        except Exception:
-            self._logger.warning(f"Exception when creating the {self.tar_merge_es_output_dir}")
-            raise
-        try:
-            if not os.path.isdir(self.tar_merge_es_files_dir):
-                os.mkdir(self.tar_merge_es_files_dir)
-        except Exception:
-            self._logger.warning(f"Exception when creating the {self.tar_merge_es_files_dir}")
-            raise
 
     def __str__(self) -> str:
         """
@@ -453,7 +450,6 @@ class ESDriver(BaseDriver):
                     if n_received_events == 0:
                         self.stop()
                 self.bookKeeper.add_event_ranges(ranges)
-                # TODO do not reference pandaID befoore checking if non-null
                 self.available_events_per_actor = max(1, ceil(self.bookKeeper.n_ready(pandaID) / self.n_actors))
                 self.n_eventsrequest -= 1
             except Empty:
@@ -486,6 +482,27 @@ class ESDriver(BaseDriver):
                 self.terminated.append(name)
         ray.get(handles)
 
+    def setup_dirs(self):
+        self.output_dir = os.path.join(os.path.expandvars(self.config.ray.get("taskprogressbasedir")), str(self.panda_taskid))
+        with open(self.task_workdir_path_file, 'w') as f:
+            f.write(self.output_dir)
+
+        self.config.ray["outputdir"] = self.output_dir
+        self.tar_merge_es_output_dir = self.output_dir
+        self.tar_merge_es_files_dir = self.output_dir
+        self.config_remote = ray.put(self.config)
+        # create the output directories if needed
+        try:
+            if not os.path.isdir(self.output_dir):
+                os.mkdir(self.output_dir)
+            if not os.path.isdir(self.tar_merge_es_output_dir):
+                os.mkdir(self.tar_merge_es_output_dir)
+            if not os.path.isdir(self.tar_merge_es_files_dir):
+                os.mkdir(self.tar_merge_es_files_dir)
+        except Exception as e:
+            self._logger.warning(f"Exception when creating directories: {e}")
+            raise
+
     def run(self) -> None:
         """
         Method used to start the driver, initializing actors, retrieving initial job and event ranges,
@@ -504,12 +521,18 @@ class ESDriver(BaseDriver):
         if len(jobs) > 1:
             self._logger.critical("Raythena can only handle one job")
             return
+        job = list(jobs.values())[0]
+        job["eventService"] = "true"
+        job["jobPars"] = f"--eventService=True {job['jobPars']}"
+        self.panda_taskid = job["taskID"]
+        self.merge_transform = job["esmergeSpec"]["transPath"]
+        self.merge_transform_params = job["esmergeSpec"]["jobParameters"]
+
+        self.container_name = job["container_name"]
+        self.setup_dirs()
         self._logger.debug("Adding job and generating event ranges...")
         self.bookKeeper.add_jobs(jobs)
-        self.panda_taskid = list(jobs.values())[0]["taskID"]
-        self.merge_transform = list(jobs.values())[0]["emergeSpec"]["transPath"]
-        self.merge_transform_params = list(jobs.values())[0]["emergeSpec"]["jobParameters"]
-        self.container_name = list(jobs.values())[0]["container_name"]
+        self._logger.debug("done")
         # sends an initial event range request
         # self.request_event_ranges(block=True)
         if not self.bookKeeper.has_jobs_ready():
@@ -568,6 +591,9 @@ class ESDriver(BaseDriver):
         # check for running tar processes?
         self._logger.info("Interrupt received... Graceful shutdown")
         self.running = False
+        self.bookKeeper.stop_saver_thread()
+        self.bookKeeper.stop_cleaner_thread()
+        self.communicator.stop()
         self.cleanup()
 
     def handle_actor_exception(self, actor_id: str, ex: Exception) -> None:
@@ -604,45 +630,41 @@ class ESDriver(BaseDriver):
         Args:
             wait_for_completion: Wait for all the subprocesses (including those started by this call) to finish before returning
         """
-        if self.total_running_merge_transforms >= self.max_running_merge_transforms:
-            return
-        self.bookKeeper.check_mergeable_files()
-        merge_files = self.bookKeeper.get_file_to_merge()
-        while merge_files:
-            (input_filename, event_ranges) = merge_files
-            assert len(event_ranges) > 0
-            if input_filename not in self.running_merge_transforms:
-                self.running_merge_transforms[input_filename] = dict()
-            output_filename = f"{input_filename.replace('EVNT', 'HITS')}-{event_ranges[0][1].eventRangeID.split('-')[-1]}"
-            sub_process = self.hits_merge_transform([e[0] for e in event_ranges], output_filename)
-            self._logger.debug(f"Starting merge transform for {input_filename} : {output_filename}")
-            self.running_merge_transforms[input_filename][output_filename] = (event_ranges, sub_process)
-            self.total_running_merge_transforms += 1
-            if self.total_running_merge_transforms >= self.max_running_merge_transforms:
-                break
+        if self.total_running_merge_transforms < self.max_running_merge_transforms:
+            self.bookKeeper.check_mergeable_files()
             merge_files = self.bookKeeper.get_file_to_merge()
+            while merge_files:
+                (output_filename, event_ranges) = merge_files
+                assert len(event_ranges) > 0
+                sub_process = self.hits_merge_transform([e[0] for e in event_ranges], output_filename)
+                self._logger.debug(f"Starting merge transform for {output_filename}")
+                self.running_merge_transforms[output_filename] = (event_ranges, sub_process)
+                self.total_running_merge_transforms += 1
+                if self.total_running_merge_transforms >= self.max_running_merge_transforms:
+                    break
+                merge_files = self.bookKeeper.get_file_to_merge()
 
         to_remove = []
-        for input_filename, processes_for_input_file in self.running_merge_transforms.items():
-            for output_filename, (event_ranges, sub_process) in processes_for_input_file.items():
-                if wait_for_completion:
-                    while sub_process.poll() is None:
-                        time.sleep(5)
-                if sub_process.poll() is not None:
-                    to_remove.append((input_filename, output_filename))
-                    self.total_running_merge_transforms -= 1
-                    if sub_process.returncode == 0:
-                        self._logger.info(f"Merge transform for file {output_filename} finished.")
-                        event_ranges_map = {}
-                        for (event_range_output, event_range) in event_ranges:
-                            event_ranges_map[event_range.eventRangeID] = TaskStatus.build_eventrange_dict(event_range, event_range_output)
-                        self.bookKeeper.report_merged_file(self.panda_taskid, input_filename, output_filename, event_ranges_map)
-                    else:
-                        self._logger.debug(f"Merge transform failed with return code {sub_process.returncode}")
-        for (i, o) in to_remove:
-            del self.running_merge_transforms[i][o]
+        for output_filename, (event_ranges, sub_process) in self.running_merge_transforms.items():
+            if wait_for_completion:
+                while sub_process.poll() is None:
+                    time.sleep(5)
+            if sub_process.poll() is not None:
+                to_remove.append(output_filename)
+                self.total_running_merge_transforms -= 1
+                if sub_process.returncode == 0:
+                    self._logger.info(f"Merge transform for file {output_filename} finished.")
+                    event_ranges_map = {}
+                    for (event_range_output, event_range) in event_ranges:
+                        event_ranges_map[event_range.eventRangeID] = TaskStatus.build_eventrange_dict(event_range, event_range_output)
+                    self.bookKeeper.report_merged_file(self.panda_taskid, output_filename, event_ranges_map)
+                else:
+                    self.bookKeeper.report_failed_merge_transform(self.panda_taskid, output_filename)
+                    self._logger.debug(f"Merge transform failed with return code {sub_process.returncode}")
+        for o in to_remove:
+            del self.running_merge_transforms[o]
 
-    def hits_merge_transform(self, input_files: Iterable[str], output_file: str) -> subprocess.Process:
+    def hits_merge_transform(self, input_files: Iterable[str], output_file: str) -> Popen:
         """
         Prepare the shell command for the merging subprocess and starts it.
 
@@ -656,15 +678,23 @@ class ESDriver(BaseDriver):
         if not input_files:
             return
         tmp_dir = tempfile.mkdtemp()
-        file_list = " ".join(input_files)
+        file_list = ",".join(input_files)
         output_file = os.path.join(self.output_dir, output_file)
-        container_script = f"{self.merge_transform} {self.merge_transform_params} --inputHITSFile {file_list} --outputHITS_MRGFile {output_file};"
 
+        transform_params = re.sub(r"@inputFor_\$\{OUTPUT0\}", file_list, self.merge_transform_params)
+        transform_params = re.sub(r"\$\{OUTPUT0\}", output_file, transform_params, count=1)
+        transform_params = re.sub(r"--autoConfiguration=everything", "", transform_params)
+        transform_params = re.sub(r"--DBRelease=current", "", transform_params)
+
+        endtoken = "" if self.config.payload['containerextrasetup'].strip().endswith(";") else ";"
+        container_script = f"{self.config.payload['containerextrasetup']}{endtoken}{self.merge_transform} {transform_params}"
         cmd = str()
         cmd += "export ATLAS_LOCAL_ROOT_BASE=/cvmfs/atlas.cern.ch/repo/ATLASLocalRootBase;"
         cmd += f"export thePlatform=\"{self.container_name}\";"
+        endtoken = "" if self.config.payload['containerextraargs'].strip().endswith(";") else ";"
+        cmd += f"{self.config.payload['containerextraargs']}{endtoken}"
         cmd += f"source ${{ATLAS_LOCAL_ROOT_BASE}}/user/atlasLocalSetup.sh --swtype {self.config.payload['containerengine']} -c $thePlatform -d -s none"
-        cmd += f" -r \"{container_script}\" -e \"--clearenv\";RETURN_VAL=$?; rm -r {tmp_dir};exit $RETURN_VAL;"
+        cmd += f" -r \"{container_script}\" -e \"{self.container_options}\";RETURN_VAL=$?;exit $RETURN_VAL;"
         return Popen(cmd,
                      stdin=DEVNULL,
                      stdout=DEVNULL,

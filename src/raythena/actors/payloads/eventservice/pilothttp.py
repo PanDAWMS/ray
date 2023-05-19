@@ -208,7 +208,6 @@ class PilotHttpPayload(ESPayload):
 
         """
         cwd = os.getcwd()
-        harvester_home = os.path.expandvars(self.config.harvester.get("cacher", ''))
 
         ddm_endpoints_file = "/cvmfs/atlas.cern.ch/repo/sw/local/etc/cric_ddmendpoints.json"
         if os.path.isfile(ddm_endpoints_file):
@@ -218,10 +217,9 @@ class PilotHttpPayload(ESPayload):
         if os.path.isfile(pandaqueues_file):
             os.symlink(pandaqueues_file, os.path.join(cwd, "cric_pandaqueues.json"))
 
-        queue_escaped = shlex.quote(self.config.payload['pandaqueue'])
-        queuedata_file = os.path.join(harvester_home, f"{queue_escaped}_queuedata.json")
-        if os.path.isfile(queuedata_file):
-            os.symlink(queuedata_file, os.path.join(cwd, "queuedata.json"))
+        queue_escaped = "/cvmfs/atlas.cern.ch/repo/sw/local/etc/agis_schedconf.json"
+        if os.path.isfile(queue_escaped):
+            os.symlink(queue_escaped, os.path.join(cwd, "queuedata.json"))
 
     def stageout(self) -> None:
         """

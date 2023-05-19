@@ -5,7 +5,6 @@ import os
 import time
 
 import ray
-from redis.exceptions import ConnectionError
 
 
 def wait_on_head() -> None:
@@ -32,7 +31,7 @@ def wait_on_head() -> None:
             print(
                 f"waiting for ray to initialize... {ray_ip}:{redis_port}, {redis_password}"
             )
-            ray.init(address=f"{ray_ip}:{redis_port}",_redis_password=redis_password)
+            ray.init(address=f"{ray_ip}:{redis_port}", _redis_password=redis_password)
         except (ConnectionError, ValueError):
             time.sleep(1)
             if time.time() >= max_time:

@@ -24,6 +24,7 @@ class Config(object):
             "extrapostpayload": str,
             "containerengine": str,
             "containerextraargs": str,
+            "containerextrasetup": str,
             "pilotkillfile": str,
             "pilotversion": str,
             "pilotkilltime": int,
@@ -35,6 +36,7 @@ class Config(object):
         },
         'ray': {
             'workdir': str,
+            'taskprogressbasedir': str,
             'headip': str,
             'redisport': int,
             'redispassword': str,
