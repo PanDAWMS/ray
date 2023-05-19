@@ -6,6 +6,7 @@ payload:
   extrapostpayload:
   containerengine: shifter
   containerextraargs:
+  containerextrasetup:
   pilotkillfile: pilot_kill_payload
   pilotkilltime: 900
   pilotversion: 3.2.2.22

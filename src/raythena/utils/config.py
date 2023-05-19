@@ -24,6 +24,7 @@ class Config(object):
             "extrapostpayload": str,
             "containerengine": str,
             "containerextraargs": str,
+            "containerextrasetup": str,
             "pilotkillfile": str,
             "pilotversion": str,
             "pilotkilltime": int,

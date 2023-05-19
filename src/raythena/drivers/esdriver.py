@@ -665,7 +665,7 @@ class ESDriver(BaseDriver):
         for o in to_remove:
             del self.running_merge_transforms[o]
 
-    def hits_merge_transform(self, input_files: Iterable[str], output_file: str) -> subprocess.Process:
+    def hits_merge_transform(self, input_files: Iterable[str], output_file: str) -> Popen:
         """
         Prepare the shell command for the merging subprocess and starts it.
 
@@ -685,12 +685,17 @@ class ESDriver(BaseDriver):
         transform_params = re.sub(r"@inputFor_\$\{OUTPUT0\}", file_list, self.merge_transform_params)
         transform_params = re.sub(r"\$\{OUTPUT0\}", output_file, transform_params, count=1)
         transform_params = re.sub(r"--autoConfiguration=everything", "", transform_params)
-        container_script = f"{self.merge_transform} {transform_params};"
+        transform_params = re.sub(r"--DBRelease=current", "", transform_params)
+
+        endtoken = "" if self.config.payload['containerextrasetup'].strip().endswith(";") else ";"
+        container_script = f"{self.config.payload['containerextrasetup']}{endtoken}{self.merge_transform} {transform_params}"
         cmd = str()
         cmd += "export ATLAS_LOCAL_ROOT_BASE=/cvmfs/atlas.cern.ch/repo/ATLASLocalRootBase;"
         cmd += f"export thePlatform=\"{self.container_name}\";"
+        endtoken = "" if self.config.payload['containerextraargs'].strip().endswith(";") else ";"
+        cmd += f"{self.config.payload['containerextraargs']}{endtoken}"
         cmd += f"source ${{ATLAS_LOCAL_ROOT_BASE}}/user/atlasLocalSetup.sh --swtype {self.config.payload['containerengine']} -c $thePlatform -d -s none"
-        cmd += f" -r \"{container_script}\" -e \"--clearenv {self.container_options}\";RETURN_VAL=$?; rm -r {tmp_dir};exit $RETURN_VAL;"
+        cmd += f" -r \"{container_script}\" -e \"{self.container_options}\";RETURN_VAL=$?;exit $RETURN_VAL;"
         return Popen(cmd,
                      stdin=DEVNULL,
                      stdout=DEVNULL,
