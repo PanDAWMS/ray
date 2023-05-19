@@ -7,6 +7,7 @@ payload:
   pilotversion: 3.2.2.22
   containerengine:
   containerextraargs:
+  containerextrasetup:
 
 harvester:
   endpoint: /lcrc/group/ATLAS/harvester/var/lib/workdir/panda
