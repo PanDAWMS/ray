@@ -8,6 +8,7 @@ import os.path as path
 
 import ROOT
 
+
 def get_event_numbers(filename):
     f = ROOT.TFile.Open(filename)
     tree = f.Get("POOLCollectionTree")
@@ -33,8 +34,8 @@ def validate_job(job_dir, job_state_file):
             print("Expected file " + output_file_abs + " to be present in the job directory")
             exit(1)
 
-        current_event_numbers =  get_event_numbers(output_file_abs)
-        unique_current_event_numbers =  set(current_event_numbers)
+        current_event_numbers = get_event_numbers(output_file_abs)
+        unique_current_event_numbers = set(current_event_numbers)
         if len(unique_current_event_numbers) != len(current_event_numbers):
             print("Duplicate events in file " + output_file + "(" + str(len(current_event_numbers) - len(unique_current_event_numbers)) + "): ")
             exit(1)
