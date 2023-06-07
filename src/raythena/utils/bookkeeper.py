@@ -321,12 +321,10 @@ class BookKeeper(object):
         """
         Thread that cleans the internal dictionnary of the bookkeeper
         """
-        removed = []
+        removed = set()
         while not self.stop_cleaner.is_set():
             if os.path.isdir(self.output_dir):
                 files = set(os.listdir(self.output_dir))
-                # self._logger.debug(f"files in task dir: {files}")
-                removed.clear()
                 for task_status in self.taskstatus.values():
                     for merged_file in task_status._status[TaskStatus.MERGED].keys():
                         if self.stop_cleaner.is_set():
@@ -336,9 +334,9 @@ class BookKeeper(object):
                                 break
                             if merged_file in temp_file:
                                 os.remove(os.path.join(self.output_dir, temp_file))
-                                removed.append(temp_file)
-                        for temp_file in removed:
-                            files.remove(temp_file)
+                                removed.add(temp_file)
+                        files -= removed
+                        removed.clear()
             else:
                 self._logger.debug(f"Dir {self.output_dir} doesn't exist")
             self.stop_cleaner.wait(60)
