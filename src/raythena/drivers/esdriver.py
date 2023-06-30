@@ -573,12 +573,13 @@ class ESDriver(BaseDriver):
         self._logger.debug("Waiting on merge transforms")
         # Workers might have sent event ranges update since last check, create possible merge jobs
         self.bookKeeper.stop_saver_thread()
-        
+
         if not total_events:
             # didn't have any events to process, we only need to do merging so keep doing it
-            while self.handle_merge_transforms(True): pass
+            while self.handle_merge_transforms(True):
+                pass
             self.produce_final_report()
-        else: 
+        else:
             # we might still simulate more events, just finish the current merge tasks
             self.handle_merge_transforms(True)
 
@@ -591,6 +592,9 @@ class ESDriver(BaseDriver):
         self._logger.debug("All driver threads stopped. Quitting...")
 
     def produce_final_report(self):
+        """
+        Merge job reports from individual merge transforms to produce the final jobReport for Panda.
+        """
         self._logger.debug("Job finished. Producing final jobReport")
         files = os.listdir(self.job_reports_dir)
         if not files:
@@ -604,7 +608,7 @@ class ESDriver(BaseDriver):
                 current_report = json.load(f)
             final_report_files["input"].append(current_report["files"]["input"][0])
             final_report_files["output"].append(current_report["files"]["output"][0])
-    
+
         with open(os.path.join(self.workdir, "jobReport.json"), 'w') as f:
             json.dump(final_report, f)
 
@@ -656,7 +660,7 @@ class ESDriver(BaseDriver):
 
         Args:
             wait_for_completion: Wait for all the subprocesses (including those started by this call) to finish before returning
-        
+
         Returns:
             True if new merge jobs were created
         """
