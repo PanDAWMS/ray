@@ -496,6 +496,8 @@ class ESDriver(BaseDriver):
         try:
             if not os.path.isdir(self.output_dir):
                 os.mkdir(self.output_dir)
+            if not os.path.isdir(self.job_reports_dir):
+                os.mkdir(self.job_reports_dir)
             if not os.path.isdir(self.tar_merge_es_output_dir):
                 os.mkdir(self.tar_merge_es_output_dir)
             if not os.path.isdir(self.tar_merge_es_files_dir):
@@ -543,7 +545,8 @@ class ESDriver(BaseDriver):
             self.communicator.stop()
             self._logger.critical("Couldn't fetch a job with event ranges, stopping...")
             return
-        total_events = self.bookKeeper.n_ready(self.bookKeeper.jobs.next_job_id_to_process())
+        job_id = self.bookKeeper.jobs.next_job_id_to_process()
+        total_events = self.bookKeeper.n_ready(job_id)
         if total_events:
             self.available_events_per_actor = max(1, ceil(total_events / self.n_actors))
             for pandaID in self.bookKeeper.jobs:
@@ -578,7 +581,6 @@ class ESDriver(BaseDriver):
             # didn't have any events to process, we only need to do merging so keep doing it
             while self.handle_merge_transforms(True):
                 pass
-            self.produce_final_report()
         else:
             # we might still simulate more events, just finish the current merge tasks
             self.handle_merge_transforms(True)
@@ -586,6 +588,9 @@ class ESDriver(BaseDriver):
         self.bookKeeper.stop_cleaner_thread()
         # need to explicitely save as we stopped saver_thread
         self.bookKeeper.save_status()
+        task_status = self.bookKeeper.taskstatus.get(self.panda_taskid, None)
+        if task_status and task_status.get_nmerged() + task_status.get_nfailed() == self.bookKeeper.n_events(job_id):
+            self.produce_final_report()
         self.communicator.stop()
         # self.cpu_monitor.stop()
         self.bookKeeper.print_status()

@@ -792,6 +792,18 @@ class BookKeeper(object):
         """
         return self.jobs.get_event_ranges(panda_id).nranges_available()
 
+    def n_events(self, panda_id: str) -> int:
+        """
+       Total number of events for a given Panda job
+
+        Args:
+            panda_id: job worker_id to check
+
+        Returns:
+            Number of events in panda_id
+        """
+        return len(self.jobs.get_event_ranges(panda_id))
+
     def is_flagged_no_more_events(self, panda_id: str) -> bool:
         """
         Checks if a job can still receive more event ranges from harvester.
