@@ -117,6 +117,7 @@ class PilotHttpPayload(ESPayload):
         self.router.register('/', self.handle_get_job)
         self.router.register('/server/panda/getJob', self.handle_get_job)
         self.router.register('/server/panda/updateJob', self.handle_update_job)
+        self.router.register('/server/panda/updateWorkerPilotStatus', self.handle_update_job)
         self.router.register('/server/panda/updateJobsInBulk',
                              self.handle_update_jobs_in_bulk)
         self.router.register('/server/panda/getStatus', self.handle_get_status)
