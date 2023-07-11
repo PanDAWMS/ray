@@ -46,6 +46,8 @@ class TaskStatus:
         self.filepath = os.path.join(self.output_dir, "state.json")
         self.tmpfilepath = f"{self.filepath}.tmp"
         self._events_per_file = int(job['nEventsPerInputFile'])
+        self._nfiles = len(job['inFiles'].split(","))
+        self._nevents = self._events_per_file * self._nfiles
         self._hits_per_file = int(job['esmergeSpec']['nEventsPerOutputFile'])
         assert (self._events_per_file % self._hits_per_file == 0) or (
             self._hits_per_file % self._events_per_file == 0), "Expected number of events per input file to be a multiple of number of hits per merged file"
@@ -286,6 +288,12 @@ class TaskStatus:
             return len(self._status[TaskStatus.MERGING][filename]) * self._hits_per_file
         return len(self._status[TaskStatus.MERGED]) * self._events_per_file + \
             reduce(lambda acc, cur: acc + len(cur) * self._hits_per_file, self._status[TaskStatus.MERGING].values(), 0)
+
+    def total_events(self) -> int:
+        """
+        Total number of events in the job
+        """
+        return self._nevents
 
 
 class BookKeeper(object):

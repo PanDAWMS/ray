@@ -591,7 +591,7 @@ class ESDriver(BaseDriver):
         # need to explicitely save as we stopped saver_thread
         self.bookKeeper.save_status()
         task_status = self.bookKeeper.taskstatus.get(self.panda_taskid, None)
-        if task_status and task_status.get_nmerged() + task_status.get_nfailed() == self.bookKeeper.n_events(job_id):
+        if task_status and task_status.get_nmerged() + task_status.get_nfailed() == task_status.total_events():
             self.produce_final_report()
         self.communicator.stop()
         # self.cpu_monitor.stop()
