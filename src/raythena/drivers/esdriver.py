@@ -117,11 +117,13 @@ class ESDriver(BaseDriver):
         self.queuedata_file = str()
         self.container_options = str()
         self.container_type = str()
+        self.jobreport_name = str()
         if not os.path.isfile(harvester_config):
             self._logger.warning(f"Couldn't find harvester config file {harvester_config}")
         else:
             parser.read(harvester_config)
             queuedata_config = [queue.split('|')[-1] for queue in parser["cacher"]["data"].splitlines() if queue.startswith(self.pandaqueue)]
+            self.jobreport_name = parser["payload_interaction"]["jobReportFile"]
             if not queuedata_config:
                 self._logger.warning(f"No queuedata config found for {self.pandaqueue}")
             elif not os.path.isfile(queuedata_config[0]):
@@ -612,10 +614,12 @@ class ESDriver(BaseDriver):
             with open(os.path.join(self.job_reports_dir, file), 'r') as f:
                 current_report = json.load(f)
             final_report_files["input"].append(current_report["files"]["input"][0])
-            final_report_files["output"].append(current_report["files"]["output"][0])
+            final_report_files["output"][0]["subFiles"].append(current_report["files"]["output"][0]["subFiles"][0])
 
-        with open(os.path.join(self.workdir, "jobReport.json"), 'w') as f:
+        tmp = os.path.join(self.workdir, self.jobreport_name + ".tmp")
+        with open(tmp, 'w') as f:
             json.dump(final_report, f)
+        shutil.move(tmp, os.path.join(self.workdir, self.jobreport_name))
 
     def stop(self) -> None:
         """
