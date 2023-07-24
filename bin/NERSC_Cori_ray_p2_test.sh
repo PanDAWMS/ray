@@ -80,13 +80,13 @@ while [[ $retsync -ne 0 ]]; do
   kill -0 "$pid"
   status=$?
   if [[ $retsync -ne 0 ]] && [[ $status -ne 0 ]]; then
-    try=$((try+1))
-    if [[ $try -gt 5 ]]; then
-      exit 1
-    fi
     echo restarting head node init
     srun -N1 -n1 -w "$SLURMD_NODENAME" ray_start_head > $RAYTHENA_RAY_WORKDIR/headnode.log 2> $RAYTHENA_RAY_WORKDIR/headnode.err &
     pid=$!
+  fi
+  try=$((try+1))
+  if [[ $try -gt 5 ]]; then
+    exit 1
   fi
 done
 
@@ -100,13 +100,13 @@ while [[ $retsync -ne 0 ]]; do
   kill -0 "$pid"
   status=$?
   if [[ $retsync -ne 0 ]] && [[ $status -ne 0 ]]; then
-    try=$((try+1))
-    if [[ $try -gt 5 ]]; then
-      exit 1
-    fi
     echo restarting workers setup
     srun -x "$SLURMD_NODENAME" -N$NWORKERS -n$NWORKERS ray_start_worker &
     pid=$!
+  fi
+  try=$((try+1))
+  if [[ $try -gt 5 ]]; then
+    exit 1
   fi
 done
 
