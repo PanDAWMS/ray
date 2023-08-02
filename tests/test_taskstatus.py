@@ -28,7 +28,7 @@ class TestTaskStatus:
                 ranges_map[event_range.eventRangeID] = TaskStatus.build_eventrange_dict(event_range, fname)
                 ts.set_eventrange_simulated(event_range, "outputfile")
 
-            ts.set_file_merged([fname], outputfile, ranges_map)
+            ts.set_file_merged([fname], outputfile, ranges_map, "guid")
         ts.save_status()
         ts2 = TaskStatus(job, config)
         print(ts._status)
@@ -92,7 +92,7 @@ class TestTaskStatus:
                 event_range = EventRange.build_from_dict(r)
                 ranges_map[event_range.eventRangeID] = TaskStatus.build_eventrange_dict(event_range, f"outputfile-{event_range.eventRangeID}")
 
-            ts.set_file_merged([fname], outputfile, ranges_map)
+            ts.set_file_merged([fname], outputfile, ranges_map, "guid")
         ts.save_status()
         print(ts._status)
         assert ts.get_nsimulated() == (nfiles - 1) * nevents / nfiles
@@ -111,7 +111,7 @@ class TestTaskStatus:
             for r in ranges_list:
                 event_range = EventRange.build_from_dict(r)
                 ranges_map[event_range.eventRangeID] = TaskStatus.build_eventrange_dict(event_range, f"outputfile-{event_range.eventRangeID}")
-            ts.set_file_merged([fname], outputfile, ranges_map)
+            ts.set_file_merged([fname], outputfile, ranges_map, "guid")
         ts.save_status()
         print(ts._status)
         assert ts.get_nsimulated() == (nfiles - 2) * nevents / nfiles
