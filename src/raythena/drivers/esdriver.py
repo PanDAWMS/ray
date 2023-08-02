@@ -661,7 +661,7 @@ class ESDriver(BaseDriver):
             self._logger.warning(f"{actor_id} failed too many times. No longer fetching messages from it")
             if actor_id not in self.terminated:
                 self.terminated.append(actor_id)
-    
+
     def get_output_file_guid(self, job_report_file) -> Optional[str]:
         """
         Extract the GUID from the jobReport of HITSMerge_tf
@@ -757,9 +757,9 @@ class ESDriver(BaseDriver):
         cmd += f"source ${{ATLAS_LOCAL_ROOT_BASE}}/user/atlasLocalSetup.sh --swtype {self.config.payload['containerengine']} -c $thePlatform -d -s none"
         cmd += f" -r \"{container_script}\" -e \"{self.container_options}\";RETURN_VAL=$?;cp jobReport.json {job_report_name} ;exit $RETURN_VAL;"
         return (Popen(cmd,
-                     stdin=DEVNULL,
-                     stdout=DEVNULL,
-                     stderr=DEVNULL,
-                     shell=True,
-                     cwd=tmp_dir,
-                     close_fds=True), job_report_name)
+                      stdin=DEVNULL,
+                      stdout=DEVNULL,
+                      stderr=DEVNULL,
+                      shell=True,
+                      cwd=tmp_dir,
+                      close_fds=True), job_report_name)
