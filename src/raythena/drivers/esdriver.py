@@ -9,7 +9,7 @@ import traceback
 from math import ceil
 from queue import Empty, Queue
 from socket import gethostname
-from typing import (Any, Dict, Iterator, List, Mapping, Sequence, Iterable,
+from typing import (Any, Dict, Iterator, List, Mapping, Optional, Sequence, Iterable,
                     Tuple)
 from subprocess import DEVNULL, Popen
 
@@ -139,7 +139,7 @@ class ESDriver(BaseDriver):
                         self.config.payload['containerengine'] = self.container_type
 
         # {input_filename, {merged_output_filename, ([(event_range_id, EventRange)], subprocess handle)}}
-        self.running_merge_transforms: Dict[str, Tuple[List[Tuple[str, EventRange]], Popen]] = dict()
+        self.running_merge_transforms: Dict[str, Tuple[List[Tuple[str, EventRange]], Popen, str]] = dict()
         self.total_running_merge_transforms = 0
         self.failed_actor_tasks_count = dict()
         self.available_events_per_actor = 0
@@ -661,6 +661,18 @@ class ESDriver(BaseDriver):
             self._logger.warning(f"{actor_id} failed too many times. No longer fetching messages from it")
             if actor_id not in self.terminated:
                 self.terminated.append(actor_id)
+    
+    def get_output_file_guid(self, job_report_file) -> Optional[str]:
+        """
+        Extract the GUID from the jobReport of HITSMerge_tf
+        """
+        with open(job_report_file, 'r') as f:
+            job_report = json.load(f)
+            try:
+                guid = job_report["files"]["output"][0]["subFiles"][0]["file_guid"]
+            except KeyError:
+                guid = None
+            return guid
 
     def handle_merge_transforms(self, wait_for_completion=False) -> bool:
         """
@@ -681,9 +693,9 @@ class ESDriver(BaseDriver):
             while merge_files:
                 (output_filename, event_ranges) = merge_files
                 assert len(event_ranges) > 0
-                sub_process = self.hits_merge_transform([e[0] for e in event_ranges], output_filename)
+                (sub_process, job_report_file) = self.hits_merge_transform([e[0] for e in event_ranges], output_filename)
                 self._logger.debug(f"Starting merge transform for {output_filename}")
-                self.running_merge_transforms[output_filename] = (event_ranges, sub_process)
+                self.running_merge_transforms[output_filename] = (event_ranges, sub_process, job_report_file)
                 self.total_running_merge_transforms += 1
                 new_transforms = True
                 if self.total_running_merge_transforms >= self.max_running_merge_transforms:
@@ -691,7 +703,7 @@ class ESDriver(BaseDriver):
                 merge_files = self.bookKeeper.get_file_to_merge()
 
         to_remove = []
-        for output_filename, (event_ranges, sub_process) in self.running_merge_transforms.items():
+        for output_filename, (event_ranges, sub_process, job_report_file) in self.running_merge_transforms.items():
             if wait_for_completion:
                 while sub_process.poll() is None:
                     time.sleep(5)
@@ -701,9 +713,10 @@ class ESDriver(BaseDriver):
                 if sub_process.returncode == 0:
                     self._logger.info(f"Merge transform for file {output_filename} finished.")
                     event_ranges_map = {}
+                    guid = self.get_output_file_guid(job_report_file)
                     for (event_range_output, event_range) in event_ranges:
                         event_ranges_map[event_range.eventRangeID] = TaskStatus.build_eventrange_dict(event_range, event_range_output)
-                    self.bookKeeper.report_merged_file(self.panda_taskid, output_filename, event_ranges_map)
+                    self.bookKeeper.report_merged_file(self.panda_taskid, output_filename, event_ranges_map, guid)
                 else:
                     self.bookKeeper.report_failed_merge_transform(self.panda_taskid, output_filename)
                     self._logger.debug(f"Merge transform failed with return code {sub_process.returncode}")
@@ -711,7 +724,7 @@ class ESDriver(BaseDriver):
             del self.running_merge_transforms[o]
         return new_transforms
 
-    def hits_merge_transform(self, input_files: Iterable[str], output_file: str) -> Popen:
+    def hits_merge_transform(self, input_files: Iterable[str], output_file: str) -> Tuple[Popen, str]:
         """
         Prepare the shell command for the merging subprocess and starts it.
 
@@ -743,10 +756,10 @@ class ESDriver(BaseDriver):
         cmd += f"{self.config.payload['containerextraargs']}{endtoken}"
         cmd += f"source ${{ATLAS_LOCAL_ROOT_BASE}}/user/atlasLocalSetup.sh --swtype {self.config.payload['containerengine']} -c $thePlatform -d -s none"
         cmd += f" -r \"{container_script}\" -e \"{self.container_options}\";RETURN_VAL=$?;cp jobReport.json {job_report_name} ;exit $RETURN_VAL;"
-        return Popen(cmd,
+        return (Popen(cmd,
                      stdin=DEVNULL,
                      stdout=DEVNULL,
                      stderr=DEVNULL,
                      shell=True,
                      cwd=tmp_dir,
-                     close_fds=True)
+                     close_fds=True), job_report_name)

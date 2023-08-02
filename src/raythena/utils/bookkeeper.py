@@ -169,7 +169,7 @@ class TaskStatus:
             simulated_dict[filename] = dict()
         simulated_dict[filename][eventrange.eventRangeID] = TaskStatus.build_eventrange_dict(eventrange, simulation_output_file)
 
-    def set_file_merged(self, input_files: List[str], outputfile: str, event_ranges: Mapping[str, Mapping[str, str]]):
+    def set_file_merged(self, input_files: List[str], outputfile: str, event_ranges: Mapping[str, Mapping[str, str]], guid: Optional[str]):
         """
         Enqueue a message indicating that a file has been merged.
 
@@ -178,9 +178,9 @@ class TaskStatus:
             outputfile: produced merged hits file
             event_ranges: event ranges merged in the outputfile. Map of [event_range_id, [k, v]]
         """
-        self._update_queue.append((TaskStatus.MERGING, (input_files, outputfile, event_ranges)))
+        self._update_queue.append((TaskStatus.MERGING, (input_files, outputfile, event_ranges, guid)))
 
-    def _set_file_merged(self, input_files: List[str], outputfile: str, event_ranges: Mapping[str, Mapping[str, str]]):
+    def _set_file_merged(self, input_files: List[str], outputfile: str, event_ranges: Mapping[str, Mapping[str, str]], guid: Optional[str]):
         """
         Performs the update of the internal dictionnary of a merged file.
 
@@ -205,7 +205,7 @@ class TaskStatus:
                 merged_dict = dict()
                 self._status[TaskStatus.MERGED][inputfile] = merged_dict
                 for merged_outputfile in self._status[TaskStatus.MERGING][inputfile].keys():
-                    merged_dict[merged_outputfile] = {"path": os.path.join(self.output_dir, merged_outputfile)}
+                    merged_dict[merged_outputfile] = {"path": os.path.join(self.output_dir, merged_outputfile), "guid": guid if guid else ""}
                 del self._status[TaskStatus.MERGING][inputfile]
                 del self._status[TaskStatus.SIMULATED][inputfile]
             else:
@@ -676,10 +676,10 @@ class BookKeeper(object):
             return merge_task
         return None
 
-    def report_merged_file(self, taskID: str, merged_output_file: str, merged_event_ranges: Mapping[str, Mapping[str, str]]):
+    def report_merged_file(self, taskID: str, merged_output_file: str, merged_event_ranges: Mapping[str, Mapping[str, str]], guid: Optional[str]):
         assert merged_output_file in self.ditributed_merge_tasks
         del self.ditributed_merge_tasks[merged_output_file]
-        self.taskstatus[taskID].set_file_merged(self._output_input_mapping[merged_output_file], merged_output_file, merged_event_ranges)
+        self.taskstatus[taskID].set_file_merged(self._output_input_mapping[merged_output_file], merged_output_file, merged_event_ranges, guid)
 
     def report_failed_merge_transform(self, taskID: str, merged_output_file: str):
         assert merged_output_file in self.ditributed_merge_tasks
