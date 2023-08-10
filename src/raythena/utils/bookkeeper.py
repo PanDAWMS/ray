@@ -95,7 +95,7 @@ class TaskStatus:
                     self._logger.error(ee.strerror)
                     self._default_init_status()
 
-    def save_status(self, write_to_tmp=True):
+    def save_status(self, write_to_tmp=True, force_update = False):
         """
         Save the current status to a json file. Before saving to file, the update queue will be drained, actually carrying out the operations to the dictionary
         that will be written to file.
@@ -105,7 +105,7 @@ class TaskStatus:
         """
 
         # dequeue is empty, nothing new to save
-        if not self._update_queue:
+        if not force_update and not self._update_queue:
             return
 
         # Drain the update deque, actually applying update to the status dictionnary
@@ -129,6 +129,12 @@ class TaskStatus:
                 os.replace(filename, self.filepath)
         except OSError as e:
             self._logger.error(f"Failed to save task status: {e.strerror}")
+    
+    def is_stale(self) ->bool:
+        """
+        Checks if update stil need to be written to disk
+        """
+        return len(self._update_queue) > 0
 
     @staticmethod
     def build_eventrange_dict(eventrange: EventRange, output_file: str = None) -> Dict[str, Any]:
@@ -320,6 +326,8 @@ class BookKeeper(object):
         self.files_guids: Dict[str, str] = dict()
         self.last_status_print = time.time()
         self.taskstatus: Dict[str, TaskStatus] = dict()
+        self._input_output_mapping: Dict[str, List[str]] = dict()
+        self._output_input_mapping: Dict[str, List[str]] = dict()
         self.stop_saver = threading.Event()
         self.stop_cleaner = threading.Event()
         self.save_state_thread = ExThread(target=self._saver_thead_run, name="status-saver-thread")
@@ -483,6 +491,34 @@ class BookKeeper(object):
     @staticmethod
     def generate_event_range_id(file: str, n: str):
         return f"{file}-{n}"
+
+    def remap_output_files(self, panda_id: str) -> Dict[str, str]:
+        """
+        Translate an existing output file to an output filename matching the current job definition.
+        """
+        job = self.jobs[panda_id]
+        task_status = self.taskstatus[job["taskID"]]
+        if task_status.is_stale():
+            task_status.save_status()
+        merged_files = task_status._status[TaskStatus.MERGED]
+        previous_to_current_output_lookup: Dict[str, str] = dict()
+
+        for input_file, output_files in self._input_output_mapping.items():
+            merged_output_files = merged_files[input_file]
+            assert isinstance(merged_output_files, dict)
+            assert len(merged_output_files) == len(output_files)
+            for merged_file, new_file in zip(merged_output_files, output_files):
+                if merged_file in previous_to_current_output_lookup:
+                    assert new_file == previous_to_current_output_lookup[merged_file]
+                    continue
+                previous_to_current_output_lookup[merged_file] = new_file
+            # Rename old merged files to output file names matching the current job in state.json
+            for merged_file, new_file in previous_to_current_output_lookup.items():
+                merged_output_files[new_file] = merged_output_files[merged_file]
+                merged_output_files.pop(merged_file, None)
+        task_status.save_status(force_update=True)
+
+        return previous_to_current_output_lookup
 
     def get_files_to_merge_with(self, file: str):
         """

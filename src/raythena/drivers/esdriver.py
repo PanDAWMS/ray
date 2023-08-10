@@ -76,6 +76,7 @@ class ESDriver(BaseDriver):
             workdir = os.getcwd()
         self.config.ray['workdir'] = workdir
         self.workdir = workdir
+        self.output_dir = self.config.ray.get("outputdir")
         logfile = self.config.logging.get("driverlogfile", None)
         if logfile:
             log_to_file(self.config.logging.get("level", None), logfile)
@@ -592,13 +593,15 @@ class ESDriver(BaseDriver):
         self.bookKeeper.save_status()
         task_status = self.bookKeeper.taskstatus.get(self.panda_taskid, None)
         if task_status and task_status.get_nmerged() + task_status.get_nfailed() == task_status.total_events():
-            self.produce_final_report()
+            assert job_id
+            output_map = self.bookKeeper.remap_output_files(job_id)
+            self.produce_final_report(output_map)
         self.communicator.stop()
         # self.cpu_monitor.stop()
         self.bookKeeper.print_status()
         self._logger.debug("All driver threads stopped. Quitting...")
 
-    def produce_final_report(self):
+    def produce_final_report(self, output_map: Dict[str, str]):
         """
         Merge job reports from individual merge transforms to produce the final jobReport for Panda.
         """
@@ -611,10 +614,18 @@ class ESDriver(BaseDriver):
             final_report = json.load(f)
         final_report_files = final_report["files"]
         for file in files[1:]:
-            with open(os.path.join(self.job_reports_dir, file), 'r') as f:
+            current_file = os.path.join(self.job_reports_dir, file)
+            with open(current_file, 'r') as f:
                 current_report = json.load(f)
             final_report_files["input"].append(current_report["files"]["input"][0])
-            final_report_files["output"][0]["subFiles"].append(current_report["files"]["output"][0]["subFiles"][0])
+            output_file_entry = current_report["files"]["output"][0]["subFiles"][0]
+            assert output_file_entry["name"] in output_map
+            old_filename = output_file_entry["name"]
+            output_file_entry["name"] = output_map[output_file_entry["name"]]
+            final_report_files["output"][0]["subFiles"].append(output_file_entry)
+            with open(current_file, 'w') as f:
+                json.dump(current_report, f)
+            os.rename(os.path.join(self.output_dir, old_filename), os.path.join(self.output_dir, output_file_entry["name"]))
 
         tmp = os.path.join(self.workdir, self.jobreport_name + ".tmp")
         with open(tmp, 'w') as f:
