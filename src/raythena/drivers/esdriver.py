@@ -613,6 +613,13 @@ class ESDriver(BaseDriver):
         with open(os.path.join(self.job_reports_dir, files[0]), 'r') as f:
             final_report = json.load(f)
         final_report_files = final_report["files"]
+
+        # rename first file on disk and in report
+        output_file_entry = final_report_files["files"]["output"][0]["subFiles"][0]
+        old_filename  =output_file_entry["name"]
+        output_file_entry["name"] = output_map[old_filename]
+        os.rename(os.path.join(self.output_dir, old_filename), os.path.join(self.output_dir, output_file_entry["name"]))
+
         for file in files[1:]:
             current_file = os.path.join(self.job_reports_dir, file)
             with open(current_file, 'r') as f:
@@ -621,7 +628,7 @@ class ESDriver(BaseDriver):
             output_file_entry = current_report["files"]["output"][0]["subFiles"][0]
             assert output_file_entry["name"] in output_map
             old_filename = output_file_entry["name"]
-            output_file_entry["name"] = output_map[output_file_entry["name"]]
+            output_file_entry["name"] = output_map[old_filename]
             final_report_files["output"][0]["subFiles"].append(output_file_entry)
             with open(current_file, 'w') as f:
                 json.dump(current_report, f)
