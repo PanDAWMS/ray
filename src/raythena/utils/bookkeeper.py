@@ -518,7 +518,9 @@ class BookKeeper(object):
             assert isinstance(output_files, dict)
             for old_file in list(output_files.keys()):
                 new_file = previous_to_current_output_lookup[old_file]
-                output_files[new_file] = output_files.pop(old_file, dict())
+                entry = output_files.pop(old_file)
+                entry["path"] = entry["path"].replace(old_file, new_file)
+                output_files[new_file] = entry
         task_status.save_status(force_update=True)
 
         return previous_to_current_output_lookup
