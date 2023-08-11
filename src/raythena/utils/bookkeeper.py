@@ -512,10 +512,13 @@ class BookKeeper(object):
                     assert new_file == previous_to_current_output_lookup[merged_file]
                     continue
                 previous_to_current_output_lookup[merged_file] = new_file
-            # Rename old merged files to output file names matching the current job in state.json
-            for merged_file, new_file in previous_to_current_output_lookup.items():
-                merged_output_files[new_file] = merged_output_files[merged_file]
-                merged_output_files.pop(merged_file, None)
+        
+        # Rename old merged files to output file names matching the current job in state.json
+        for output_files in merged_files.values():
+            assert isinstance(output_files, dict)
+            for old_file in list(output_files.keys()):
+                new_file = previous_to_current_output_lookup[old_file]
+                output_files[new_file] = output_files.pop(old_file, dict())
         task_status.save_status(force_update=True)
 
         return previous_to_current_output_lookup
