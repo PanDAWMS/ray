@@ -615,8 +615,8 @@ class ESDriver(BaseDriver):
         final_report_files = final_report["files"]
 
         # rename first file on disk and in report
-        output_file_entry = final_report_files["files"]["output"][0]["subFiles"][0]
-        old_filename  =output_file_entry["name"]
+        output_file_entry = final_report_files["output"][0]["subFiles"][0]
+        old_filename  = output_file_entry["name"]
         output_file_entry["name"] = output_map[old_filename]
         os.rename(os.path.join(self.output_dir, old_filename), os.path.join(self.output_dir, output_file_entry["name"]))
 
