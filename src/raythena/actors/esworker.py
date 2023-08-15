@@ -469,8 +469,15 @@ class ESWorker(object):
                     self.output_dir,
                     os.path.basename(cfile) if os.path.isabs(cfile) else cfile)
                 if os.path.isfile(cfile):
-                    os.replace(cfile, dst)
+                    try:
+                        os.replace(cfile, dst)
+                    except OSError as e:
+                        self._logger.error(f"Failed to move file {cfile} to {dst}: errno {e.errno}: {e.strerror}")
+                        raise StageOutFailed(self.id)
                     range_update[cfile_key] = dst
+                else:
+                    self._logger.warning(f"Couldn't stageout file {cfile} as it doesn't exist")
+                    raise StageOutFailed(self.id)
         return ranges
 
     def get_payload_message(self) -> Optional[WorkerResponse]:
