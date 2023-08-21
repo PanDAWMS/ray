@@ -311,6 +311,7 @@ class BookKeeper(object):
         self.jobs: PandaJobQueue = PandaJobQueue()
         self.config: Config = config
         self.output_dir = config.ray.get("outputdir")
+        self.commitlog = os.path.join(self.output_dir, "commit_log")
         self._logger = make_logger(self.config, "BookKeeper")
         self.actors: Dict[str, Optional[str]] = dict()
         self.rangesID_by_actor: Dict[str, Set[str]] = dict()
@@ -503,15 +504,17 @@ class BookKeeper(object):
         merged_files = task_status._status[TaskStatus.MERGED]
         previous_to_current_output_lookup: Dict[str, str] = dict()
 
-        for input_file, output_files in self._input_output_mapping.items():
-            merged_output_files = merged_files[input_file]
-            assert isinstance(merged_output_files, dict)
-            assert len(merged_output_files) == len(output_files)
-            for merged_file, new_file in zip(merged_output_files, output_files):
-                if merged_file in previous_to_current_output_lookup:
-                    assert new_file == previous_to_current_output_lookup[merged_file]
-                    continue
-                previous_to_current_output_lookup[merged_file] = new_file
+        with open(self.commitlog, 'a') as f:
+            for input_file, output_files in self._input_output_mapping.items():
+                merged_output_files = merged_files[input_file]
+                assert isinstance(merged_output_files, dict)
+                assert len(merged_output_files) == len(output_files)
+                for merged_file, new_file in zip(merged_output_files, output_files):
+                    if merged_file in previous_to_current_output_lookup:
+                        assert new_file == previous_to_current_output_lookup[merged_file]
+                        continue
+                    previous_to_current_output_lookup[merged_file] = new_file
+                    f.write(f"rename_output {merged_file} {new_file}\n")
         
         # Rename old merged files to output file names matching the current job in state.json
         for output_files in merged_files.values():
