@@ -616,11 +616,16 @@ class ESDriver(BaseDriver):
 
         # rename first file on disk and in report
         output_file_entry = final_report_files["output"][0]["subFiles"][0]
-        old_filename  = output_file_entry["name"]
-        output_file_entry["name"] = output_map[old_filename]
+        old_filename = output_file_entry["name"]
+        try:
+            new_filename = output_map[old_filename]
+        except KeyError:
+            # read the commit log to recover the correct name. If we get another KeyError, we can't recover
+            new_filename = output_map[self.bookKeeper.recover_outputfile_name(old_filename)]
+        output_file_entry["name"] = new_filename
         with open(os.path.join(self.job_reports_dir, files[0]), 'w') as f:
             final_report = json.dump(final_report, f)
-        os.rename(os.path.join(self.output_dir, old_filename), os.path.join(self.output_dir, output_file_entry["name"]))
+        os.rename(os.path.join(self.output_dir, old_filename), os.path.join(self.output_dir, new_filename))
 
         for file in files[1:]:
             current_file = os.path.join(self.job_reports_dir, file)
@@ -628,13 +633,17 @@ class ESDriver(BaseDriver):
                 current_report = json.load(f)
             final_report_files["input"].append(current_report["files"]["input"][0])
             output_file_entry = current_report["files"]["output"][0]["subFiles"][0]
-            assert output_file_entry["name"] in output_map
             old_filename = output_file_entry["name"]
-            output_file_entry["name"] = output_map[old_filename]
+            try:
+                new_filename = output_map[old_filename]
+            except KeyError:
+                # read the commit log to recover the correct name. If we get another KeyError, we can't recover
+                new_filename = output_map[self.bookKeeper.recover_outputfile_name(old_filename)]
+            output_file_entry["name"] = new_filename
             final_report_files["output"][0]["subFiles"].append(output_file_entry)
             with open(current_file, 'w') as f:
                 json.dump(current_report, f)
-            os.rename(os.path.join(self.output_dir, old_filename), os.path.join(self.output_dir, output_file_entry["name"]))
+            os.rename(os.path.join(self.output_dir, old_filename), os.path.join(self.output_dir, new_filename))
 
         tmp = os.path.join(self.workdir, self.jobreport_name + ".tmp")
         with open(tmp, 'w') as f:

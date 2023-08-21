@@ -129,8 +129,8 @@ class TaskStatus:
                 os.replace(filename, self.filepath)
         except OSError as e:
             self._logger.error(f"Failed to save task status: {e.strerror}")
-    
-    def is_stale(self) ->bool:
+
+    def is_stale(self) -> bool:
         """
         Checks if update stil need to be written to disk
         """
@@ -515,7 +515,7 @@ class BookKeeper(object):
                         continue
                     previous_to_current_output_lookup[merged_file] = new_file
                     f.write(f"rename_output {merged_file} {new_file}\n")
-        
+
         # Rename old merged files to output file names matching the current job in state.json
         for output_files in merged_files.values():
             assert isinstance(output_files, dict)
@@ -527,6 +527,20 @@ class BookKeeper(object):
         task_status.save_status(force_update=True)
 
         return previous_to_current_output_lookup
+
+    def recover_outputfile_name(self, filename: str) -> str:
+        """
+        Read the commitlog change history of filename and return the current filename
+        """
+        with open(self.commitlog, 'r') as f:
+            for line in f:
+                op, *args = line.rstrip().split(" ")
+                if op != "rename_output":
+                    continue
+                old, new = args[0], args[1]
+                if old == filename:
+                    filename = new
+        return filename
 
     def get_files_to_merge_with(self, file: str):
         """
