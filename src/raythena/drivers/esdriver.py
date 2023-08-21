@@ -601,11 +601,24 @@ class ESDriver(BaseDriver):
         if task_status and task_status.get_nmerged() + task_status.get_nfailed() == task_status.total_events():
             assert job_id
             output_map = self.bookKeeper.remap_output_files(job_id)
+            self.rename_output_files(output_map)
             self.produce_final_report(output_map)
         self.communicator.stop()
         # self.cpu_monitor.stop()
         self.bookKeeper.print_status()
         self._logger.debug("All driver threads stopped. Quitting...")
+
+    def rename_output_files(self, output_map: Dict[str, str]):
+        """
+        Rename final output files
+        """
+        for file in os.listdir(self.merged_files_dir):
+            try:
+                new_filename = output_map[file]
+            except KeyError:
+                # read the commit log to recover the correct name. If we get another KeyError, we can't recover
+                new_filename = output_map[self.bookKeeper.recover_outputfile_name(file)]
+            os.rename(os.path.join(self.merged_files_dir, file), os.path.join(self.merged_files_dir, new_filename))
 
     def produce_final_report(self, output_map: Dict[str, str]):
         """
@@ -631,7 +644,6 @@ class ESDriver(BaseDriver):
         output_file_entry["name"] = new_filename
         with open(os.path.join(self.job_reports_dir, files[0]), 'w') as f:
             final_report = json.dump(final_report, f)
-        os.rename(os.path.join(self.output_dir, old_filename), os.path.join(self.output_dir, new_filename))
 
         for file in files[1:]:
             current_file = os.path.join(self.job_reports_dir, file)
@@ -649,7 +661,6 @@ class ESDriver(BaseDriver):
             final_report_files["output"][0]["subFiles"].append(output_file_entry)
             with open(current_file, 'w') as f:
                 json.dump(current_report, f)
-            os.rename(os.path.join(self.output_dir, old_filename), os.path.join(self.output_dir, new_filename))
 
         tmp = os.path.join(self.workdir, self.jobreport_name + ".tmp")
         with open(tmp, 'w') as f:
