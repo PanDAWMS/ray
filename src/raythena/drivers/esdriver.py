@@ -76,7 +76,8 @@ class ESDriver(BaseDriver):
             workdir = os.getcwd()
         self.config.ray['workdir'] = workdir
         self.workdir = workdir
-        self.output_dir = self.config.ray.get("outputdir")
+        self.output_dir = str()
+        self.merged_files_dir = str()
         logfile = self.config.logging.get("driverlogfile", None)
         if logfile:
             log_to_file(self.config.logging.get("level", None), logfile)
@@ -494,6 +495,9 @@ class ESDriver(BaseDriver):
         self.tar_merge_es_output_dir = self.output_dir
         self.tar_merge_es_files_dir = self.output_dir
         self.job_reports_dir = os.path.join(self.output_dir, "job-reports")
+        self.merged_files_dir = os.path.join(self.output_dir, "final")
+        self.bookKeeper.output_dir = self.output_dir
+        self.bookKeeper.merged_files_dir = self.merged_files_dir
         self.config_remote = ray.put(self.config)
         # create the output directories if needed
         try:
@@ -501,6 +505,8 @@ class ESDriver(BaseDriver):
                 os.mkdir(self.output_dir)
             if not os.path.isdir(self.job_reports_dir):
                 os.mkdir(self.job_reports_dir)
+            if not os.path.isdir(self.merged_files_dir):
+                os.mkdir(self.merged_files_dir)
             if not os.path.isdir(self.tar_merge_es_output_dir):
                 os.mkdir(self.tar_merge_es_output_dir)
             if not os.path.isdir(self.tar_merge_es_files_dir):
@@ -769,7 +775,7 @@ class ESDriver(BaseDriver):
         tmp_dir = tempfile.mkdtemp()
         file_list = ",".join(input_files)
         job_report_name = os.path.join(self.job_reports_dir, output_file) + ".json"
-        output_file = os.path.join(self.output_dir, output_file)
+        output_file = os.path.join(self.merged_files_dir, output_file)
 
         transform_params = re.sub(r"@inputFor_\$\{OUTPUT0\}", file_list, self.merge_transform_params)
         transform_params = re.sub(r"\$\{OUTPUT0\}", output_file, transform_params, count=1)

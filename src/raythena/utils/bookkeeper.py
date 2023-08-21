@@ -38,11 +38,12 @@ class TaskStatus:
     MERGING = "merging"
     FAILED = "failed"
 
-    def __init__(self, job: PandaJob, config: Config) -> None:
+    def __init__(self, job: PandaJob, merged_files_dir: str, config: Config) -> None:
         self.config = config
         self.job = job
         self._logger = make_logger(self.config, "TaskStatus")
         self.output_dir = config.ray.get("outputdir")
+        self.merged_files_dir = merged_files_dir
         self.filepath = os.path.join(self.output_dir, "state.json")
         self.tmpfilepath = f"{self.filepath}.tmp"
         self._events_per_file = int(job['nEventsPerInputFile'])
@@ -211,7 +212,7 @@ class TaskStatus:
                 merged_dict = dict()
                 self._status[TaskStatus.MERGED][inputfile] = merged_dict
                 for merged_outputfile in self._status[TaskStatus.MERGING][inputfile].keys():
-                    merged_dict[merged_outputfile] = {"path": os.path.join(self.output_dir, merged_outputfile), "guid": guid if guid else ""}
+                    merged_dict[merged_outputfile] = {"path": os.path.join(self.merged_files_dir, merged_outputfile), "guid": guid if guid else ""}
                 del self._status[TaskStatus.MERGING][inputfile]
                 del self._status[TaskStatus.SIMULATED][inputfile]
             else:
@@ -310,8 +311,9 @@ class BookKeeper(object):
     def __init__(self, config: Config) -> None:
         self.jobs: PandaJobQueue = PandaJobQueue()
         self.config: Config = config
-        self.output_dir = config.ray.get("outputdir")
-        self.commitlog = os.path.join(self.output_dir, "commit_log")
+        self.output_dir = str()
+        self.merged_files_dir = str()
+        self.commitlog = str()
         self._logger = make_logger(self.config, "BookKeeper")
         self.actors: Dict[str, Optional[str]] = dict()
         self.rangesID_by_actor: Dict[str, Set[str]] = dict()
@@ -445,10 +447,11 @@ class BookKeeper(object):
         for pandaID in self.jobs:
             job = self.jobs[pandaID]
             if job["taskID"] not in self.taskstatus:
-                ts = TaskStatus(job, self.config)
+                assert self.output_dir
+                assert self.merged_files_dir
+                ts = TaskStatus(job, self.merged_files_dir, self.config)
                 self.taskstatus[job['taskID']] = ts
-                # TODO: have esdriver provide outputdir to make sure both are consistent
-                self.output_dir = os.path.join(os.path.expandvars(self.config.ray.get("taskprogressbasedir")), str(job['taskID']))
+                self.commitlog = os.path.join(self.output_dir, "commit_log")
                 self._generate_input_output_mapping(job)
                 self._generate_event_ranges(job, ts)
         if start_threads:
