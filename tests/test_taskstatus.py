@@ -7,7 +7,7 @@ class TestTaskStatus:
     def test_save_restore_status(self, nfiles, tmp_path, config, sample_job, sample_ranges):
         config.ray["outputdir"] = tmp_path
         job = PandaJob(list(sample_job.values())[0])
-        ts = TaskStatus(job, config)
+        ts = TaskStatus(job, tmp_path, config)
         ranges = list(sample_ranges.values())[0]
         hits_per_file = int(job['esmergeSpec']['nEventsPerOutputFile'])
         events_per_file = int(job['nEventsPerInputFile'])
@@ -30,14 +30,14 @@ class TestTaskStatus:
 
             ts.set_file_merged([fname], outputfile, ranges_map, "guid")
         ts.save_status()
-        ts2 = TaskStatus(job, config)
+        ts2 = TaskStatus(job, tmp_path, config)
         print(ts._status)
         assert ts._status == ts2._status
 
     def test_set_processed(self, nfiles, nevents, tmp_path, config, sample_job, sample_ranges):
         config.ray["outputdir"] = tmp_path
         job = PandaJob(list(sample_job.values())[0])
-        ts = TaskStatus(job, config)
+        ts = TaskStatus(job, tmp_path, config)
 
         ranges_list = list(sample_ranges.values())[0]
         for r in ranges_list:
@@ -52,7 +52,7 @@ class TestTaskStatus:
     def test_set_failed(self, nfiles, nevents, tmp_path, config, sample_job, sample_ranges):
         config.ray["outputdir"] = tmp_path
         job = PandaJob(list(sample_job.values())[0])
-        ts = TaskStatus(job, config)
+        ts = TaskStatus(job, tmp_path, config)
 
         ranges_list = list(sample_ranges.values())[0]
         for r in ranges_list:
@@ -67,7 +67,7 @@ class TestTaskStatus:
     def test_set_merged(self, nfiles, nevents, tmp_path, config, sample_job, sample_ranges):
         config.ray["outputdir"] = tmp_path
         job = PandaJob(list(sample_job.values())[0])
-        ts = TaskStatus(job, config)
+        ts = TaskStatus(job, tmp_path, config)
 
         ranges = list(sample_ranges.values())[0]
         for e in ranges:
