@@ -556,12 +556,11 @@ class ESDriver(BaseDriver):
             return
         job_id = self.bookKeeper.jobs.next_job_id_to_process()
         total_events = self.bookKeeper.n_ready(job_id)
+        os.makedirs(os.path.join(self.config.ray['workdir'], job_id))
         if total_events:
             self.available_events_per_actor = max(1, ceil(total_events / self.n_actors))
             for pandaID in self.bookKeeper.jobs:
                 cjob = self.bookKeeper.jobs[pandaID]
-                os.makedirs(
-                    os.path.join(self.config.ray['workdir'], cjob['PandaID']))
                 self.remote_jobdef_byid[pandaID] = ray.put(cjob)
 
             self.create_actors()
@@ -643,7 +642,7 @@ class ESDriver(BaseDriver):
             new_filename = output_map[self.bookKeeper.recover_outputfile_name(old_filename)]
         output_file_entry["name"] = new_filename
         with open(os.path.join(self.job_reports_dir, files[0]), 'w') as f:
-            final_report = json.dump(final_report, f)
+            json.dump(final_report, f)
 
         for file in files[1:]:
             current_file = os.path.join(self.job_reports_dir, file)

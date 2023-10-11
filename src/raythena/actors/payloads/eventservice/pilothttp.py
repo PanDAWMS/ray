@@ -167,7 +167,8 @@ class PilotHttpPayload(ESPayload):
 
         pilot_version = self.config.payload.get("pilotversion", "latest")
 
-        pilot_src = f"/cvmfs/atlas.cern.ch/repo/sw/PandaPilot/pilot3/{pilot_version}"
+        # pilot_src = f"/cvmfs/atlas.cern.ch/repo/sw/PandaPilot/pilot3/{pilot_version}"
+        pilot_src = "/global/common/software/m2616/pilot3"
 
         if not os.path.isdir(pilot_src):
             raise FailedPayload(self.worker_id, f"Pilot release {pilot_src} not found")
