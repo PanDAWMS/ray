@@ -76,6 +76,8 @@ class ESDriver(BaseDriver):
             workdir = os.getcwd()
         self.config.ray['workdir'] = workdir
         self.workdir = workdir
+        self.output_dir = str()
+        self.merged_files_dir = str()
         logfile = self.config.logging.get("driverlogfile", None)
         if logfile:
             log_to_file(self.config.logging.get("level", None), logfile)
@@ -493,6 +495,9 @@ class ESDriver(BaseDriver):
         self.tar_merge_es_output_dir = self.output_dir
         self.tar_merge_es_files_dir = self.output_dir
         self.job_reports_dir = os.path.join(self.output_dir, "job-reports")
+        self.merged_files_dir = os.path.join(self.output_dir, "final")
+        self.bookKeeper.output_dir = self.output_dir
+        self.bookKeeper.merged_files_dir = self.merged_files_dir
         self.config_remote = ray.put(self.config)
         # create the output directories if needed
         try:
@@ -500,6 +505,8 @@ class ESDriver(BaseDriver):
                 os.mkdir(self.output_dir)
             if not os.path.isdir(self.job_reports_dir):
                 os.mkdir(self.job_reports_dir)
+            if not os.path.isdir(self.merged_files_dir):
+                os.mkdir(self.merged_files_dir)
             if not os.path.isdir(self.tar_merge_es_output_dir):
                 os.mkdir(self.tar_merge_es_output_dir)
             if not os.path.isdir(self.tar_merge_es_files_dir):
@@ -549,12 +556,11 @@ class ESDriver(BaseDriver):
             return
         job_id = self.bookKeeper.jobs.next_job_id_to_process()
         total_events = self.bookKeeper.n_ready(job_id)
+        os.makedirs(os.path.join(self.config.ray['workdir'], job_id))
         if total_events:
             self.available_events_per_actor = max(1, ceil(total_events / self.n_actors))
             for pandaID in self.bookKeeper.jobs:
                 cjob = self.bookKeeper.jobs[pandaID]
-                os.makedirs(
-                    os.path.join(self.config.ray['workdir'], cjob['PandaID']))
                 self.remote_jobdef_byid[pandaID] = ray.put(cjob)
 
             self.create_actors()
@@ -592,13 +598,28 @@ class ESDriver(BaseDriver):
         self.bookKeeper.save_status()
         task_status = self.bookKeeper.taskstatus.get(self.panda_taskid, None)
         if task_status and task_status.get_nmerged() + task_status.get_nfailed() == task_status.total_events():
-            self.produce_final_report()
+            assert job_id
+            output_map = self.bookKeeper.remap_output_files(job_id)
+            self.rename_output_files(output_map)
+            self.produce_final_report(output_map)
         self.communicator.stop()
         # self.cpu_monitor.stop()
         self.bookKeeper.print_status()
         self._logger.debug("All driver threads stopped. Quitting...")
 
-    def produce_final_report(self):
+    def rename_output_files(self, output_map: Dict[str, str]):
+        """
+        Rename final output files
+        """
+        for file in os.listdir(self.merged_files_dir):
+            try:
+                new_filename = output_map[file]
+            except KeyError:
+                # read the commit log to recover the correct name. If we get another KeyError, we can't recover
+                new_filename = output_map[self.bookKeeper.recover_outputfile_name(file)]
+            os.rename(os.path.join(self.merged_files_dir, file), os.path.join(self.merged_files_dir, new_filename))
+
+    def produce_final_report(self, output_map: Dict[str, str]):
         """
         Merge job reports from individual merge transforms to produce the final jobReport for Panda.
         """
@@ -610,11 +631,35 @@ class ESDriver(BaseDriver):
         with open(os.path.join(self.job_reports_dir, files[0]), 'r') as f:
             final_report = json.load(f)
         final_report_files = final_report["files"]
+
+        # rename first file on disk and in report
+        output_file_entry = final_report_files["output"][0]["subFiles"][0]
+        old_filename = output_file_entry["name"]
+        try:
+            new_filename = output_map[old_filename]
+        except KeyError:
+            # read the commit log to recover the correct name. If we get another KeyError, we can't recover
+            new_filename = output_map[self.bookKeeper.recover_outputfile_name(old_filename)]
+        output_file_entry["name"] = new_filename
+        with open(os.path.join(self.job_reports_dir, files[0]), 'w') as f:
+            json.dump(final_report, f)
+
         for file in files[1:]:
-            with open(os.path.join(self.job_reports_dir, file), 'r') as f:
+            current_file = os.path.join(self.job_reports_dir, file)
+            with open(current_file, 'r') as f:
                 current_report = json.load(f)
             final_report_files["input"].append(current_report["files"]["input"][0])
-            final_report_files["output"][0]["subFiles"].append(current_report["files"]["output"][0]["subFiles"][0])
+            output_file_entry = current_report["files"]["output"][0]["subFiles"][0]
+            old_filename = output_file_entry["name"]
+            try:
+                new_filename = output_map[old_filename]
+            except KeyError:
+                # read the commit log to recover the correct name. If we get another KeyError, we can't recover
+                new_filename = output_map[self.bookKeeper.recover_outputfile_name(old_filename)]
+            output_file_entry["name"] = new_filename
+            final_report_files["output"][0]["subFiles"].append(output_file_entry)
+            with open(current_file, 'w') as f:
+                json.dump(current_report, f)
 
         tmp = os.path.join(self.workdir, self.jobreport_name + ".tmp")
         with open(tmp, 'w') as f:
@@ -740,7 +785,7 @@ class ESDriver(BaseDriver):
         tmp_dir = tempfile.mkdtemp()
         file_list = ",".join(input_files)
         job_report_name = os.path.join(self.job_reports_dir, output_file) + ".json"
-        output_file = os.path.join(self.output_dir, output_file)
+        output_file = os.path.join(self.merged_files_dir, output_file)
 
         transform_params = re.sub(r"@inputFor_\$\{OUTPUT0\}", file_list, self.merge_transform_params)
         transform_params = re.sub(r"\$\{OUTPUT0\}", output_file, transform_params, count=1)

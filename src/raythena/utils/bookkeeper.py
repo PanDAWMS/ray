@@ -38,11 +38,12 @@ class TaskStatus:
     MERGING = "merging"
     FAILED = "failed"
 
-    def __init__(self, job: PandaJob, config: Config) -> None:
+    def __init__(self, job: PandaJob, merged_files_dir: str, config: Config) -> None:
         self.config = config
         self.job = job
         self._logger = make_logger(self.config, "TaskStatus")
         self.output_dir = config.ray.get("outputdir")
+        self.merged_files_dir = merged_files_dir
         self.filepath = os.path.join(self.output_dir, "state.json")
         self.tmpfilepath = f"{self.filepath}.tmp"
         self._events_per_file = int(job['nEventsPerInputFile'])
@@ -95,7 +96,7 @@ class TaskStatus:
                     self._logger.error(ee.strerror)
                     self._default_init_status()
 
-    def save_status(self, write_to_tmp=True):
+    def save_status(self, write_to_tmp=True, force_update = False):
         """
         Save the current status to a json file. Before saving to file, the update queue will be drained, actually carrying out the operations to the dictionary
         that will be written to file.
@@ -105,7 +106,7 @@ class TaskStatus:
         """
 
         # dequeue is empty, nothing new to save
-        if not self._update_queue:
+        if not force_update and not self._update_queue:
             return
 
         # Drain the update deque, actually applying update to the status dictionnary
@@ -129,6 +130,12 @@ class TaskStatus:
                 os.replace(filename, self.filepath)
         except OSError as e:
             self._logger.error(f"Failed to save task status: {e.strerror}")
+
+    def is_stale(self) -> bool:
+        """
+        Checks if update stil need to be written to disk
+        """
+        return len(self._update_queue) > 0
 
     @staticmethod
     def build_eventrange_dict(eventrange: EventRange, output_file: str = None) -> Dict[str, Any]:
@@ -205,7 +212,7 @@ class TaskStatus:
                 merged_dict = dict()
                 self._status[TaskStatus.MERGED][inputfile] = merged_dict
                 for merged_outputfile in self._status[TaskStatus.MERGING][inputfile].keys():
-                    merged_dict[merged_outputfile] = {"path": os.path.join(self.output_dir, merged_outputfile), "guid": guid if guid else ""}
+                    merged_dict[merged_outputfile] = {"path": os.path.join(self.merged_files_dir, merged_outputfile), "guid": guid if guid else ""}
                 del self._status[TaskStatus.MERGING][inputfile]
                 del self._status[TaskStatus.SIMULATED][inputfile]
             else:
@@ -304,7 +311,9 @@ class BookKeeper(object):
     def __init__(self, config: Config) -> None:
         self.jobs: PandaJobQueue = PandaJobQueue()
         self.config: Config = config
-        self.output_dir = config.ray.get("outputdir")
+        self.output_dir = str()
+        self.merged_files_dir = str()
+        self.commitlog = str()
         self._logger = make_logger(self.config, "BookKeeper")
         self.actors: Dict[str, Optional[str]] = dict()
         self.rangesID_by_actor: Dict[str, Set[str]] = dict()
@@ -320,6 +329,8 @@ class BookKeeper(object):
         self.files_guids: Dict[str, str] = dict()
         self.last_status_print = time.time()
         self.taskstatus: Dict[str, TaskStatus] = dict()
+        self._input_output_mapping: Dict[str, List[str]] = dict()
+        self._output_input_mapping: Dict[str, List[str]] = dict()
         self.stop_saver = threading.Event()
         self.stop_cleaner = threading.Event()
         self.save_state_thread = ExThread(target=self._saver_thead_run, name="status-saver-thread")
@@ -436,10 +447,11 @@ class BookKeeper(object):
         for pandaID in self.jobs:
             job = self.jobs[pandaID]
             if job["taskID"] not in self.taskstatus:
-                ts = TaskStatus(job, self.config)
+                assert self.output_dir
+                assert self.merged_files_dir
+                ts = TaskStatus(job, self.merged_files_dir, self.config)
                 self.taskstatus[job['taskID']] = ts
-                # TODO: have esdriver provide outputdir to make sure both are consistent
-                self.output_dir = os.path.join(os.path.expandvars(self.config.ray.get("taskprogressbasedir")), str(job['taskID']))
+                self.commitlog = os.path.join(self.output_dir, "commit_log")
                 self._generate_input_output_mapping(job)
                 self._generate_event_ranges(job, ts)
         if start_threads:
@@ -483,6 +495,55 @@ class BookKeeper(object):
     @staticmethod
     def generate_event_range_id(file: str, n: str):
         return f"{file}-{n}"
+
+    def remap_output_files(self, panda_id: str) -> Dict[str, str]:
+        """
+        Translate an existing output file to an output filename matching the current job definition.
+        """
+        job = self.jobs[panda_id]
+        task_status = self.taskstatus[job["taskID"]]
+        if task_status.is_stale():
+            task_status.save_status()
+        merged_files = task_status._status[TaskStatus.MERGED]
+        previous_to_current_output_lookup: Dict[str, str] = dict()
+
+        with open(self.commitlog, 'a') as f:
+            for input_file, output_files in self._input_output_mapping.items():
+                merged_output_files = merged_files[input_file]
+                assert isinstance(merged_output_files, dict)
+                assert len(merged_output_files) == len(output_files)
+                for merged_file, new_file in zip(merged_output_files, output_files):
+                    if merged_file in previous_to_current_output_lookup:
+                        assert new_file == previous_to_current_output_lookup[merged_file]
+                        continue
+                    previous_to_current_output_lookup[merged_file] = new_file
+                    f.write(f"rename_output {merged_file} {new_file}\n")
+
+        # Rename old merged files to output file names matching the current job in state.json
+        for output_files in merged_files.values():
+            assert isinstance(output_files, dict)
+            for old_file in list(output_files.keys()):
+                new_file = previous_to_current_output_lookup[old_file]
+                entry = output_files.pop(old_file)
+                entry["path"] = entry["path"].replace(old_file, new_file)
+                output_files[new_file] = entry
+        task_status.save_status(force_update=True)
+
+        return previous_to_current_output_lookup
+
+    def recover_outputfile_name(self, filename: str) -> str:
+        """
+        Read the commitlog change history of filename and return the current filename
+        """
+        with open(self.commitlog, 'r') as f:
+            for line in f:
+                op, *args = line.rstrip().split(" ")
+                if op != "rename_output":
+                    continue
+                old, new = args[0], args[1]
+                if old == filename:
+                    filename = new
+        return filename
 
     def get_files_to_merge_with(self, file: str):
         """
