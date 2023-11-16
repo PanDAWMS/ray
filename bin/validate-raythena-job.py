@@ -29,7 +29,7 @@ def validate_job(job_dir, job_state_file):
     merged_output_files = set([list(x.keys())[0] for x in merged_input_files.values()])
     event_numbers = set()
     for output_file in merged_output_files:
-        output_file_abs = path.join(job_dir, output_file)
+        output_file_abs = path.join(job_dir, "final", output_file)
         if not path.isfile(output_file_abs):
             print("Expected file " + output_file_abs + " to be present in the job directory")
             exit(1)
