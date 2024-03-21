@@ -83,7 +83,7 @@ class ESWorker(object):
     }
 
     def __init__(self, actor_id: str, config: Config,
-                 session_log_dir: str, job: PandaJob = None, event_ranges: Sequence[EventRange] = None) -> None:
+                 session_log_dir: str, actor_no: int, actor_count: int, job: PandaJob = None, event_ranges: Sequence[EventRange] = None) -> None:
         """
         Initialize attributes, instantiate a payload and setup the workdir
 
@@ -95,6 +95,8 @@ class ESWorker(object):
             event_ranges: optional pre-assigned event ranges to process
         """
         self.id = actor_id
+        self.actor_no = actor_no
+        self.actor_count = actor_count
         self.config = config
         self._logger = make_logger(self.config, self.id)
         self.session_log_dir = session_log_dir
@@ -190,6 +192,12 @@ class ESWorker(object):
             cmd = cmd.replace("--multithreaded=True", "")
             if "--multiprocess" not in cmd:
                 cmd = f"--multiprocess=True {cmd}"
+
+        job_number = int(job["attemptNr"]) * self.actor_count + self.actor_no
+        if "--jobNumber=" in cmd:
+            cmd = re.sub(r"--jobNumber=[0-9]+", f"--jobNumber={job_number}", cmd)
+        else:
+            cmd = f"{cmd} --jobNumber={job_number} "
 
         job["jobPars"] = cmd
         return job
