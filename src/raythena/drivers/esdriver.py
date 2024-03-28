@@ -196,7 +196,9 @@ class ESDriver(BaseDriver):
             kwargs = {
                 'actor_id': actor_id,
                 'config': self.config_remote,
-                'session_log_dir': self.session_log_dir
+                'session_log_dir': self.session_log_dir,
+                'actor_no': i,
+                'actor_count': self.n_actors,
             }
             job = self.bookKeeper.assign_job_to_actor(actor_id)
             if job:
