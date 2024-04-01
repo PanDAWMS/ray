@@ -838,9 +838,10 @@ class ESDriver(BaseDriver):
 
         cmd += f"export thePlatform=\"{self.the_platform}\";"
         endtoken = "" if self.config.payload['containerextraargs'].strip().endswith(";") else ";"
-        cmd += f"{self.config.payload['containerextraargs']}{endtoken}"
-        cmd += f"source ${{ATLAS_LOCAL_ROOT_BASE}}/user/atlasLocalSetup.sh --swtype {self.config.payload['containerengine']} -c $thePlatform -d -s /srv/release_setup.sh"
-        cmd += f" -r /srv/merge_transform.sh -e \"{self.container_options}\";RETURN_VAL=$?;if [ \"$RETURN_VAL\" -eq 0 ]; then cp jobReport.json {job_report_name};fi;exit $RETURN_VAL;"
+        cmd += (f"{self.config.payload['containerextraargs']}{endtoken}"
+                f"source ${{ATLAS_LOCAL_ROOT_BASE}}/user/atlasLocalSetup.sh --swtype {self.config.payload['containerengine']}"
+                f" -c $thePlatform -d -s /srv/release_setup.sh -r /srv/merge_transform.sh -e \"{self.container_options}\";"
+                f"RETURN_VAL=$?;if [ \"$RETURN_VAL\" -eq 0 ]; then cp jobReport.json {job_report_name};fi;exit $RETURN_VAL;")
         return (Popen(cmd,
                       stdin=DEVNULL,
                       stdout=DEVNULL,
