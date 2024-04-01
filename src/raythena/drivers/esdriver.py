@@ -543,7 +543,17 @@ class ESDriver(BaseDriver):
         self.merge_transform = job["esmergeSpec"]["transPath"]
         self.merge_transform_params = job["esmergeSpec"]["jobParameters"]
 
-        self.container_name = job["container_name"]
+        self.container_name = job.get("container_name", "")
+        self.cmt_config = job.get("cmtConfig", "")
+        self.the_platform = "x86_64-el9-gcc13-opt"
+        self.release = re.sub(r"[a-zA-Z]*-", "", str(job.get("swRelease", "")))
+        if self.container_name:
+            self.the_platform = self.container_name
+        elif self.cmt_config:
+            self.the_platform = self.cmt_config
+        else:
+            self._logger.warning(f"No container or CmtConfig found, using default platform {self.the_platform}")
+            self.cmt_config = job["cmtConfig"] = self.the_platform
         self.setup_dirs()
         self._logger.debug("Adding job and generating event ranges...")
         self.bookKeeper.add_jobs(jobs)
@@ -815,13 +825,23 @@ class ESDriver(BaseDriver):
         with open(merge_script_path, 'w') as f:
             f.write(container_script)
         os.chmod(merge_script_path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH)
+
+        setup_script_path = os.path.join(tmp_dir, "release_setup.sh")
+        setup_script = f"asetup Athena,{self.release},notest --platform {self.cmt_config} --makeflags=\'$MAKEFLAGS\'"
+        self._logger.debug(f"Setting up release with: {setup_script}")
+        with open(setup_script_path, 'w') as f:
+            f.write(setup_script)
+        os.chmod(setup_script_path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH)
+
         cmd = str()
         cmd += "export ATLAS_LOCAL_ROOT_BASE=/cvmfs/atlas.cern.ch/repo/ATLASLocalRootBase;"
-        cmd += f"export thePlatform=\"{self.container_name}\";"
+
+        cmd += f"export thePlatform=\"{self.the_platform}\";"
         endtoken = "" if self.config.payload['containerextraargs'].strip().endswith(";") else ";"
-        cmd += f"{self.config.payload['containerextraargs']}{endtoken}"
-        cmd += f"source ${{ATLAS_LOCAL_ROOT_BASE}}/user/atlasLocalSetup.sh --swtype {self.config.payload['containerengine']} -c $thePlatform -d -s none"
-        cmd += f" -r /srv/merge_transform.sh -e \"{self.container_options}\";RETURN_VAL=$?;cp jobReport.json {job_report_name} ;exit $RETURN_VAL;"
+        cmd += (f"{self.config.payload['containerextraargs']}{endtoken}"
+                f"source ${{ATLAS_LOCAL_ROOT_BASE}}/user/atlasLocalSetup.sh --swtype {self.config.payload['containerengine']}"
+                f" -c $thePlatform -d -s /srv/release_setup.sh -r /srv/merge_transform.sh -e \"{self.container_options}\";"
+                f"RETURN_VAL=$?;if [ \"$RETURN_VAL\" -eq 0 ]; then cp jobReport.json {job_report_name};fi;exit $RETURN_VAL;")
         return (Popen(cmd,
                       stdin=DEVNULL,
                       stdout=DEVNULL,
