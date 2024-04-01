@@ -820,14 +820,15 @@ class ESDriver(BaseDriver):
         transform_params = re.sub(r"--DBRelease=current", "", transform_params)
 
         endtoken = "" if self.config.payload['containerextrasetup'].strip().endswith(";") else ";"
-        container_script = f"{self.config.payload['containerextrasetup']}{endtoken}{self.merge_transform} {transform_params}"
+        container_script = f"{self.config.payload['containerextrasetup']}{endtoken}{self.merge_transform} --preExec 'ConfigFlags.IOVDb.DatabaseInstance=\"OFLP200\"' {transform_params}"
         merge_script_path = os.path.join(tmp_dir, "merge_transform.sh")
         with open(merge_script_path, 'w') as f:
             f.write(container_script)
         os.chmod(merge_script_path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH)
 
+        hack_release = "24.0.32" if self.release == "24.0.20" else self.release
         setup_script_path = os.path.join(tmp_dir, "release_setup.sh")
-        setup_script = f"asetup Athena,{self.release},notest --platform {self.cmt_config} --makeflags=\'$MAKEFLAGS\'"
+        setup_script = f"asetup Athena,{hack_release},notest --platform {self.cmt_config} --makeflags=\'$MAKEFLAGS\'"
         self._logger.debug(f"Setting up release with: {setup_script}")
         with open(setup_script_path, 'w') as f:
             f.write(setup_script)
