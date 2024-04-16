@@ -187,13 +187,7 @@ class ESWorker(object):
             dummy_name = f"{prefix}{nums[0]}{suffix}"
             cmd = re.sub(r"--outputHITSFile=[0-9A-Z._]+\[[0-9,]+\].pool.root", f"--outputHITSFile={dummy_name}", cmd)
 
-        if "Atlas-23" in str(job["swRelease"]):
-            # Patch command. Should be configured correctly from panda in the first place
-            cmd = cmd.replace("--multithreaded=True", "")
-            if "--multiprocess" not in cmd:
-                cmd = f"--multiprocess=True {cmd}"
-
-        job_number = int(job["attemptNr"]) * self.actor_count + self.actor_no
+        job_number = max(int(job["attemptNr"]) - 1, 0) * self.actor_count + self.actor_no + 1
         if "--jobNumber=" in cmd:
             cmd = re.sub(r"--jobNumber=[0-9]+", f"--jobNumber={job_number}", cmd)
         else:
