@@ -193,6 +193,12 @@ class ESWorker(object):
         else:
             cmd = f"{cmd} --jobNumber={job_number} "
 
+        maxEvents = min(500, job['nEventsPerInputFile'])
+        if "--maxEvents=" in cmd:
+            cmd = re.sub(r"--maxEvents=[0-9]+", f"--maxEvents={maxEvents}", cmd)
+        else:
+            cmd = f"{cmd} --maxEvents={maxEvents} "
+
         job["jobPars"] = cmd
         return job
 
