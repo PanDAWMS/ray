@@ -839,7 +839,7 @@ class ESDriver(BaseDriver):
         endtoken = "" if self.config.payload['containerextraargs'].strip().endswith(";") else ";"
         cmd += (f"{self.config.payload['containerextraargs']}{endtoken}"
                 f"source ${{ATLAS_LOCAL_ROOT_BASE}}/user/atlasLocalSetup.sh --swtype {self.config.payload['containerengine']}"
-                f" -c $thePlatform -d -s /srv/release_setup.sh -r /srv/merge_transform.sh -e \"{self.container_options}\";"
+                f" -c $thePlatform -s /srv/release_setup.sh -r /srv/merge_transform.sh -e \"{self.container_options}\";"
                 f"RETURN_VAL=$?;if [ \"$RETURN_VAL\" -eq 0 ]; then cp jobReport.json {job_report_name};fi;exit $RETURN_VAL;")
         return (Popen(cmd,
                       stdin=DEVNULL,
