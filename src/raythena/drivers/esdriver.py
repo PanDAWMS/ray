@@ -240,7 +240,6 @@ class ESDriver(BaseDriver):
                 else:
                     yield actor_id, message, data
         else:
-            self._logger.debug(f"Start handling messages batch of {len(messages)} actors")
             for actor_id, message, data in messages:
                 yield actor_id, message, data
 
@@ -320,7 +319,7 @@ class ESDriver(BaseDriver):
         else:
             self.terminated.append(actor_id)
             self.bookKeeper.process_actor_end(actor_id)
-            self._logger.info(f"{actor_id} stopped")
+            self._logger.debug(f"{actor_id} stopped")
             # do not get new messages from this actor
         return has_jobs
 
@@ -777,7 +776,7 @@ class ESDriver(BaseDriver):
                 to_remove.append(output_filename)
                 self.total_running_merge_transforms -= 1
                 if sub_process.returncode == 0:
-                    self._logger.info(f"Merge transform for file {output_filename} finished.")
+                    self._logger.debug(f"Merge transform for file {output_filename} finished.")
                     event_ranges_map = {}
                     guid = self.get_output_file_guid(job_report_file)
                     for (event_range_output, event_range) in event_ranges:
@@ -785,7 +784,7 @@ class ESDriver(BaseDriver):
                     self.bookKeeper.report_merged_file(self.panda_taskid, output_filename, event_ranges_map, guid)
                 else:
                     self.bookKeeper.report_failed_merge_transform(self.panda_taskid, output_filename)
-                    self._logger.debug(f"Merge transform failed with return code {sub_process.returncode}")
+                    self._logger.debug(f"Merge transform for {output_filename} failed with return code {sub_process.returncode}")
         for o in to_remove:
             del self.running_merge_transforms[o]
         return new_transforms
@@ -840,7 +839,7 @@ class ESDriver(BaseDriver):
         endtoken = "" if self.config.payload['containerextraargs'].strip().endswith(";") else ";"
         cmd += (f"{self.config.payload['containerextraargs']}{endtoken}"
                 f"source ${{ATLAS_LOCAL_ROOT_BASE}}/user/atlasLocalSetup.sh --swtype {self.config.payload['containerengine']}"
-                f" -c $thePlatform -d -s /srv/release_setup.sh -r /srv/merge_transform.sh -e \"{self.container_options}\";"
+                f" -c $thePlatform -s /srv/release_setup.sh -r /srv/merge_transform.sh -e \"{self.container_options}\";"
                 f"RETURN_VAL=$?;if [ \"$RETURN_VAL\" -eq 0 ]; then cp jobReport.json {job_report_name};fi;exit $RETURN_VAL;")
         return (Popen(cmd,
                       stdin=DEVNULL,

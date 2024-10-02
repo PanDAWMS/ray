@@ -398,6 +398,7 @@ class PilotHttpPayload(ESPayload):
         """
         del request
         job = self.current_job if self.current_job else dict()
+        self._logger.debug(f"Job assigned to worker {self.worker_id}")
         return web.json_response(job, dumps=self.json_encoder)
 
     async def handle_update_job(self, request: web.BaseRequest) -> web.Response:
