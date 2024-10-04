@@ -1,9 +1,9 @@
-import psutil
-import time
 import json
-
+import time
 from threading import Event
 from typing import Any, Dict, List, Union
+
+import psutil
 
 from raythena.utils.exception import ExThread
 
@@ -102,7 +102,7 @@ class CPUMonitor:
             process_usage.append(self.process.cpu_percent())
             process_cpu_times = self.process.cpu_times()
 
-            for k in process_times.keys():
+            for k in process_times:
                 process_times[k].append(getattr(process_cpu_times, k))
 
             if time.time() >= last_write + self.write_interval:

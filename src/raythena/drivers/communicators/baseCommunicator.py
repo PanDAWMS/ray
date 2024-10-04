@@ -1,10 +1,18 @@
 from abc import ABC, abstractmethod
+from collections.abc import Mapping, Sequence
 from queue import Queue
-from typing import Mapping, Sequence, Union
+from typing import Union
 
 from raythena.utils.config import Config
-from raythena.utils.eventservice import EventRangeRequest, PandaJobRequest, PandaJobUpdate, EventRangeUpdate, \
-    JobReport, EventRangeDef, JobDef
+from raythena.utils.eventservice import (
+    EventRangeDef,
+    EventRangeRequest,
+    EventRangeUpdate,
+    JobDef,
+    JobReport,
+    PandaJobRequest,
+    PandaJobUpdate,
+)
 
 RequestData = Union[PandaJobRequest, EventRangeUpdate, JobReport, EventRangeRequest, PandaJobUpdate]
 

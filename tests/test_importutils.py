@@ -1,5 +1,4 @@
 import pytest
-
 from raythena.utils.importUtils import import_from_string
 
 

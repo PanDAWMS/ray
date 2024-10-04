@@ -1,7 +1,14 @@
 import pytest
-
-from raythena.utils.eventservice import EventRange, EventRangeQueue, EventRangeRequest, EventRangeUpdate
-from raythena.utils.eventservice import PandaJob, PandaJobQueue, PandaJobRequest, PandaJobUpdate
+from raythena.utils.eventservice import (
+    EventRange,
+    EventRangeQueue,
+    EventRangeRequest,
+    EventRangeUpdate,
+    PandaJob,
+    PandaJobQueue,
+    PandaJobRequest,
+    PandaJobUpdate,
+)
 
 
 class TestEventRangeRequest:
@@ -186,8 +193,8 @@ class TestEventRanges:
             "scope": scope
         }
         range_from_dict = EventRange.build_from_dict(r_dict)
-        assert range_from_dict.PFN == pfn and range_from_dict.eventRangeID == id and range_from_dict.startEvent == start \
-            and range_from_dict.lastEvent == last and range_from_dict.GUID == guid and range_from_dict.scope == scope
+        assert pfn == range_from_dict.PFN and range_from_dict.eventRangeID == id and range_from_dict.startEvent == start \
+            and range_from_dict.lastEvent == last and guid == range_from_dict.GUID and range_from_dict.scope == scope
         assert range_from_dict.status == EventRange.READY
 
 

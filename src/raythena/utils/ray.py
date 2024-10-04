@@ -1,4 +1,5 @@
-from typing import List, Mapping, Any
+from collections.abc import Mapping
+from typing import Any, List
 
 import ray
 

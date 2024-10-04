@@ -2,8 +2,9 @@ import os
 import queue
 
 import pytest
-
-from raythena.drivers.communicators.harvesterFileMessenger import HarvesterFileCommunicator
+from raythena.drivers.communicators.harvesterFileMessenger import (
+    HarvesterFileCommunicator,
+)
 from raythena.drivers.communicators.harvesterMock import HarvesterMock
 from raythena.drivers.communicators.harvesterMock2205 import HarvesterMock2205
 

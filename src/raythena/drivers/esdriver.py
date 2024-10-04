@@ -1,39 +1,56 @@
 import configparser
+import json
 import os
 import re
-import json
 import shutil
 import stat
 import tempfile
 import time
 import traceback
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from math import ceil
 from queue import Empty, Queue
 from socket import gethostname
-from typing import (Any, Dict, Iterator, List, Mapping, Optional, Sequence, Iterable,
-                    Tuple)
 from subprocess import DEVNULL, Popen
+from typing import (
+    Any,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+)
 
 import ray
 from ray.exceptions import RayActorError
 from ray.types import ObjectRef
+
 from raythena import __version__
 from raythena.actors.esworker import ESWorker, WorkerResponse
 from raythena.drivers.baseDriver import BaseDriver
-from raythena.drivers.communicators.baseCommunicator import (BaseCommunicator,
-                                                             RequestData)
-from raythena.drivers.communicators.harvesterFileMessenger import \
-    HarvesterFileCommunicator
+from raythena.drivers.communicators.baseCommunicator import (
+    BaseCommunicator,
+    RequestData,
+)
+from raythena.drivers.communicators.harvesterFileMessenger import (
+    HarvesterFileCommunicator,
+)
 from raythena.utils.bookkeeper import BookKeeper, TaskStatus
 from raythena.utils.config import Config
-from raythena.utils.eventservice import (EventRange, EventRangeDef,
-                                         EventRangeRequest, EventRangeUpdate,
-                                         JobDef, Messages,
-                                         PandaJobRequest
-                                         )
+from raythena.utils.eventservice import (
+    EventRange,
+    EventRangeDef,
+    EventRangeRequest,
+    EventRangeUpdate,
+    JobDef,
+    Messages,
+    PandaJobRequest,
+)
 from raythena.utils.exception import BaseRaythenaException
-from raythena.utils.logging import (disable_stdout_logging, log_to_file,
-                                    make_logger)
+from raythena.utils.logging import (
+    disable_stdout_logging,
+    log_to_file,
+    make_logger,
+)
 from raythena.utils.ray import build_nodes_resource_list
 
 
@@ -77,8 +94,8 @@ class ESDriver(BaseDriver):
             workdir = os.getcwd()
         self.config.ray['workdir'] = workdir
         self.workdir = workdir
-        self.output_dir = str()
-        self.merged_files_dir = str()
+        self.output_dir = ""
+        self.merged_files_dir = ""
         logfile = self.config.logging.get("driverlogfile", None)
         if logfile:
             log_to_file(self.config.logging.get("level", None), logfile)
@@ -117,10 +134,10 @@ class ESDriver(BaseDriver):
         self.pandaqueue = self.config.payload['pandaqueue']
         parser = configparser.ConfigParser()
         harvester_config = self.config.harvester['harvesterconf']
-        self.queuedata_file = str()
-        self.container_options = str()
-        self.container_type = str()
-        self.jobreport_name = str()
+        self.queuedata_file = ""
+        self.container_options = ""
+        self.container_type = ""
+        self.jobreport_name = ""
         if not os.path.isfile(harvester_config):
             self._logger.warning(f"Couldn't find harvester config file {harvester_config}")
         else:
@@ -133,7 +150,7 @@ class ESDriver(BaseDriver):
                 self._logger.warning(f"cached queudata file not found: {queuedata_config[0]}")
             else:
                 self.queuedata_file = queuedata_config[0]
-                with open(self.queuedata_file, 'r') as f:
+                with open(self.queuedata_file) as f:
                     queuedata = json.load(f)
                     self.container_options = queuedata["container_options"]
                     self.container_type = queuedata["container_type"].split(":")[0]
@@ -648,7 +665,7 @@ class ESDriver(BaseDriver):
         if not files:
             return
 
-        with open(os.path.join(self.job_reports_dir, files[0]), 'r') as f:
+        with open(os.path.join(self.job_reports_dir, files[0])) as f:
             final_report = json.load(f)
         final_report_files = final_report["files"]
 
@@ -666,7 +683,7 @@ class ESDriver(BaseDriver):
 
         for file in files[1:]:
             current_file = os.path.join(self.job_reports_dir, file)
-            with open(current_file, 'r') as f:
+            with open(current_file) as f:
                 current_report = json.load(f)
             final_report_files["input"].append(current_report["files"]["input"][0])
             output_file_entry = current_report["files"]["output"][0]["subFiles"][0]
@@ -731,7 +748,7 @@ class ESDriver(BaseDriver):
         """
         Extract the GUID from the jobReport of HITSMerge_tf
         """
-        with open(job_report_file, 'r') as f:
+        with open(job_report_file) as f:
             job_report = json.load(f)
             try:
                 guid = job_report["files"]["output"][0]["subFiles"][0]["file_guid"]
@@ -832,7 +849,7 @@ class ESDriver(BaseDriver):
             f.write(setup_script)
         os.chmod(setup_script_path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH)
 
-        cmd = str()
+        cmd = ""
         cmd += "export ATLAS_LOCAL_ROOT_BASE=/cvmfs/atlas.cern.ch/repo/ATLASLocalRootBase;"
 
         cmd += f"export thePlatform=\"{self.the_platform}\";"

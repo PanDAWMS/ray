@@ -3,7 +3,7 @@ import os
 import yaml
 
 
-class Config(object):
+class Config:
     """Class storing app configuration.
 
     This class will store configuration by prioritizing in the following order:
@@ -147,7 +147,7 @@ class Config(object):
             Exception: Invalid configuration file
         """
         for name, value in template_params.items():
-            if name not in section_params.keys():
+            if name not in section_params:
                 raise Exception(
                     f"Param '{name}' not found in conf section '{template_section_name}'"
                 )

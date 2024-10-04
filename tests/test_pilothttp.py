@@ -3,9 +3,8 @@ import time
 
 import pytest
 import requests
-
 from raythena.actors.payloads.eventservice.pilothttp import PilotHttpPayload
-from raythena.utils.eventservice import PandaJob, EventRange
+from raythena.utils.eventservice import EventRange, PandaJob
 
 
 class MockPopen:

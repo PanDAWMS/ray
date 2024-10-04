@@ -1,5 +1,6 @@
 from abc import abstractmethod
-from typing import Dict, Optional, Sequence
+from collections.abc import Sequence
+from typing import Dict, Optional
 
 from raythena.actors.payloads.basePayload import BasePayload
 from raythena.utils.config import Config

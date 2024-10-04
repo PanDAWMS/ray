@@ -9,9 +9,10 @@ This example uses placement_group API to spread work around
 import argparse
 import os
 import platform
-from pprint import pprint
-import ray
 import time
+from pprint import pprint
+
+import ray
 
 
 def build_nodes_resource_list(redis_ip: str):
@@ -27,7 +28,7 @@ def build_nodes_resource_list(redis_ip: str):
 
 
 @ray.remote
-class actor():
+class actor:
     def __init__(self) -> None:
         self.pid = os.getpid()
         self.hostname = platform.node()

@@ -1,5 +1,4 @@
 import pytest
-
 from raythena.utils.bookkeeper import BookKeeper
 
 

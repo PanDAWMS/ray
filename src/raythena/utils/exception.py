@@ -1,8 +1,8 @@
 import threading
-from queue import Queue, Empty
+from queue import Empty, Queue
 
 
-class ErrorCodes(object):
+class ErrorCodes:
     """
     Defines error codes constants and associated default error message for each error code
     """

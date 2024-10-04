@@ -7,9 +7,15 @@ from queue import Queue
 
 from raythena.drivers.communicators.baseCommunicator import BaseCommunicator
 from raythena.utils.config import Config
-from raythena.utils.logging import make_logger
-from raythena.utils.eventservice import EventRangeRequest, PandaJobRequest, PandaJobUpdate, EventRangeUpdate, JobReport
+from raythena.utils.eventservice import (
+    EventRangeRequest,
+    EventRangeUpdate,
+    JobReport,
+    PandaJobRequest,
+    PandaJobUpdate,
+)
 from raythena.utils.exception import ExThread
+from raythena.utils.logging import make_logger
 
 
 class HarvesterFileCommunicator(BaseCommunicator):
@@ -71,17 +77,17 @@ class HarvesterFileCommunicator(BaseCommunicator):
                 os.path.join(self.harvester_workdir,
                              self.harvester_conf['payload_interaction'][k]))
         if not hasattr(self, "jobspecfile"):
-            self.jobspecfile = str()
+            self.jobspecfile = ''
         if not hasattr(self, "jobspecfile"):
-            self.jobrequestfile = str()
+            self.jobrequestfile = ''
         if not hasattr(self, "eventrangesfile"):
-            self.eventrangesfile = str()
+            self.eventrangesfile = ''
         if not hasattr(self, "eventrequestfile"):
-            self.eventrequestfile = str()
+            self.eventrequestfile = ''
         if not hasattr(self, "eventstatusdumpjsonfile"):
-            self.eventstatusdumpjsonfile = str()
+            self.eventstatusdumpjsonfile = ''
         if not hasattr(self, "jobreportfile"):
-            self.jobreportfile = str()
+            self.jobreportfile = ''
 
     def request_job(self, request: PandaJobRequest) -> None:
         """
@@ -152,7 +158,7 @@ class HarvesterFileCommunicator(BaseCommunicator):
         self._logger.debug(f"request_event_ranges: found a {self.eventrangesfile} file")
         while os.path.isfile(self.eventrangesfile):
             try:
-                with open(self.eventrangesfile, 'r') as f:
+                with open(self.eventrangesfile) as f:
                     ranges = json.load(f)
                 if os.path.isfile(self.eventrangesfile):
                     shutil.move(

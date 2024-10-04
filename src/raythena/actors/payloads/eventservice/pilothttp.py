@@ -4,23 +4,23 @@ import json
 import os
 import shlex
 import stat
-from asyncio import Queue, QueueEmpty, Event
+from asyncio import Event, Queue, QueueEmpty
+from collections.abc import Iterable, Mapping
 from subprocess import DEVNULL, Popen
-from typing import Dict, List, Callable, Optional, Iterable, Mapping
+from typing import Callable, Dict, List, Optional
 from urllib.parse import parse_qs
 
 import uvloop
 from aiohttp import web
 
-from raythena.utils.logging import make_logger
 from raythena.actors.payloads.eventservice.esPayload import ESPayload
 from raythena.utils.config import Config
-from raythena.utils.eventservice import ESEncoder
-from raythena.utils.eventservice import PandaJob, EventRange
-from raythena.utils.exception import FailedPayload, ExThread
+from raythena.utils.eventservice import ESEncoder, EventRange, PandaJob
+from raythena.utils.exception import ExThread, FailedPayload
+from raythena.utils.logging import make_logger
 
 
-class AsyncRouter(object):
+class AsyncRouter:
     """
     Very simple router mapping HTTP endpoint to a handler. Only supports with asynchronous handler compatible
     with the asyncio Framework.
@@ -157,7 +157,7 @@ class PilotHttpPayload(ESPayload):
         Raises:
             FailedPayload: if source code to be executed cannot be retrieved from CVMFS
         """
-        cmd = str()
+        cmd = ""
 
         extra_setup = self.config.payload.get('extrasetup', None)
         if extra_setup is not None:

@@ -1,16 +1,33 @@
 import collections
-from functools import reduce
 import json
+import os
 import threading
+import time
+from collections.abc import Mapping, Sequence
+from functools import reduce
+from typing import (
+    Any,
+    Deque,
+    Dict,
+    List,
+    Optional,
+    Set,
+    Tuple,
+    Union,
+)
+
 from raythena.utils.config import Config
-from raythena.utils.eventservice import PandaJobQueue, EventRange, PandaJob, EventRangeUpdate, EventRangeDef, JobDef, PilotEventRangeUpdateDef
+from raythena.utils.eventservice import (
+    EventRange,
+    EventRangeDef,
+    EventRangeUpdate,
+    JobDef,
+    PandaJob,
+    PandaJobQueue,
+    PilotEventRangeUpdateDef,
+)
 from raythena.utils.exception import ExThread
 from raythena.utils.logging import make_logger
-
-from typing import Deque, Dict, Set, Optional, List, Mapping, Sequence, Union, Tuple, Any
-
-import time
-import os
 
 
 class TaskStatus:
@@ -83,13 +100,13 @@ class TaskStatus:
                 filename = self.tmpfilepath
 
         try:
-            with open(filename, 'r') as f:
+            with open(filename) as f:
                 self._status = json.load(f)
         except OSError as e:
             # failed to load status, try to read from a possible tmp file if it exists and not already done
             if filename != self.tmpfilepath and os.path.isfile(self.tmpfilepath):
                 try:
-                    with open(self.tmpfilepath, 'r') as f:
+                    with open(self.tmpfilepath) as f:
                         self._status = json.load(f)
                 except OSError as ee:
                     self._logger.error(e.strerror)
@@ -303,7 +320,7 @@ class TaskStatus:
         return self._nevents
 
 
-class BookKeeper(object):
+class BookKeeper:
     """
     Performs bookkeeping of jobs and event ranges distributed to workers
     """
@@ -311,9 +328,9 @@ class BookKeeper(object):
     def __init__(self, config: Config) -> None:
         self.jobs: PandaJobQueue = PandaJobQueue()
         self.config: Config = config
-        self.output_dir = str()
-        self.merged_files_dir = str()
-        self.commitlog = str()
+        self.output_dir = ""
+        self.merged_files_dir = ""
+        self.commitlog = ""
         self._logger = make_logger(self.config, "BookKeeper")
         self.actors: Dict[str, Optional[str]] = dict()
         self.rangesID_by_actor: Dict[str, Set[str]] = dict()
@@ -535,7 +552,7 @@ class BookKeeper(object):
         """
         Read the commitlog change history of filename and return the current filename
         """
-        with open(self.commitlog, 'r') as f:
+        with open(self.commitlog) as f:
             for line in f:
                 op, *args = line.rstrip().split(" ")
                 if op != "rename_output":

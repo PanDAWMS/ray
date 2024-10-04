@@ -1,36 +1,49 @@
+import datetime
 import json
 import os
 import re
 import shutil
-import time
-from typing import Union, Tuple, Sequence, Any, Mapping, Optional
-
-import datetime
 import threading
-
+import time
+from collections.abc import Mapping, Sequence
 from socket import gethostname
 from time import sleep
+from typing import Any, Optional, Tuple, Union
 
 import ray
 
-from raythena.utils.logging import disable_stdout_logging, make_logger, log_to_file
-from raythena.utils.config import Config
-from raythena.utils.eventservice import EventRangeRequest, Messages, EventRangeUpdate, PandaJob, EventRange
-from raythena.utils.exception import IllegalWorkerState, StageInFailed, StageOutFailed, WrappedException, BaseRaythenaException
-from raythena.utils.ray import get_node_ip
 # from raythena.utils.timing import CPUMonitor
 from raythena.actors.payloads.basePayload import BasePayload
 from raythena.actors.payloads.eventservice.esPayload import ESPayload
-
 from raythena.actors.payloads.eventservice.pilothttp import PilotHttpPayload
-
+from raythena.utils.config import Config
+from raythena.utils.eventservice import (
+    EventRange,
+    EventRangeRequest,
+    EventRangeUpdate,
+    Messages,
+    PandaJob,
+)
+from raythena.utils.exception import (
+    BaseRaythenaException,
+    IllegalWorkerState,
+    StageInFailed,
+    StageOutFailed,
+    WrappedException,
+)
+from raythena.utils.logging import (
+    disable_stdout_logging,
+    log_to_file,
+    make_logger,
+)
+from raythena.utils.ray import get_node_ip
 
 # Type returned by the worker methods to the driver
 WorkerResponse = Tuple[str, int, Any]
 
 
 @ray.remote(num_cpus=1, max_restarts=1, max_task_retries=3)
-class ESWorker(object):
+class ESWorker:
     """
     Actor running on HPC compute node. Each actor will start a payload plugin which handle the job processing as well
     as the communication with the job processing framework, Athena or any intermediary layer such as pilot 2.

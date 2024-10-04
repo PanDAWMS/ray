@@ -1,7 +1,14 @@
 import json
 import os
-
-from typing import Set, Union, Dict, List, Mapping, Iterable, Any, Optional, Sequence, MutableMapping
+from collections.abc import Iterable, Mapping, MutableMapping, Sequence
+from typing import (
+    Any,
+    Dict,
+    List,
+    Optional,
+    Set,
+    Union,
+)
 
 # Types aliases
 Builtin = Union[int, float, str]
@@ -25,7 +32,7 @@ EventRangeRequestDef = Mapping[str, Mapping[str, Builtin]]
 
 
 # Messages sent by ray actor to the driver
-class Messages(object):
+class Messages:
     """
     Defines messages exchanged between ray actors and the driver
     """
@@ -79,7 +86,7 @@ class ESEncoder(json.JSONEncoder):
         return super().default(o)
 
 
-class PandaJobQueue(object):
+class PandaJobQueue:
     """
     Build from the reply to a job request. Harvester will provide the following JSON as a reply:
     Provides utility methods to manage the job queue such as retrieving a spcific job, assigning jobs to workers.
@@ -314,7 +321,7 @@ class RandomDeleteStack:
         return obj
 
 
-class EventRangeQueue(object):
+class EventRangeQueue:
     """
     Each PandaJob has an eventRangeQueue that should be filled from a reply to an event ranges request:
 
@@ -424,7 +431,7 @@ class EventRangeQueue(object):
         n_ranges = min(self.nranges_available(), n_ranges)
         if not n_ranges:
             return list()
-        res: List[Optional['EventRange']] = [None] * n_ranges
+        res: List[Optional[EventRange]] = [None] * n_ranges
         res_idx = 0
         ready = self.rangesID_by_state[EventRange.READY]
         assigned = self.rangesID_by_state[EventRange.ASSIGNED]
@@ -574,7 +581,7 @@ class EventRangeQueue(object):
         return self.assign_ready_ranges(n_ranges=nranges)
 
 
-class PandaJobUpdate(object):
+class PandaJobUpdate:
     """
     Wrapper for jobUpdate
 
@@ -608,7 +615,7 @@ class PandaJobUpdate(object):
         return self.__dict__
 
 
-class EventRangeUpdate(object):
+class EventRangeUpdate:
     """
     Event ranges update sent by pilot 2 using JSON schema:
     [
@@ -787,7 +794,7 @@ class EventRangeUpdate(object):
         return EventRangeUpdate(update_dict)
 
 
-class PandaJobRequest(object):
+class PandaJobRequest:
     """
     Wrapper for a job request.
     Pilot2 requests job using the following JSON schema:
@@ -836,7 +843,7 @@ class PandaJobRequest(object):
         return self.__dict__
 
 
-class EventRangeRequest(object):
+class EventRangeRequest:
     """
     Send event request to harvester. Event ranges for multiple jobs can be requested in a singled request.
     Harvester expects the following JSON schema:
@@ -902,7 +909,7 @@ class EventRangeRequest(object):
         return request
 
 
-class PandaJob(object):
+class PandaJob:
     """
     Wrapper for a panda jobspec. Usually contains the following fields:
     {
@@ -1039,7 +1046,7 @@ class PandaJob(object):
         return k in self.job
 
 
-class EventRange(object):
+class EventRange:
     """
     Hold an event range:
     {
@@ -1171,7 +1178,7 @@ class EventRange(object):
             event_ranges_dict['GUID'], event_ranges_dict['scope'])
 
 
-class JobReport(object):
+class JobReport:
     """
     Wrapper for a job report.
     Raythena creates a job report after the job has finished:

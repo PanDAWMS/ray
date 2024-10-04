@@ -1,10 +1,9 @@
 #!/usr/bin/env python
-from __future__ import print_function
 
-from array import array
 import argparse
 import json
 import os.path as path
+from array import array
 
 import ROOT
 
@@ -23,7 +22,7 @@ def get_event_numbers(filename):
 
 
 def validate_job(job_dir, job_state_file):
-    with open(job_state_file, 'r') as f:
+    with open(job_state_file) as f:
         job_state = json.load(f)
     merged_input_files = job_state["merged"]
     merged_output_files = set([list(x.keys())[0] for x in merged_input_files.values()])

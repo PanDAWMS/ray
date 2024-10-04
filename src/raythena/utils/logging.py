@@ -29,7 +29,7 @@ def disable_stdout_logging():
 
 
 def get_fmt(log_level):
-    if logging.DEBUG == logging.getLevelName(log_level):
+    if logging.getLevelName(log_level) == logging.DEBUG:
         fmt = "{asctime} | {levelname:8} | {name}:{funcName} | {message}"
     else:
         fmt = "{asctime} | {levelname:8} | {name} | {message}"

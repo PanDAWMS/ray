@@ -2,7 +2,7 @@ import json
 import os
 import time
 
-from raythena.utils.eventservice import PandaJobRequest, EventRangeRequest
+from raythena.utils.eventservice import EventRangeRequest, PandaJobRequest
 
 
 class TestHarvesterFileMessenger:
@@ -47,7 +47,7 @@ class TestHarvesterFileMessenger:
         assert ref_thread == harvester_file_communicator.communicator_thread
         harvester_file_communicator.stop()
         assert not harvester_file_communicator.communicator_thread.is_alive()
-        assert not ref_thread == harvester_file_communicator.communicator_thread
+        assert ref_thread != harvester_file_communicator.communicator_thread
         harvester_file_communicator.start()
         ref_thread = harvester_file_communicator.communicator_thread
         assert harvester_file_communicator.communicator_thread.is_alive()
@@ -70,7 +70,7 @@ class TestHarvesterFileMessenger:
             time.sleep(0.01)
 
         ranges_res = {}
-        with open(harvester_file_communicator.eventrequestfile, 'r') as f:
+        with open(harvester_file_communicator.eventrequestfile) as f:
             communicator_request = json.load(f)
             for pandaIDSent, pandaIDCom in zip(evnt_request,
                                                communicator_request):
