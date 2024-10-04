@@ -1,0 +1,66 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "raythena"
+dynamic = ["version"]
+readme = "README.md"
+license = {file = "LICENSE"}
+authors = [
+    { name = "Julien Esseiva", email = "jesseiva@lbl.gov" },
+]
+requires-python = ">=3.9"
+dependencies = [
+    "aiohttp",
+    "click",
+    "protobuf",
+    "psutil",
+    "ray",
+    "setproctitle",
+    "uvloop",
+]
+
+[project.scripts]
+raythena = "raythena.scripts.raythena:main"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/raythena/_version.py"
+
+[tool.hatch.envs.test]
+dependencies = [
+    "pytest"
+]
+
+[tool.hatch.build.targets.wheel.shared-scripts]
+"bin/ray_start_head" = "ray_start_head"
+"bin/ray_start_worker" = "ray_start_worker"
+"bin/ray_sync" = "ray_sync"
+
+[tool.hatch.build.targets.wheel.shared-data]
+"conf/cori.yaml" = "conf/cori.yaml"
+
+[tool.ruff]
+
+line-length = 80
+indent-width = 4
+
+[tool.ruff.lint]
+
+select = [
+  # pycodestyle
+  "E",
+  # Pyflakes
+  "F",
+  # pyupgrade
+  "UP",
+  # flake8-bugbear
+  "B",
+  # flake8-simplify
+  "SIM",
+  # isort
+  "I"
+]

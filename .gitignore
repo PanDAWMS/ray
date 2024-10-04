@@ -5,3 +5,5 @@ core
 .vscode
 .idea
 build
+dist
+src/raythena/_version.py
