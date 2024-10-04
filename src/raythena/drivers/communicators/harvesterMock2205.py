@@ -116,15 +116,13 @@ class HarvesterMock2205(HarvesterMock):
                         "--geometryVersion default:ATLAS-R2-2016-01-00-01_VALIDATION "
                         "--physicsList FTFP_BERT_ATL_VALIDATION --randomSeed 1234 "
                         "--conditionsTag default:OFLCOND-MC16-SDR-14 "
-                        "--maxEvents=-1 --inputEvgenFile %s --outputHitsFile HITS_%s.pool.root"
-                        % (self.inFiles, job_name)
+                        f"--maxEvents=-1 --inputEvgenFile {self.inFiles} --outputHitsFile HITS_{job_name}.pool.root"
                     ),
                     "attemptNr": 0,
                     "swRelease": "Atlas-22.0.5",
                     "nucleus": "NULL",
                     "maxCpuCount": 0,
-                    "outFiles": "HITS_%s.pool.root,%s.job.log.tgz"
-                    % (job_name, job_name),
+                    "outFiles": f"HITS_{job_name}.pool.root,{job_name}.job.log.tgz",
                     "currentPriority": 1000,
                     "scopeIn": self.scope,
                     "PandaID": self.pandaID,
@@ -135,7 +133,7 @@ class HarvesterMock2205(HarvesterMock):
                     "jobName": job_name,
                     "ddmEndPointIn": "UTA_SWT2_DATADISK",
                     "taskID": self.taskId,
-                    "logFile": "%s.job.log.tgz" % job_name,
+                    "logFile": f"{job_name}.job.log.tgz",
                 }
             }
         )

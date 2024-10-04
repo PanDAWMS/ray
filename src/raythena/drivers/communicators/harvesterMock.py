@@ -242,15 +242,13 @@ class HarvesterMock(BaseCommunicator):
                         "SimulationJobOptions/preInclude.BeamPipeKill.py "
                         "--geometryVersion ATLAS-R2-2016-01-00-00_VALIDATION --physicsList QGSP_BERT "
                         "--randomSeed 1234 --conditionsTag OFLCOND-MC12-SIM-00 "
-                        "--maxEvents=-1 --inputEvgenFile %s --outputHitsFile HITS_%s.pool.root"
-                        % (self.inFiles, job_name)
+                        f"--maxEvents=-1 --inputEvgenFile {self.inFiles} --outputHitsFile HITS_{job_name}.pool.root"
                     ),
                     "attemptNr": 0,
                     "swRelease": "Atlas-21.0.15",
                     "nucleus": "NULL",
                     "maxCpuCount": 0,
-                    "outFiles": "HITS_%s.pool.root,%s.job.log.tgz"
-                    % (job_name, job_name),
+                    "outFiles": f"HITS_{job_name}.pool.root,{job_name}.job.log.tgz",
                     "currentPriority": 1000,
                     "scopeIn": self.scope,
                     "PandaID": self.pandaID,
@@ -261,7 +259,7 @@ class HarvesterMock(BaseCommunicator):
                     "jobName": job_name,
                     "ddmEndPointIn": "UTA_SWT2_DATADISK",
                     "taskID": self.taskId,
-                    "logFile": "%s.job.log.tgz" % job_name,
+                    "logFile": f"{job_name}.job.log.tgz",
                 }
             }
         )

@@ -194,8 +194,8 @@ class ESWorker:
                         f"Failed to copy ray logs to actor directory: {e}"
                     )
             if time_elapsed > self.time_limit - self.pilot_kill_time:
-                killsignal = open(self.pilot_kill_file, "w")
-                killsignal.close()
+                with open(self.pilot_kill_file, "w") as f:
+                    f.write("KILL")
                 self._logger.info("killsignal sent to payload")
                 break
             else:
@@ -297,23 +297,21 @@ class ESWorker:
             self.payload_actor_process_dir, "ray_logs"
         )
         try:
-            time_limit_monitor = open(
-                os.path.join(self.workdir, self.time_monitor_file)
-            )
-            start_time = time_limit_monitor.readline().split(":")
-            self.start_time = (
-                int(start_time[0]) * 3600
-                + int(start_time[1]) * 60
-                + int(start_time[2])
-            )
-            time_limit = time_limit_monitor.readline().split(":")
-            if len(time_limit) < 3:
-                time_limit = ["0"] + time_limit
-            self.time_limit = (
-                int(time_limit[0]) * 3600
-                + int(time_limit[1]) * 60
-                + int(time_limit[2])
-            )
+            with open(os.path.join(self.workdir, self.time_monitor_file)) as time_limit_monitor:
+                start_time = time_limit_monitor.readline().split(":")
+                self.start_time = (
+                    int(start_time[0]) * 3600
+                    + int(start_time[1]) * 60
+                    + int(start_time[2])
+                )
+                time_limit = time_limit_monitor.readline().split(":")
+                if len(time_limit) < 3:
+                    time_limit = ["0"] + time_limit
+                self.time_limit = (
+                    int(time_limit[0]) * 3600
+                    + int(time_limit[1]) * 60
+                    + int(time_limit[2])
+                )
             timer_thread = threading.Thread(
                 name="timer", target=self.check_time, daemon=True
             )
@@ -341,7 +339,7 @@ class ESWorker:
                 os.mkdir(self.payload_actor_output_dir)
         except Exception as e:
             self._logger.warning(f"Exception when creating dir: {e}")
-            raise StageInFailed(self.id)
+            raise StageInFailed(self.id) from e
         # self.cpu_monitor = CPUMonitor(os.path.join(self.payload_actor_process_dir, "cpu_monitor.json"))
         # self.cpu_monitor.start()
         try:
@@ -349,7 +347,7 @@ class ESWorker:
             self.payload.start(self.modify_job(self.job))
         except Exception as e:
             self._logger.warning(f"Failed to stagein payload: {e}")
-            raise StageInFailed(self.id)
+            raise StageInFailed(self.id) from e
         self.transition_state(
             ESWorker.READY_FOR_EVENTS
             if self.is_event_service_job()
@@ -426,7 +424,7 @@ class ESWorker:
             except BaseRaythenaException:
                 raise
             except Exception as e:
-                raise WrappedException(self.id, e)
+                raise WrappedException(self.id, e) from e
         else:
             self.transition_state(ESWorker.DONE)
             self._logger.error("Could not fetch job. Set state to done.")
@@ -581,7 +579,7 @@ class ESWorker:
                         self._logger.error(
                             f"Failed to move file {cfile} to {dst}: errno {e.errno}: {e.strerror}"
                         )
-                        raise StageOutFailed(self.id)
+                        raise StageOutFailed(self.id) from e
                     range_update[cfile_key] = dst
                 else:
                     self._logger.warning(
@@ -669,4 +667,4 @@ class ESWorker:
         except BaseRaythenaException:
             raise
         except Exception as e:
-            raise WrappedException(self.id, e)
+            raise WrappedException(self.id, e) from e

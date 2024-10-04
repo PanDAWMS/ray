@@ -482,7 +482,7 @@ class PilotHttpPayload(ESPayload):
         else:
             n_ranges = int(body["nRanges"][0])
             if not self.no_more_ranges:
-                for i in range(n_ranges):
+                for _ in range(n_ranges):
                     crange = await self.ranges_queue.get()
                     if crange is None:
                         self.no_more_ranges = True
