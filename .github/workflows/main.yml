@@ -31,6 +31,7 @@ jobs:
         uses: pypa/hatch@a3c83ab3d481fbc2dc91dd0088628817488dd1d5
       - name: Linting
         run: |
+          pip install ruff
           ruff check
       - name: Run tests
         run: |
