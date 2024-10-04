@@ -1,6 +1,5 @@
 import hashlib
 import time
-
 import pytest
 from raythena.utils.config import Config
 from raythena.utils.ray import setup_ray, shutdown_ray

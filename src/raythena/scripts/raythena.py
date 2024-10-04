@@ -3,9 +3,7 @@ import functools
 import signal
 import traceback
 import types
-
 import click
-
 from raythena.drivers.baseDriver import BaseDriver
 from raythena.drivers.esdriver import ESDriver
 from raythena.utils.config import Config

@@ -9,9 +9,7 @@ from collections.abc import Mapping, Sequence
 from socket import gethostname
 from time import sleep
 from typing import Any, Optional, Union
-
 import ray
-
 # from raythena.utils.timing import CPUMonitor
 from raythena.actors.payloads.basePayload import BasePayload
 from raythena.actors.payloads.eventservice.esPayload import ESPayload

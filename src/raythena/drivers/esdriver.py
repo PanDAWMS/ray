@@ -16,11 +16,9 @@ from typing import (
     Any,
     Optional,
 )
-
 import ray
 from ray.exceptions import RayActorError
 from ray.types import ObjectRef
-
 from raythena import __version__
 from raythena.actors.esworker import ESWorker, WorkerResponse
 from raythena.drivers.baseDriver import BaseDriver

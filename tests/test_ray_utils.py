@@ -1,5 +1,4 @@
 import socket
-
 import pytest
 from raythena.utils.ray import (
     build_nodes_resource_list,

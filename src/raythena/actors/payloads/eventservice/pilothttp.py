@@ -9,10 +9,8 @@ from collections.abc import Iterable, Mapping
 from subprocess import DEVNULL, Popen
 from typing import Callable, Optional
 from urllib.parse import parse_qs
-
 import uvloop
 from aiohttp import web
-
 from raythena.actors.payloads.eventservice.esPayload import ESPayload
 from raythena.utils.config import Config
 from raythena.utils.eventservice import ESEncoder, EventRange, PandaJob

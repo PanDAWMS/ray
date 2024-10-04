@@ -11,7 +11,6 @@ from typing import (
     Optional,
     Union,
 )
-
 from raythena.utils.config import Config
 from raythena.utils.eventservice import (
     EventRange,

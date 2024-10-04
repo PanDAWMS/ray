@@ -2,7 +2,6 @@ from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 from queue import Queue
 from typing import Union
-
 from raythena.utils.config import Config
 from raythena.utils.eventservice import (
     EventRangeDef,

@@ -1,6 +1,5 @@
 import os
 import queue
-
 import pytest
 from raythena.drivers.communicators.harvesterFileMessenger import (
     HarvesterFileCommunicator,

@@ -4,7 +4,6 @@ import argparse
 import json
 import os.path as path
 from array import array
-
 import ROOT
 
 

@@ -1,8 +1,6 @@
 from collections.abc import Mapping
 from typing import Any
-
 import ray
-
 from raythena.utils.config import Config
 
 

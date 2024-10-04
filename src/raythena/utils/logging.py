@@ -1,7 +1,6 @@
 import logging
 import sys
 from time import gmtime
-
 from raythena.utils.config import Config
 
 _initialized = False

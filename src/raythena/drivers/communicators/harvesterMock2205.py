@@ -3,7 +3,6 @@ import os
 import random
 import time
 from queue import Queue
-
 from raythena.drivers.communicators.harvesterMock import HarvesterMock
 from raythena.utils.config import Config
 from raythena.utils.eventservice import PandaJobRequest

@@ -1,6 +1,5 @@
 import os
 import time
-
 import pytest
 import requests
 from raythena.actors.payloads.eventservice.pilothttp import PilotHttpPayload

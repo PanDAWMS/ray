@@ -5,7 +5,6 @@ import os
 import shutil
 import time
 from queue import Queue
-
 from raythena.drivers.communicators.baseCommunicator import BaseCommunicator
 from raythena.utils.config import Config
 from raythena.utils.eventservice import (

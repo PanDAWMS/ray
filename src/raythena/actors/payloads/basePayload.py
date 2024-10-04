@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 from typing import Any, Optional
-
 from raythena.utils.config import Config
 from raythena.utils.eventservice import PandaJob
 

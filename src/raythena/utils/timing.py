@@ -2,9 +2,7 @@ import json
 import time
 from threading import Event
 from typing import Any, Union
-
 import psutil
-
 from raythena.utils.exception import ExThread
 
 

@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-
 from raythena.utils.config import Config
 
 
