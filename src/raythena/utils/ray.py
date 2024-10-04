@@ -1,5 +1,5 @@
 from collections.abc import Mapping
-from typing import Any, List
+from typing import Any, list
 
 import ray
 
@@ -8,7 +8,7 @@ from raythena.utils.config import Config
 
 def build_nodes_resource_list(
     config: Config, run_actor_on_head: bool = False
-) -> List[Mapping[str, Any]]:
+) -> list[Mapping[str, Any]]:
     """
     Build and setup ray custom resources.
     Actors should then be instantiated by requiring one of the resource in the returned list.
@@ -72,9 +72,7 @@ def setup_ray(config: Config) -> Any:
     Returns:
         dict of cluster params
     """
-    log_to_driver = (
-        True if not config.logging.get("workerlogfile", None) else False
-    )
+    log_to_driver = bool(not config.logging.get("workerlogfile", None))
     if is_external_cluster(config):
         ray_url = f"{config.ray['headip']}:{config.ray['redisport']}"
         return ray.init(

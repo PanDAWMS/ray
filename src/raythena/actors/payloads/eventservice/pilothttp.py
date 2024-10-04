@@ -7,7 +7,7 @@ import stat
 from asyncio import Event, Queue, QueueEmpty
 from collections.abc import Iterable, Mapping
 from subprocess import DEVNULL, Popen
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Optional, dict, list
 from urllib.parse import parse_qs
 
 import uvloop
@@ -367,7 +367,7 @@ class PilotHttpPayload(ESPayload):
         Checks if event ranges update are available by polling the event ranges update queue
 
         Returns:
-            Dict holding event range update of processed events, None if no update is available
+            dict holding event range update of processed events, None if no update is available
         """
         try:
             res = self.ranges_update.get_nowait()
@@ -410,7 +410,7 @@ class PilotHttpPayload(ESPayload):
             )
 
     @staticmethod
-    async def parse_qs_body(request: web.BaseRequest) -> Dict[str, List[str]]:
+    async def parse_qs_body(request: web.BaseRequest) -> dict[str, list[str]]:
         """
         Parses the query-string request body to a dictionary
 

@@ -3,17 +3,17 @@ import json
 import os
 import threading
 import time
+from collections import deque
 from collections.abc import Mapping, Sequence
 from functools import reduce
 from typing import (
     Any,
-    Deque,
-    Dict,
-    List,
     Optional,
-    Set,
-    Tuple,
     Union,
+    dict,
+    list,
+    set,
+    tuple,
 )
 
 from raythena.utils.config import Config
@@ -77,11 +77,11 @@ class TaskStatus:
         self._n_output_per_input_file = max(
             1, self._events_per_file // self._hits_per_file
         )
-        self._status: Dict[
+        self._status: dict[
             str,
-            Union[Dict[str, Dict[str, Dict[str, str]]], Dict[str, List[str]]],
+            Union[dict[str, dict[str, dict[str, str]]], dict[str, list[str]]],
         ] = dict()
-        self._update_queue: Deque[Tuple[str, Union[EventRange, Tuple]]] = (
+        self._update_queue: deque[tuple[str, Union[EventRange, tuple]]] = (
             collections.deque()
         )
         self._restore_status()
@@ -170,7 +170,7 @@ class TaskStatus:
     @staticmethod
     def build_eventrange_dict(
         eventrange: EventRange, output_file: str = None
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Takes an EventRange object and retuns the dict representation which should be saved in the state file
 
@@ -222,7 +222,7 @@ class TaskStatus:
 
     def set_file_merged(
         self,
-        input_files: List[str],
+        input_files: list[str],
         outputfile: str,
         event_ranges: Mapping[str, Mapping[str, str]],
         guid: Optional[str],
@@ -241,7 +241,7 @@ class TaskStatus:
 
     def _set_file_merged(
         self,
-        input_files: List[str],
+        input_files: list[str],
         outputfile: str,
         event_ranges: Mapping[str, Mapping[str, str]],
         guid: Optional[str],
@@ -420,28 +420,28 @@ class BookKeeper:
         self.merged_files_dir = ""
         self.commitlog = ""
         self._logger = make_logger(self.config, "BookKeeper")
-        self.actors: Dict[str, Optional[str]] = dict()
-        self.rangesID_by_actor: Dict[str, Set[str]] = dict()
+        self.actors: dict[str, Optional[str]] = dict()
+        self.rangesID_by_actor: dict[str, set[str]] = dict()
         #  Output files for which we are ready to launch a merge transform
-        self.files_ready_to_merge: Dict[str, List[Tuple[str, EventRange]]] = (
+        self.files_ready_to_merge: dict[str, list[tuple[str, EventRange]]] = (
             dict()
         )
         # Event ranges for a given input file which have been simulated and a ready to be merged
-        self.ranges_to_merge: Dict[str, List[Tuple[str, EventRange]]] = dict()
+        self.ranges_to_merge: dict[str, list[tuple[str, EventRange]]] = dict()
         # Accumulate event ranges of different input files into the same output file until we have enough to produce a merged file
         # Only used when multiple input files are merged in a single output (n-1) to pool input files together
-        self.output_merge_queue: Dict[str, List[Tuple[str, EventRange]]] = (
+        self.output_merge_queue: dict[str, list[tuple[str, EventRange]]] = (
             dict()
         )
         # Keep tracks of merge job definition that have been distributed to the driver for which we expect an update
-        self.ditributed_merge_tasks: Dict[str, List[Tuple[str, EventRange]]] = (
+        self.ditributed_merge_tasks: dict[str, list[tuple[str, EventRange]]] = (
             dict()
         )
-        self.files_guids: Dict[str, str] = dict()
+        self.files_guids: dict[str, str] = dict()
         self.last_status_print = time.time()
-        self.taskstatus: Dict[str, TaskStatus] = dict()
-        self._input_output_mapping: Dict[str, List[str]] = dict()
-        self._output_input_mapping: Dict[str, List[str]] = dict()
+        self.taskstatus: dict[str, TaskStatus] = dict()
+        self._input_output_mapping: dict[str, list[str]] = dict()
+        self._output_input_mapping: dict[str, list[str]] = dict()
         self.stop_saver = threading.Event()
         self.stop_cleaner = threading.Event()
         self.save_state_thread = ExThread(
@@ -627,7 +627,7 @@ class BookKeeper:
     def generate_event_range_id(file: str, n: str):
         return f"{file}-{n}"
 
-    def remap_output_files(self, panda_id: str) -> Dict[str, str]:
+    def remap_output_files(self, panda_id: str) -> dict[str, str]:
         """
         Translate an existing output file to an output filename matching the current job definition.
         """
@@ -636,7 +636,7 @@ class BookKeeper:
         if task_status.is_stale():
             task_status.save_status()
         merged_files = task_status._status[TaskStatus.MERGED]
-        previous_to_current_output_lookup: Dict[str, str] = dict()
+        previous_to_current_output_lookup: dict[str, str] = dict()
 
         with open(self.commitlog, "a") as f:
             for input_file, output_files in self._input_output_mapping.items():
@@ -794,7 +794,7 @@ class BookKeeper:
         Assign event ranges to the jobs in queue.
 
         Args:
-            event_ranges: List of event ranges dict as returned by harvester
+            event_ranges: list of event ranges dict as returned by harvester
 
         Returns:
             None
@@ -851,7 +851,7 @@ class BookKeeper:
             self.actors[actor_id] = job_id
         return self.jobs[job_id] if job_id else None
 
-    def fetch_event_ranges(self, actor_id: str, n: int) -> List[EventRange]:
+    def fetch_event_ranges(self, actor_id: str, n: int) -> list[EventRange]:
         """
         Retrieve event ranges for an actor. The specified actor should have a job assigned from assign_job_to_actor() or an empty list will be returned.
         If the job assigned to the actor doesn't have enough range currently available, it will assign all of its remaining anges
@@ -878,7 +878,7 @@ class BookKeeper:
 
     def get_file_to_merge(
         self,
-    ) -> Optional[Tuple[str, List[Tuple[str, EventRange]]]]:
+    ) -> Optional[tuple[str, list[tuple[str, EventRange]]]]:
         """
         Returns a merge tasks available for an arbitrary input file if available, None otherwise.
         """

@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional
+from typing import Any, Optional, dict
 
 from raythena.utils.config import Config
 from raythena.utils.eventservice import PandaJob
@@ -88,7 +88,7 @@ class BasePayload(ABC):
         raise NotImplementedError("Base method not implemented")
 
     @abstractmethod
-    def fetch_job_update(self) -> Optional[Dict[str, Any]]:
+    def fetch_job_update(self) -> Optional[dict[str, Any]]:
         """
         Tries to get a job update from the payload
 

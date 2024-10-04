@@ -8,7 +8,7 @@ import time
 from collections.abc import Mapping, Sequence
 from socket import gethostname
 from time import sleep
-from typing import Any, Optional, Tuple, Union
+from typing import Any, Optional, Union, tuple
 
 import ray
 
@@ -39,7 +39,7 @@ from raythena.utils.logging import (
 from raythena.utils.ray import get_node_ip
 
 # Type returned by the worker methods to the driver
-WorkerResponse = Tuple[str, int, Any]
+WorkerResponse = tuple[str, int, Any]
 
 
 @ray.remote(num_cpus=1, max_restarts=1, max_task_retries=3)
@@ -497,7 +497,7 @@ class ESWorker:
             data: extra data attached to the message type
 
         Returns:
-            Tuple of (id, message, data)
+            tuple of (id, message, data)
         """
         return self.id, message, data
 
@@ -622,7 +622,7 @@ class ESWorker:
 
 
         Returns:
-            Tuple depending on the current worker state, informing the driver about what information should be sent
+            tuple depending on the current worker state, informing the driver about what information should be sent
             to the worker or if the worker produced output data.
         """
         try:

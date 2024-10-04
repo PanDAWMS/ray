@@ -34,8 +34,8 @@ from raythena.utils.ray import setup_ray, shutdown_ray
 )
 def cli(*args, **kwargs):
     """
-    Starts the application by initializing the config object, connecting or starting the ray cluster, loading the driver
-    and starting it.
+    Starts the application by initializing the config object,
+    connecting or starting the ray cluster, loading the driverand starting it.
 
     Returns:
         None

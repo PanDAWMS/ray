@@ -1,7 +1,7 @@
 import json
 import time
 from threading import Event
-from typing import Any, Dict, List, Union
+from typing import Any, Union, dict, list
 
 import psutil
 
@@ -49,7 +49,7 @@ class CPUMonitor:
             self.stop_event = Event()
 
     def _log_to_file(
-        self, data: Dict[str, Union[Dict[str, List], List, int]]
+        self, data: dict[str, Union[dict[str, list], list, int]]
     ) -> None:
         """
         Write data to log file

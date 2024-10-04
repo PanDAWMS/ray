@@ -14,10 +14,10 @@ from socket import gethostname
 from subprocess import DEVNULL, Popen
 from typing import (
     Any,
-    Dict,
-    List,
     Optional,
-    Tuple,
+    dict,
+    list,
+    tuple,
 )
 
 import ray
@@ -122,8 +122,8 @@ class ESDriver(BaseDriver):
         )
         self.communicator.start()
         self.requests_queue.put(PandaJobRequest())
-        self.actors: Dict[str, ESWorker] = dict()
-        self.pending_objectref_to_actor: Dict[ObjectRef, str] = dict()
+        self.actors: dict[str, ESWorker] = dict()
+        self.pending_objectref_to_actor: dict[ObjectRef, str] = dict()
         self.actors_message_queue = list()
         self.bookKeeper = BookKeeper(self.config)
         self.terminated = list()
@@ -190,8 +190,8 @@ class ESDriver(BaseDriver):
                         )
 
         # {input_filename, {merged_output_filename, ([(event_range_id, EventRange)], subprocess handle)}}
-        self.running_merge_transforms: Dict[
-            str, Tuple[List[Tuple[str, EventRange]], Popen, str]
+        self.running_merge_transforms: dict[
+            str, tuple[list[tuple[str, EventRange]], Popen, str]
         ] = dict()
         self.total_running_merge_transforms = 0
         self.failed_actor_tasks_count = dict()
@@ -344,7 +344,7 @@ class ESDriver(BaseDriver):
             "Finished handling the Actors. Raythena will shutdown now."
         )
 
-    def wait_on_messages(self) -> Tuple[List[ObjectRef], List[ObjectRef]]:
+    def wait_on_messages(self) -> tuple[list[ObjectRef], list[ObjectRef]]:
         """
         Wait on part of the pending futures to complete. Wait for 1 second trying to fetch half of the pending futures.
         If no futures are ready, then wait another second to fetch a tenth of the pending futures.
@@ -352,7 +352,7 @@ class ESDriver(BaseDriver):
         events have finished processing yet, then wait forever until one future is ready instead of only timeout interval.
 
         Returns:
-            Tuple of a list of completed futures and a list of pending futures, respectively
+            tuple of a list of completed futures and a list of pending futures, respectively
         """
         if self.bookKeeper.have_finished_events():
             timeoutinterval = self.timeoutinterval
@@ -749,7 +749,7 @@ class ESDriver(BaseDriver):
         self.bookKeeper.print_status()
         self._logger.debug("All driver threads stopped. Quitting...")
 
-    def rename_output_files(self, output_map: Dict[str, str]):
+    def rename_output_files(self, output_map: dict[str, str]):
         """
         Rename final output files
         """
@@ -771,7 +771,7 @@ class ESDriver(BaseDriver):
                 os.path.join(self.merged_files_dir, new_filename),
             )
 
-    def produce_final_report(self, output_map: Dict[str, str]):
+    def produce_final_report(self, output_map: dict[str, str]):
         """
         Merge job reports from individual merge transforms to produce the final jobReport for Panda.
         """
@@ -977,7 +977,7 @@ class ESDriver(BaseDriver):
 
     def hits_merge_transform(
         self, input_files: Iterable[str], output_file: str
-    ) -> Tuple[Popen, str]:
+    ) -> tuple[Popen, str]:
         """
         Prepare the shell command for the merging subprocess and starts it.
 

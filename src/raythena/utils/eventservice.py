@@ -3,16 +3,16 @@ import os
 from collections.abc import Iterable, Mapping, MutableMapping, Sequence
 from typing import (
     Any,
-    Dict,
-    List,
     Optional,
-    Set,
     Union,
+    dict,
+    list,
+    set,
 )
 
 # Types aliases
 Builtin = Union[int, float, str]
-JobDef = Dict[str, Builtin]
+JobDef = dict[str, Builtin]
 EventRangeDef = MutableMapping[str, Builtin]
 FileInfo = Mapping[str, Builtin]
 PilotEventRangeUpdateDef = Mapping[
@@ -99,7 +99,7 @@ class PandaJobQueue:
     """
 
     def __init__(self, jobs: Mapping[str, JobDef] = None) -> None:
-        self.jobs: Dict[str, PandaJob] = dict()
+        self.jobs: dict[str, PandaJob] = dict()
         self.distributed_jobs_ids = list()
 
         if jobs:
@@ -348,11 +348,11 @@ class EventRangeQueue:
         """
         Init the queue
         """
-        self.event_ranges_by_id: Dict[str, EventRange] = dict()
-        self.rangesID_by_state: Dict[str, Set[str]] = dict()
+        self.event_ranges_by_id: dict[str, EventRange] = dict()
+        self.rangesID_by_state: dict[str, set[str]] = dict()
         # only holds event ranges that are ready
-        self.rangesID_by_file: Dict[str, Set[str]] = dict()
-        self.event_ranges_count: Dict[str, int] = dict()
+        self.rangesID_by_file: dict[str, set[str]] = dict()
+        self.event_ranges_count: dict[str, int] = dict()
         for s in EventRange.STATES:
             self.event_ranges_count[s] = 0
             self.rangesID_by_state[s] = set()
@@ -437,11 +437,11 @@ class EventRangeQueue:
         # rangesID_by_file only hold ids of ranges that are ready to be assigned
         return event_range
 
-    def assign_ready_ranges(self, n_ranges=1) -> List["EventRange"]:
+    def assign_ready_ranges(self, n_ranges=1) -> list["EventRange"]:
         n_ranges = min(self.nranges_available(), n_ranges)
         if not n_ranges:
             return list()
-        res: List[Optional[EventRange]] = [None] * n_ranges
+        res: list[Optional[EventRange]] = [None] * n_ranges
         res_idx = 0
         ready = self.rangesID_by_state[EventRange.READY]
         assigned = self.rangesID_by_state[EventRange.ASSIGNED]
@@ -581,7 +581,7 @@ class EventRangeQueue:
         for r in ranges:
             self.append(r)
 
-    def get_next_ranges(self, nranges: int) -> List["EventRange"]:
+    def get_next_ranges(self, nranges: int) -> list["EventRange"]:
         """
         Dequeue event ranges. Event ranges which were dequeued are updated to the 'ASSIGNED' status
         and should be assigned to workers to be processed. In case more ranges are requested
@@ -626,7 +626,7 @@ class PandaJobUpdate:
     def __str__(self) -> str:
         return str(self.__dict__)
 
-    def to_dict(self) -> Dict[str, Builtin]:
+    def to_dict(self) -> dict[str, Builtin]:
         return self.__dict__
 
 
@@ -703,8 +703,8 @@ class EventRangeUpdate:
 
     def __init__(
         self,
-        range_update: Dict[
-            str, List[MutableMapping[str, Union[str, int]]]
+        range_update: dict[
+            str, list[MutableMapping[str, Union[str, int]]]
         ] = None,
     ) -> None:
         """
@@ -714,12 +714,12 @@ class EventRangeUpdate:
             range_update: range update
         """
         if not range_update:
-            self.range_update: Dict[str, HarvesterEventRangeUpdateDef] = dict()
+            self.range_update: dict[str, HarvesterEventRangeUpdateDef] = dict()
         else:
             for v in range_update.values():
                 if not isinstance(v, list):
                     raise Exception(f"Expecting type list for element {v}")
-            self.range_update: Dict[str, HarvesterEventRangeUpdateDef] = (
+            self.range_update: dict[str, HarvesterEventRangeUpdateDef] = (
                 range_update
             )
 
@@ -870,7 +870,7 @@ class PandaJobRequest:
     def __str__(self) -> str:
         return str(self.__dict__)
 
-    def to_dict(self) -> Dict[str, Builtin]:
+    def to_dict(self) -> dict[str, Builtin]:
         return self.__dict__
 
 
@@ -890,7 +890,7 @@ class EventRangeRequest:
     """
 
     def __init__(self) -> None:
-        self.request: Dict[str, Dict[str, Builtin]] = dict()
+        self.request: dict[str, dict[str, Builtin]] = dict()
 
     def __len__(self) -> int:
         return len(self.request)
@@ -898,7 +898,7 @@ class EventRangeRequest:
     def __iter__(self) -> Iterable[str]:
         return iter(self.request)
 
-    def __getitem__(self, k: str) -> Dict[str, Builtin]:
+    def __getitem__(self, k: str) -> dict[str, Builtin]:
         return self.request[k]
 
     def __str__(self) -> str:
@@ -928,7 +928,7 @@ class EventRangeRequest:
 
     @staticmethod
     def build_from_dict(
-        request_dict: Mapping[str, Dict[str, Builtin]],
+        request_dict: Mapping[str, dict[str, Builtin]],
     ) -> "EventRangeRequest":
         """
         Build a request object from a dict parsed from its json representation
@@ -987,7 +987,7 @@ class PandaJob:
         --athenaopts=--preloadlib=${ATLASMKLLIBDIR_PRELOAD}/libimf.so
         --preInclude sim:SimulationJobOptions/
         preInclude.FrozenShowersFCalOnly.py,SimulationJobOptions/preInclude.BeamPipeKill.py
-        --geometryVersion ATLAS-R2-2016-01-00-00_VALIDATION --physicsList QGSP_BERT --randomSeed 1234
+        --geometryVersion ATLAS-R2-2016-01-00-00_VALIDATION --physicslist QGSP_BERT --randomSeed 1234
         --conditionsTag OFLCOND-MC12-SIM-00 --maxEvents=-1 --inputEvgenFile EVNT.01469903._009502.pool.root.1
         --outputHitsFile HITS_%s.pool.root' % job_name,
         'attemptNr': 0,
@@ -1010,7 +1010,7 @@ class PandaJob:
     """
 
     def __init__(self, job_def: JobDef) -> None:
-        self.job: Dict[str, Builtin] = job_def
+        self.job: dict[str, Builtin] = job_def
         if "PandaID" in self:
             self["PandaID"] = str(self["PandaID"])
         self.event_ranges_queue: EventRangeQueue = EventRangeQueue()
@@ -1037,7 +1037,7 @@ class PandaJob:
         """
         return self.event_ranges_queue.nranges_available()
 
-    def get_next_ranges(self, nranges: int) -> List["EventRange"]:
+    def get_next_ranges(self, nranges: int) -> list["EventRange"]:
         """
         See Also:
             EventRangeQueue.get_next_ranges()
@@ -1139,7 +1139,7 @@ class EventRange:
 
     def set_assigned(self) -> None:
         """
-        Set current state to ASSIGNED
+        set current state to ASSIGNED
 
         Returns:
             None
@@ -1148,7 +1148,7 @@ class EventRange:
 
     def set_done(self) -> None:
         """
-        Set current state to DONE
+        set current state to DONE
 
         Returns:
             None
@@ -1157,7 +1157,7 @@ class EventRange:
 
     def set_failed(self) -> None:
         """
-        Set current state to FAILED
+        set current state to FAILED
 
         Returns:
             None
@@ -1245,5 +1245,5 @@ class JobReport:
     def __str__(self) -> str:
         return str(self.__dict__)
 
-    def to_dict(self) -> Dict[str, Builtin]:
+    def to_dict(self) -> dict[str, Builtin]:
         return self.__dict__
