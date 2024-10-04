@@ -228,7 +228,8 @@ class ESWorker:
             f"--inputEVNTFile={in_files} -",
             cmd,
         )
-        # convert args of the form --outputHITSFile=HITS.30737678._[011001,...].pool.root to --outputHITSFile=HITS.30737678._011001.pool.root
+        # convert args of the form --outputHITSFile=HITS.30737678._[011001,...].pool.root
+        # to --outputHITSFile=HITS.30737678._011001.pool.root
         match = re.findall(
             r"--outputHITSFile=([0-9A-Z._]+)\[([0-9,]+)\](.pool.root)", cmd
         )
@@ -275,7 +276,8 @@ class ESWorker:
         Postconditions:
             - The worker is in the READY_FOR_EVENTS state.
         Raises:
-            StageInFailed: If creating / moving to the work directory fails or the call to the payload stage-in raises an exception.
+            StageInFailed: If creating / moving to the work directory fails or the call to the payload
+            stage-in raises an exception.
         """
         self.payload_job_dir = os.path.join(self.workdir, self.job["PandaID"])
         if not os.path.isdir(self.payload_job_dir):

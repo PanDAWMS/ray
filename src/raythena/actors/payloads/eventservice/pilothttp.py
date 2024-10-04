@@ -196,12 +196,15 @@ class PilotHttpPayload(ESPayload):
             raise FailedPayload(self.worker_id)
 
         queue_escaped = shlex.quote(self.config.payload["pandaqueue"])
-        cmd += f"{shlex.quote(pilotwrapper_bin)} --localpy --piloturl local -q {queue_escaped} -r {queue_escaped} -s {queue_escaped} "
+        cmd += (f"{shlex.quote(pilotwrapper_bin)} --localpy --piloturl local "
+                f"-q {queue_escaped} -r {queue_escaped} -s {queue_escaped} "
+        )
 
         cmd += "--pilotversion 3 --pythonversion 3 "
 
         cmd += (
-            f"-i PR -j {prod_source_label} --container --mute --pilot-user=atlas -t -u --es-executor-type=raythena -v 1 "
+            f"-i PR -j {prod_source_label} --container --mute --pilot-user=atlas -t -u "
+            f"--es-executor-type=raythena -v 1 "
             f"-d --cleanup=False -w generic --use-https False --allow-same-user=False --resource-type MCORE "
             f"--hpc-resource {shlex.quote(self.config.payload['hpcresource'])};"
         )
@@ -377,8 +380,8 @@ class PilotHttpPayload(ESPayload):
     def should_request_more_ranges(self) -> bool:
         """
         Checks if the payload is ready to receive more event ranges. If false is returned, then the payload is
-        not expecting to have more ranges assigned to it by calling submit_new_ranges. If this method ever returns false,
-        then any future to it will return false as well.
+        not expecting to have more ranges assigned to it by calling submit_new_ranges.
+        If this method ever returns false, then any future to it will return false as well.
         Event ranges submitted after this method returns false will be ignored and never sent to the pilot process.
 
         Returns:

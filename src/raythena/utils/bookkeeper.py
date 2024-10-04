@@ -30,15 +30,19 @@ class TaskStatus:
     Utility class which manages the persistancy to file of the progress on a given Panda task.
 
     All operations (set_eventrange_simulated, set_eventrange_failed, set_file_merged) are lazy.
-    They will only enqueue a message which will only be processed just before writting the status to disk in save_status.
-    The reason for this design is that save_status and the update operations are supposed to be called by different threads and would
-    therefore add synchronization overhead and latency for the main driver thread responsible for polling actors. Having a single thread
-    updating and serializing the dictionary eliminate the need for synchronization however it also means that other thread reading the dictionary
-    (e.g. from get_nsimulated) will get out of date information as there will most likely be update pending in the queue at any point in time
+    They will only enqueue a message which will only be processed just before writting
+    the status to disk in save_status. The reason for this design is that save_status and the update
+    operations are supposed to be called by different threads and would therefore add synchronization overhead
+    and latency for the main driver thread responsible for polling actors. Having a single thread updating and
+    serializing the dictionary eliminate the need for synchronization, however it also means that other thread
+    reading the dictionary (e.g. from get_nsimulated) will get out of date information as there will most
+    likely be update pending in the queue at any point in time
 
     Keys set relation of each sub-dictionnary (simulated, merged, failed, merging):
-    - merged and merging key sets are disjoints -- when a file has been fully merged, its entry is removed from merging and moved into merged
-    - merged and simulated key sets are disjoints -- when a file has been fully merged, it is no longer necessary to keep track of individual event ranges;
+    - merged and merging key sets are disjoints -- when a file has been fully merged,
+      its entry is removed from merging and moved into merged
+    - merged and simulated key sets are disjoints -- when a file has been fully merged,
+      it is no longer necessary to keep track of individual event ranges;
       they are removed from simulated
     - merging is a subset of simulated -- it is possible for events from a given file to have been simulated
       but no merge job has completed for that specific file.
@@ -123,8 +127,9 @@ class TaskStatus:
 
     def save_status(self, write_to_tmp=True, force_update=False):
         """
-        Save the current status to a json file. Before saving to file, the update queue will be drained, actually carrying out the operations to the dictionary
-        that will be written to file.
+        Save the current status to a json file. Before saving to file,
+        the update queue will be drained, actually carrying out
+        the operations to the dictionary that will be written to file.
 
         Args:
             write_to_tmp: if true, the json data will be written to a temporary file then renamed to the final file
@@ -323,7 +328,8 @@ class TaskStatus:
         Total number of event ranges that have been simulated but not yet merged.
 
         Args:
-            filename: if none, returns the total number of simulated events. If specified, returns the number of events simulated for that specific file
+            filename: if none, returns the total number of simulated events.
+            If specified, returns the number of events simulated for that specific file
 
         Returns:
             the number of events simulated
@@ -357,7 +363,8 @@ class TaskStatus:
         Total number of event ranges that have failed.
 
         Args:
-            filename: if none, returns the total number of failed events. If specified, returns the number of events failed for that specific file
+            filename: if none, returns the total number of failed events.
+            If specified, returns the number of events failed for that specific file
 
         Returns:
             the number of events failed
@@ -423,7 +430,8 @@ class BookKeeper:
         )
         # Event ranges for a given input file which have been simulated and a ready to be merged
         self.ranges_to_merge: dict[str, list[tuple[str, EventRange]]] = dict()
-        # Accumulate event ranges of different input files into the same output file until we have enough to produce a merged file
+        # Accumulate event ranges of different input files into the same output file until
+        # we have enough to produce a merged file.
         # Only used when multiple input files are merged in a single output (n-1) to pool input files together
         self.output_merge_queue: dict[str, list[tuple[str, EventRange]]] = (
             dict()
@@ -489,8 +497,8 @@ class BookKeeper:
 
     def check_mergeable_files(self):
         """
-        Goes through the current task status, checks if a file has been entierly processed (event ranges all simulated or failed) and
-        if so adds the file to self.files_ready_to_merge
+        Goes through the current task status, checks if a file has been entierly processed
+        (event ranges all simulated or failed) and if so adds the file to self.files_ready_to_merge
         """
         if self._hits_per_file >= self._events_per_file:
             self._check_mergeable_files_n_1()
@@ -553,8 +561,9 @@ class BookKeeper:
 
     def add_jobs(self, jobs: Mapping[str, JobDef], start_threads=True) -> None:
         """
-        Register new jobs. Event service jobs will not be assigned to worker until event ranges are added to the job.
-        This will also automatically start the thread responsible for saving the task status to file if the parameter start_save_thread is True.
+        Register new jobs. Event service jobs will not be assigned to worker until
+        event ranges are added to the job. This will also automatically start the thread
+        responsible for saving the task status to file if the parameter start_save_thread is True.
         If the thread is started, it must be stopped with stop_save_thread before exiting the application
 
         Args:
@@ -735,7 +744,8 @@ class BookKeeper:
 
             # Second pass handling only merged, simulated and not processed files
             for file, guid in zip(files, guids):
-                # if all the event ranges in the input file have been merge, or the file was declared as failed in the first pass, move to the next
+                # if all the event ranges in the input file have been merge,
+                # or the file was declared as failed in the first pass, move to the next
                 if file in merged_files or file in failed_input_files:
                     continue
                 file_simulated_ranges = simulated_ranges.get(file)
@@ -845,9 +855,10 @@ class BookKeeper:
 
     def fetch_event_ranges(self, actor_id: str, n: int) -> list[EventRange]:
         """
-        Retrieve event ranges for an actor. The specified actor should have a job assigned from assign_job_to_actor() or an empty list will be returned.
-        If the job assigned to the actor doesn't have enough range currently available, it will assign all of its remaining anges
-        to the worker without trying to get new ranges from harvester.
+        Retrieve event ranges for an actor. The specified actor should have
+        a job assigned from assign_job_to_actor() or an empty list will be returned.
+        If the job assigned to the actor doesn't have enough range currently available,
+        it will assign all of its remaining ranges to the worker without trying to get new ranges from harvester.
 
         Args:
             actor_id: actor requesting event ranges
@@ -911,8 +922,8 @@ class BookKeeper:
         ],
     ):
         """
-        Process the event ranges update sent by the worker. This will update the status of event ranges in the update as well as building
-        the list of event ranges to be tarred up for each input file.
+        Process the event ranges update sent by the worker. This will update the status of event ranges
+        in the update as well as building the list of event ranges to be tarred up for each input file.
 
         Args:
             actor_id: actor worker_id that sent the update
@@ -1051,7 +1062,8 @@ class BookKeeper:
         """
         Checks if a job can still receive more event ranges from harvester.
         This function returning Trued doesn't guarantee that Harvester has more events available,
-        only that it may or may not have more events available. If false is returned, Harvester doesn't have more events available
+        only that it may or may not have more events available.
+        If false is returned, Harvester doesn't have more events available
 
         Args:
             panda_id: job worker_id to check

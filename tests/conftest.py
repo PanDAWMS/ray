@@ -222,12 +222,15 @@ def sample_multijobs(
             "destinationDblock": job_name,
             "dispatchDBlockToken": "NULL",
             "jobPars": (
-                f'--eventService={str(is_eventservice)} --skipEvents=0 --firstEvent=1 --preExec "from AthenaCommon.DetFlags '
+                f"--eventService={str(is_eventservice)} --skipEvents=0 --firstEvent=1 "
+                '--preExec "from AthenaCommon.DetFlags '
                 "import DetFlags;DetFlags.ID_setOn();DetFlags.Calo_setOff();"
                 'DetFlags.Muon_setOff();DetFlags.Lucid_setOff();DetFlags.Truth_setOff() "'
                 "--athenaopts=--preloadlib=${ATLASMKLLIBDIR_PRELOAD}/libimf.so "
-                "--preInclude sim:SimulationJobOptions/preInclude.FrozenShowersFCalOnly.py,SimulationJobOptions/preInclude.BeamPipeKill.py "
-                "--geometryVersion ATLAS-R2-2016-01-00-00_VALIDATION --physicsList QGSP_BERT --randomSeed 1234 --conditionsTag OFLCOND-MC12-SIM-00 "
+                "--preInclude sim:SimulationJobOptions/preInclude.FrozenShowersFCalOnly.py,"
+                "SimulationJobOptions/preInclude.BeamPipeKill.py "
+                "--geometryVersion ATLAS-R2-2016-01-00-00_VALIDATION --physicsList QGSP_BERT "
+                "--randomSeed 1234 --conditionsTag OFLCOND-MC12-SIM-00 "
                 f"--maxEvents=-1 --inputEvgenFile {inFiles} --outputHitsFile HITS_{outFilesShort}.pool.root)"
             ),
             "attemptNr": 0,
@@ -313,12 +316,15 @@ def sample_job(
             "destinationDblock": job_name,
             "dispatchDBlockToken": "NULL",
             "jobPars": (
-                f'--eventService={str(is_eventservice)} --skipEvents=0 --firstEvent=1 --preExec "from AthenaCommon.DetFlags '
+                f"--eventService={str(is_eventservice)} --skipEvents=0 --firstEvent=1 "
+                '--preExec "from AthenaCommon.DetFlags '
                 "import DetFlags;DetFlags.ID_setOn();DetFlags.Calo_setOff();"
                 'DetFlags.Muon_setOff();DetFlags.Lucid_setOff();DetFlags.Truth_setOff() "'
                 "--athenaopts=--preloadlib=${ATLASMKLLIBDIR_PRELOAD}/libimf.so "
-                "--preInclude sim:SimulationJobOptions/preInclude.FrozenShowersFCalOnly.py,SimulationJobOptions/preInclude.BeamPipeKill.py "
-                "--geometryVersion ATLAS-R2-2016-01-00-00_VALIDATION --physicsList QGSP_BERT --randomSeed 1234 --conditionsTag OFLCOND-MC12-SIM-00 "
+                "--preInclude sim:SimulationJobOptions/preInclude.FrozenShowersFCalOnly.py,"
+                "SimulationJobOptions/preInclude.BeamPipeKill.py "
+                "--geometryVersion ATLAS-R2-2016-01-00-00_VALIDATION --physicsList QGSP_BERT "
+                "--randomSeed 1234 --conditionsTag OFLCOND-MC12-SIM-00 "
                 f"--maxEvents=-1 --inputEvgenFile {inFiles} --outputHitsFile HITS_{outFilesShort}.pool.root)"
             ),
             "attemptNr": 0,
