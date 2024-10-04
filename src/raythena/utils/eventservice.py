@@ -1072,8 +1072,8 @@ class EventRange:
     DONE = "finished"
     FAILED = "failed"
     FATAL = "fatal"
-    STATES = [READY, ASSIGNED, DONE, FAILED, FATAL]
-
+    STATES = frozenset([READY, ASSIGNED, DONE, FAILED, FATAL])
+    
     def __init__(
         self,
         event_range_id: str,

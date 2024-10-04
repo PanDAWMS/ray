@@ -1,6 +1,45 @@
 import os
 import yaml
 
+required_conf_settings = {
+    "payload": {
+        "pandaqueue": str,
+        "logfilename": str,
+        "extrasetup": str,
+        "hpcresource": str,
+        "extrapostpayload": str,
+        "containerengine": str,
+        "containerextraargs": str,
+        "containerextrasetup": str,
+        "pilotkillfile": str,
+        "pilotversion": str,
+        "pilotkilltime": int,
+        "timemonitorfile": str,
+    },
+    "harvester": {
+        "endpoint": str,
+        "harvesterconf": str,
+    },
+    "ray": {
+        "workdir": str,
+        "taskprogressbasedir": str,
+        "headip": str,
+        "redisport": int,
+        "redispassword": str,
+        "timeoutinterval": int,
+        "mergemaxprocesses": int,
+        "cachesizefactor": int,
+    },
+    "resources": {
+        "corepernode": int,
+    },
+    "logging": {
+        "level": str,
+        "driverlogfile": str,
+        "workerlogfile": str,
+        "copyraylogs": bool,
+    },
+}
 
 class Config:
     """Class storing app configuration.
@@ -10,49 +49,9 @@ class Config:
     Note that not all arguments can be specified using cli or env variable, some of them can only be specified from
     the conf file. See the file <raythena.py> for more information about which settings can be specified using cli. Any
     parameter can be specified in the config file, the only constraint checked being that
-    attributes in Config.required_conf_settings should be present in the config file. This allows to specify
+    attributes in required_conf_settings should be present in the config file. This allows to specify
     custom settings for plugins if necessary.
     """
-
-    required_conf_settings = {
-        "payload": {
-            "pandaqueue": str,
-            "logfilename": str,
-            "extrasetup": str,
-            "hpcresource": str,
-            "extrapostpayload": str,
-            "containerengine": str,
-            "containerextraargs": str,
-            "containerextrasetup": str,
-            "pilotkillfile": str,
-            "pilotversion": str,
-            "pilotkilltime": int,
-            "timemonitorfile": str,
-        },
-        "harvester": {
-            "endpoint": str,
-            "harvesterconf": str,
-        },
-        "ray": {
-            "workdir": str,
-            "taskprogressbasedir": str,
-            "headip": str,
-            "redisport": int,
-            "redispassword": str,
-            "timeoutinterval": int,
-            "mergemaxprocesses": int,
-            "cachesizefactor": int,
-        },
-        "resources": {
-            "corepernode": int,
-        },
-        "logging": {
-            "level": str,
-            "driverlogfile": str,
-            "workerlogfile": str,
-            "copyraylogs": bool,
-        },
-    }
 
     def __init__(self, config_path: str, *args, **kwargs) -> None:
         """Parse the config file to an object
@@ -180,7 +179,7 @@ class Config:
         for (
             template_section,
             template_params,
-        ) in Config.required_conf_settings.items():
+        ) in required_conf_settings.items():
             section_params = getattr(self, template_section, None)
             if section_params is None:
                 raise Exception(f"Malformed configuration file: section '{template_section}' not found")

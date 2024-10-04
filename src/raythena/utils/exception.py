@@ -2,25 +2,24 @@ import threading
 from queue import Empty, Queue
 from typing import Optional
 
+ILLEGAL_WORKER_STATE = 20
+STAGEIN_FAILED = 30
+STAGEOUT_FAILED = 40
+PAYLOAD_FAILED = 50
+UNKNOWN = 0
 
-class ErrorCodes:
-    """
-    Defines error codes constants and associated default error message for each error code
-    """
-
-    ILLEGAL_WORKER_STATE = 20
-    STAGEIN_FAILED = 30
-    STAGEOUT_FAILED = 40
-    PAYLOAD_FAILED = 50
-    UNKNOWN = 0
-
-    ERROR_CODES_GENRIC_MESSAGES = {
+ERROR_CODES_GENRIC_MESSAGES = {
         ILLEGAL_WORKER_STATE: "Illegal worker state transition",
         STAGEIN_FAILED: "Failed to stagein data",
         STAGEOUT_FAILED: "Failed to stageout data",
         PAYLOAD_FAILED: "Payload execution failed",
         UNKNOWN: "Unknown error",
     }
+
+class ErrorCodes:
+    """
+    Defines error codes constants and associated default error message for each error code
+    """
 
     @staticmethod
     def get_error_message(error_code: int) -> str:
@@ -33,7 +32,7 @@ class ErrorCodes:
         Returns:
             The default error message
         """
-        return ErrorCodes.ERROR_CODES_GENRIC_MESSAGES.get(error_code, "")
+        return ERROR_CODES_GENRIC_MESSAGES.get(error_code, "")
 
 
 class ExThread(threading.Thread):

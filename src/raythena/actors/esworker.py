@@ -38,6 +38,43 @@ from raythena.utils.ray import get_node_ip
 # Type returned by the worker methods to the driver
 WorkerResponse = tuple[str, int, Any]
 
+READY_FOR_JOB = 0  # initial state, before the first job request
+JOB_REQUESTED = 1  # job has been requested to the driver, waiting for result
+READY_FOR_EVENTS = 2  # ready to request new events for the current job
+EVENT_RANGES_REQUESTED = 3  # event ranges have been requested to the driver, waiting for result
+FINISHING_LOCAL_RANGES = 4  # do not request additional ranges, will move to STAGE_OUT once local cache is empty
+PROCESSING = 5  # currently processing event ranges
+FINISHING = 6  # Performing cleanup of resources, preparing final server update
+DONE = 7  # Actor has finished processing job
+STAGE_IN = 8  # Staging-in data.
+STAGE_OUT = 9  # Staging-out data
+
+STATES_NAME = {
+    READY_FOR_JOB: "READY_FOR_JOB",
+    JOB_REQUESTED: "JOB_REQUESTED",
+    READY_FOR_EVENTS: "READY_FOR_EVENTS",
+    EVENT_RANGES_REQUESTED: "EVENT_RANGES_REQUESTED",
+    FINISHING_LOCAL_RANGES: "FINISHING_LOCAL_RANGES",
+    PROCESSING: "PROCESSING",
+    FINISHING: "FINISHING",
+    DONE: "DONE",
+    STAGE_IN: "STAGE_IN",
+    STAGE_OUT: "STAGE_OUT",
+}
+
+# authorize state transition from x to y if y in TRANSITION[X]
+TRANSITIONS = {
+    READY_FOR_JOB: [JOB_REQUESTED],
+    JOB_REQUESTED: [STAGE_IN, DONE],
+    STAGE_IN: [READY_FOR_EVENTS],
+    READY_FOR_EVENTS: [EVENT_RANGES_REQUESTED, STAGE_OUT],
+    EVENT_RANGES_REQUESTED: [FINISHING_LOCAL_RANGES, PROCESSING, STAGE_OUT],
+    FINISHING_LOCAL_RANGES: [STAGE_OUT],
+    PROCESSING: [READY_FOR_EVENTS, STAGE_OUT],
+    STAGE_OUT: [FINISHING],
+    FINISHING: [DONE],
+    DONE: [READY_FOR_JOB],
+}
 
 @ray.remote(num_cpus=1, max_restarts=1, max_task_retries=3)
 class ESWorker:
@@ -47,50 +84,12 @@ class ESWorker:
 
     A worker instance is a stateful object which basically transitions from
     job request -> stage-in -> processing <-> ranges request -> stage-out -> done
-    Allowed transition are defined by ESWorker.TRANSITIONS
+    Allowed transition are defined by TRANSITIONS
 
     The current state defines what message will be sent to the driver when
     it requests the worker state using get_message(). The driver needs to frequently call get_message() and process
     requests from the worker, allowing the worker to progress in the job processing.
     """
-
-    READY_FOR_JOB = 0  # initial state, before the first job request
-    JOB_REQUESTED = 1  # job has been requested to the driver, waiting for result
-    READY_FOR_EVENTS = 2  # ready to request new events for the current job
-    EVENT_RANGES_REQUESTED = 3  # event ranges have been requested to the driver, waiting for result
-    FINISHING_LOCAL_RANGES = 4  # do not request additional ranges, will move to STAGE_OUT once local cache is empty
-    PROCESSING = 5  # currently processing event ranges
-    FINISHING = 6  # Performing cleanup of resources, preparing final server update
-    DONE = 7  # Actor has finished processing job
-    STAGE_IN = 8  # Staging-in data.
-    STAGE_OUT = 9  # Staging-out data
-
-    STATES_NAME = {
-        READY_FOR_JOB: "READY_FOR_JOB",
-        JOB_REQUESTED: "JOB_REQUESTED",
-        READY_FOR_EVENTS: "READY_FOR_EVENTS",
-        EVENT_RANGES_REQUESTED: "EVENT_RANGES_REQUESTED",
-        FINISHING_LOCAL_RANGES: "FINISHING_LOCAL_RANGES",
-        PROCESSING: "PROCESSING",
-        FINISHING: "FINISHING",
-        DONE: "DONE",
-        STAGE_IN: "STAGE_IN",
-        STAGE_OUT: "STAGE_OUT",
-    }
-
-    # authorize state transition from x to y if y in TRANSITION[X]
-    TRANSITIONS = {
-        READY_FOR_JOB: [JOB_REQUESTED],
-        JOB_REQUESTED: [STAGE_IN, DONE],
-        STAGE_IN: [READY_FOR_EVENTS],
-        READY_FOR_EVENTS: [EVENT_RANGES_REQUESTED, STAGE_OUT],
-        EVENT_RANGES_REQUESTED: [FINISHING_LOCAL_RANGES, PROCESSING, STAGE_OUT],
-        FINISHING_LOCAL_RANGES: [STAGE_OUT],
-        PROCESSING: [READY_FOR_EVENTS, STAGE_OUT],
-        STAGE_OUT: [FINISHING],
-        FINISHING: [DONE],
-        DONE: [READY_FOR_JOB],
-    }
 
     def __init__(
         self,
@@ -119,9 +118,9 @@ class ESWorker:
         self._logger = make_logger(self.config, self.id)
         self.session_log_dir = session_log_dir
         self.job = None
-        self.transitions = ESWorker.TRANSITIONS
+        self.transitions = TRANSITIONS
         self.node_ip = get_node_ip()
-        self.state = ESWorker.READY_FOR_JOB
+        self.state = READY_FOR_JOB
         self.payload_job_dir = None
         self.payload_actor_output_dir = None
         self.payload_actor_process_dir = None
@@ -141,10 +140,10 @@ class ESWorker:
         self.time_limit = -1
         self.elapsed = 1
         if job:
-            self.transition_state(ESWorker.JOB_REQUESTED)
+            self.transition_state(JOB_REQUESTED)
             self.receive_job(Messages.REPLY_OK, job)
             if event_ranges:
-                self.transition_state(ESWorker.EVENT_RANGES_REQUESTED)
+                self.transition_state(EVENT_RANGES_REQUESTED)
                 self.receive_event_ranges(Messages.REPLY_OK, event_ranges)
 
     def check_time(self) -> None:
@@ -296,7 +295,7 @@ class ESWorker:
         except Exception as e:
             self._logger.warning(f"Failed to stagein payload: {e}")
             raise StageInFailed(self.id) from e
-        self.transition_state(ESWorker.READY_FOR_EVENTS if self.is_event_service_job() else ESWorker.PROCESSING)
+        self.transition_state(READY_FOR_EVENTS if self.is_event_service_job() else PROCESSING)
 
     def stageout(self) -> None:
         """
@@ -310,7 +309,7 @@ class ESWorker:
             - The worker is in the DONE state.
         """
         self.payload.stageout()
-        self.transition_state(ESWorker.FINISHING)
+        self.transition_state(FINISHING)
         self.terminate_actor()
 
     def transition_state(self, dest: int) -> None:
@@ -325,12 +324,12 @@ class ESWorker:
         """
         if dest not in self.transitions[self.state]:
             self._logger.error(
-                f"Illegal transition from {ESWorker.STATES_NAME[self.state]} to {ESWorker.STATES_NAME[dest]}"
+                f"Illegal transition from {STATES_NAME[self.state]} to {STATES_NAME[dest]}"
             )
             raise IllegalWorkerState(
                 worker_id=self.id,
-                src_state=ESWorker.STATES_NAME[self.state],
-                dst_state=ESWorker.STATES_NAME[dest],
+                src_state=STATES_NAME[self.state],
+                dst_state=STATES_NAME[dest],
             )
         self.state = dest
 
@@ -362,7 +361,7 @@ class ESWorker:
         """
         self.job = job
         if reply == Messages.REPLY_OK and self.job:
-            self.transition_state(ESWorker.STAGE_IN)
+            self.transition_state(STAGE_IN)
             try:
                 self.stagein()
             except BaseRaythenaException:
@@ -370,7 +369,7 @@ class ESWorker:
             except Exception as e:
                 raise WrappedException(self.id, e) from e
         else:
-            self.transition_state(ESWorker.DONE)
+            self.transition_state(DONE)
             self._logger.error("Could not fetch job. Set state to done.")
 
         return self.return_message(Messages.REPLY_OK)
@@ -387,8 +386,8 @@ class ESWorker:
         """
         # TODO: either remove this functionality (event service workers will only ever have one job)
         # TODO: or finish the implementation by also cleaning up the filesystem
-        self.transition_state(ESWorker.READY_FOR_JOB)
-        self.transition_state(ESWorker.JOB_REQUESTED)
+        self.transition_state(READY_FOR_JOB)
+        self.transition_state(JOB_REQUESTED)
         return self.return_message(Messages.REQUEST_NEW_JOB)
 
     def receive_event_ranges(self, reply: int, event_ranges: Sequence[EventRange]) -> WorkerResponse:
@@ -414,7 +413,7 @@ class ESWorker:
         """
         if reply == Messages.REPLY_NO_MORE_EVENT_RANGES or not event_ranges:
             # no new ranges... finish processing local cache then terminate actor
-            self.transition_state(ESWorker.FINISHING_LOCAL_RANGES)
+            self.transition_state(FINISHING_LOCAL_RANGES)
             self.payload.submit_new_ranges(None)
             return self.return_message(Messages.REPLY_OK)
         for crange in event_ranges:
@@ -425,7 +424,7 @@ class ESWorker:
                 )
         self.payload.submit_new_ranges(event_ranges)
 
-        self.transition_state(ESWorker.PROCESSING)
+        self.transition_state(PROCESSING)
         return self.return_message(Messages.REPLY_OK)
 
     def return_message(self, message: int, data: Any = None) -> WorkerResponse:
@@ -460,7 +459,7 @@ class ESWorker:
         """
         self.payload.stop()
         # self.cpu_monitor.stop()
-        self.transition_state(ESWorker.DONE)
+        self.transition_state(DONE)
 
     def should_request_ranges(self) -> bool:
         """
@@ -474,12 +473,12 @@ class ESWorker:
             True if more event ranges are needed by the payload
         """
         # do not transition if not in a state allowing for event ranges request
-        if ESWorker.READY_FOR_EVENTS not in self.transitions[self.state]:
+        if READY_FOR_EVENTS not in self.transitions[self.state]:
             return False
 
         res = self.payload.should_request_more_ranges()
         if res:
-            self.transition_state(ESWorker.READY_FOR_EVENTS)
+            self.transition_state(READY_FOR_EVENTS)
         return res
 
     def stageout_event_service_files(self, ranges_update: Mapping[str, str]) -> Optional[EventRangeUpdate]:
@@ -558,13 +557,13 @@ class ESWorker:
             to the worker or if the worker produced output data.
         """
         try:
-            while self.state != ESWorker.DONE:
+            while self.state != DONE:
                 payload_message = self.get_payload_message()
                 if payload_message:
                     return payload_message
-                elif self.state == ESWorker.READY_FOR_JOB:
+                elif self.state == READY_FOR_JOB:
                     # ready to get a new job
-                    self.transition_state(ESWorker.JOB_REQUESTED)
+                    self.transition_state(JOB_REQUESTED)
                     return self.return_message(Messages.REQUEST_NEW_JOB)
                 elif self.payload.is_complete():
                     # check if there are any remaining message from the payload in queue.
@@ -574,11 +573,11 @@ class ESWorker:
                         return payload_message
                     else:
                         # if no more message, proceed to stage-out
-                        self.transition_state(ESWorker.STAGE_OUT)
+                        self.transition_state(STAGE_OUT)
                         self.stageout()
                         return self.return_message(Messages.PROCESS_DONE)
                 elif self.is_event_service_job() and (
-                    self.state == ESWorker.READY_FOR_EVENTS or self.should_request_ranges()
+                    self.state == READY_FOR_EVENTS or self.should_request_ranges()
                 ):
                     req = EventRangeRequest()
                     req.add_event_request(
@@ -587,9 +586,9 @@ class ESWorker:
                         self.job["taskID"],
                         self.job["jobsetID"],
                     )
-                    self.transition_state(ESWorker.EVENT_RANGES_REQUESTED)
+                    self.transition_state(EVENT_RANGES_REQUESTED)
                     return self.return_message(Messages.REQUEST_EVENT_RANGES, req)
-                elif self.state == ESWorker.DONE:
+                elif self.state == DONE:
                     return self.return_message(Messages.PROCESS_DONE)
                 else:
                     time.sleep(1)  # Nothing to do, sleeping...
