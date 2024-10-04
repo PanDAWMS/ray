@@ -10,7 +10,7 @@ license = {file = "LICENSE"}
 authors = [
     { name = "Julien Esseiva", email = "jesseiva@lbl.gov" },
 ]
-requires-python = ">=3.11"
+requires-python = ">=3.9"
 dependencies = [
     "aiohttp",
     "click",
@@ -34,6 +34,10 @@ version-file = "src/raythena/_version.py"
 dependencies = [
     "pytest"
 ]
+
+[tool.hatch.build.targets.wheel.shared-scripts]
+"bin/ray_start_head" = "ray_start_head"
+"bin/ray_start_worker" = "ray_start_worker"
 
 [tool.hatch.build.targets.wheel.shared-data]
 "conf/cori.yaml" = "conf/cori.yaml"
