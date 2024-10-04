@@ -1,7 +1,7 @@
 import json
 import time
 from threading import Event
-from typing import Any, Union, dict, list
+from typing import Any, Union
 
 import psutil
 

@@ -85,11 +85,11 @@ class TestEventRangeUpdate:
                 and "fsize" not in r
             )
 
-        with pytest.raises(Exception):
+        with pytest.raises(ValueError):
             ranges_update.range_update[pandaID] = None
             EventRangeUpdate(ranges_update.range_update)
 
-        with pytest.raises(Exception):
+        with pytest.raises(ValueError):
             ranges_update[pandaID] = None
         ranges_update[pandaID] = []
         assert not ranges_update[pandaID]
@@ -115,7 +115,7 @@ class TestEventRangeQueue:
             == 0
         )
 
-        with pytest.raises(Exception):
+        with pytest.raises(ValueError):
             ranges_queue["key"] = None
 
         ranges_queue_2 = EventRangeQueue()
@@ -179,7 +179,7 @@ class TestEventRangeQueue:
         assert ranges_queue.nranges_assigned() == 0
         assert ranges_queue.nranges_remaining() == 0
 
-        with pytest.raises(Exception):
+        with pytest.raises(KeyError):
             ranges_queue.update_range_state("unknown", EventRange.ASSIGNED)
 
     def test_get_next(self, sample_job, sample_ranges):
@@ -269,7 +269,7 @@ class TestPandaJobQueue:
         if is_eventservice:
             assert job
         else:
-            for i in range(1, njobs):
+            for _ in range(1, njobs):
                 next_job = pandajob_queue.next_job_to_process()
                 assert job["PandaID"] != next_job["PandaID"]
                 job = next_job
@@ -279,7 +279,7 @@ class TestPandaJobQueue:
             assert isinstance(event_ranges, EventRangeQueue)
             assert len(event_ranges) == 0
             assert pandajob_queue.has_job(pandaID)
-            with pytest.raises(Exception):
+            with pytest.raises(ValueError):
                 pandajob_queue[pandaID] = None
 
         pandajob_queue_2 = PandaJobQueue()

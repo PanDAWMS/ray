@@ -25,7 +25,7 @@ class TestHarvesterMock:
         ranges = ranges_queue.get(timeout=5)
         assert ranges is not None
         assert isinstance(ranges, dict)
-        for pandaID, job_ranges in ranges.items():
+        for _pandaID, job_ranges in ranges.items():
             assert len(job_ranges) == n_events
 
         # should return 0 ranges per job
@@ -33,5 +33,5 @@ class TestHarvesterMock:
         ranges = ranges_queue.get(timeout=5)
         assert ranges is not None
         assert isinstance(ranges, dict)
-        for pandaID, job_ranges in ranges.items():
+        for _pandaID, job_ranges in ranges.items():
             assert len(job_ranges) == 0

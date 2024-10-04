@@ -58,7 +58,7 @@ def is_eventservice(request):
 @pytest.fixture
 def pandaids(njobs):
     res = []
-    for i in range(njobs):
+    for _ in range(njobs):
         hash = hashlib.md5()
         hash.update(str(time.time()).encode("utf-8"))
         res.append(hash.hexdigest())
@@ -223,14 +223,13 @@ def sample_multijobs(
             "destinationDblock": job_name,
             "dispatchDBlockToken": "NULL",
             "jobPars": (
-                '--eventService=%s --skipEvents=0 --firstEvent=1 --preExec "from AthenaCommon.DetFlags '
+                f'--eventService={str(is_eventservice)} --skipEvents=0 --firstEvent=1 --preExec "from AthenaCommon.DetFlags '
                 "import DetFlags;DetFlags.ID_setOn();DetFlags.Calo_setOff();"
                 'DetFlags.Muon_setOff();DetFlags.Lucid_setOff();DetFlags.Truth_setOff() "'
                 "--athenaopts=--preloadlib=${ATLASMKLLIBDIR_PRELOAD}/libimf.so "
                 "--preInclude sim:SimulationJobOptions/preInclude.FrozenShowersFCalOnly.py,SimulationJobOptions/preInclude.BeamPipeKill.py "
                 "--geometryVersion ATLAS-R2-2016-01-00-00_VALIDATION --physicsList QGSP_BERT --randomSeed 1234 --conditionsTag OFLCOND-MC12-SIM-00 "
-                "--maxEvents=-1 --inputEvgenFile %s --outputHitsFile HITS_%s.pool.root)"
-                % (str(is_eventservice), inFiles, outFilesShort)
+                f"--maxEvents=-1 --inputEvgenFile {inFiles} --outputHitsFile HITS_{outFilesShort}.pool.root)"
             ),
             "attemptNr": 0,
             "swRelease": "Atlas-21.0.15",
@@ -247,7 +246,7 @@ def sample_multijobs(
             "jobName": job_name,
             "ddmEndPointIn": "UTA_SWT2_DATADISK",
             "taskID": taskId,
-            "logFile": "%s.job.log.tgz" % job_name,
+            "logFile": f"{job_name}.job.log.tgz",
         }
     return res
 
@@ -315,14 +314,13 @@ def sample_job(
             "destinationDblock": job_name,
             "dispatchDBlockToken": "NULL",
             "jobPars": (
-                '--eventService=%s --skipEvents=0 --firstEvent=1 --preExec "from AthenaCommon.DetFlags '
+                f'--eventService={str(is_eventservice)} --skipEvents=0 --firstEvent=1 --preExec "from AthenaCommon.DetFlags '
                 "import DetFlags;DetFlags.ID_setOn();DetFlags.Calo_setOff();"
                 'DetFlags.Muon_setOff();DetFlags.Lucid_setOff();DetFlags.Truth_setOff() "'
                 "--athenaopts=--preloadlib=${ATLASMKLLIBDIR_PRELOAD}/libimf.so "
                 "--preInclude sim:SimulationJobOptions/preInclude.FrozenShowersFCalOnly.py,SimulationJobOptions/preInclude.BeamPipeKill.py "
                 "--geometryVersion ATLAS-R2-2016-01-00-00_VALIDATION --physicsList QGSP_BERT --randomSeed 1234 --conditionsTag OFLCOND-MC12-SIM-00 "
-                "--maxEvents=-1 --inputEvgenFile %s --outputHitsFile HITS_%s.pool.root)"
-                % (str(is_eventservice), inFiles, outFilesShort)
+                f"--maxEvents=-1 --inputEvgenFile {inFiles} --outputHitsFile HITS_{outFilesShort}.pool.root)"
             ),
             "attemptNr": 0,
             "swRelease": "Atlas-21.0.15",
@@ -339,6 +337,6 @@ def sample_job(
             "jobName": job_name,
             "ddmEndPointIn": "UTA_SWT2_DATADISK",
             "taskID": taskId,
-            "logFile": "%s.job.log.tgz" % job_name,
+            "logFile": f"{job_name}.job.log.tgz",
         }
     }

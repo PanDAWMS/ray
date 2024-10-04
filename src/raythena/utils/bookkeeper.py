@@ -10,10 +10,6 @@ from typing import (
     Any,
     Optional,
     Union,
-    dict,
-    list,
-    set,
-    tuple,
 )
 
 from raythena.utils.config import Config
@@ -280,7 +276,7 @@ class TaskStatus:
                 self._status[TaskStatus.MERGED][inputfile] = merged_dict
                 for merged_outputfile in self._status[TaskStatus.MERGING][
                     inputfile
-                ].keys():
+                ]:
                     merged_dict[merged_outputfile] = {
                         "path": os.path.join(
                             self.merged_files_dir, merged_outputfile
@@ -462,7 +458,7 @@ class BookKeeper:
                 for task_status in self.taskstatus.values():
                     for merged_file in task_status._status[
                         TaskStatus.MERGED
-                    ].keys():
+                    ]:
                         if self.stop_cleaner.is_set():
                             break
                         for temp_file in files:
@@ -709,10 +705,7 @@ class BookKeeper:
             guids = job["GUID"].split(",")
             for file, guid in zip(files, guids):
                 self.files_guids[file] = guid
-            if "scopeIn" in job:
-                scope = job["scopeIn"]
-            else:
-                scope = ""
+            scope = job.get("scopeIn", "")
             event_ranges = []
             merged_files = task_status._status[TaskStatus.MERGED]
             merging_files = task_status._status[TaskStatus.MERGING]

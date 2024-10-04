@@ -1,6 +1,6 @@
 from abc import abstractmethod
 from collections.abc import Sequence
-from typing import Optional, dict
+from typing import Optional
 
 from raythena.actors.payloads.basePayload import BasePayload
 from raythena.utils.config import Config

@@ -29,7 +29,7 @@ class TestBookKeeper:
         actor_id = "a1"
         if not is_eventservice:
             job = None
-            for i in range(njobs):
+            for _ in range(njobs):
                 job_tmp = bookKeeper.assign_job_to_actor(actor_id)
                 if job:
                     assert job["PandaID"] != job_tmp["PandaID"]
@@ -39,7 +39,7 @@ class TestBookKeeper:
         else:
             bookKeeper.add_event_ranges(sample_ranges)
             job = None
-            for i in range(njobs):
+            for _ in range(njobs):
                 job_tmp = bookKeeper.assign_job_to_actor(actor_id)
                 if job:
                     assert job["PandaID"] == job_tmp["PandaID"]
@@ -129,7 +129,7 @@ class TestBookKeeper:
             bookKeeper.merged_files_dir = "dummy"
             bookKeeper.add_jobs(sample_multijobs, False)
 
-            for i in range(njobs):
+            for _ in range(njobs):
                 job = bookKeeper.assign_job_to_actor(actor_id)
                 _ = bookKeeper.fetch_event_ranges(actor_id, nevents)
                 print(job.event_ranges_queue.rangesID_by_state)

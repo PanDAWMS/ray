@@ -8,7 +8,7 @@ import time
 from collections.abc import Mapping, Sequence
 from socket import gethostname
 from time import sleep
-from typing import Any, Optional, Union, tuple
+from typing import Any, Optional, Union
 
 import ray
 

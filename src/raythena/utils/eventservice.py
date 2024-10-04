@@ -5,9 +5,6 @@ from typing import (
     Any,
     Optional,
     Union,
-    dict,
-    list,
-    set,
 )
 
 # Types aliases
@@ -112,7 +109,7 @@ class PandaJobQueue:
         if isinstance(v, PandaJob):
             self.jobs[k] = v
         else:
-            raise Exception(f"{v} is not of type {PandaJob}")
+            raise ValueError(f"{v} is not of type {PandaJob}")
 
     def __iter__(self) -> Iterable[str]:
         return iter(self.jobs)
@@ -368,9 +365,9 @@ class EventRangeQueue:
 
     def __setitem__(self, k: str, v: "EventRange") -> None:
         if not isinstance(v, EventRange):
-            raise Exception(f"{v} should be of type {EventRange}")
+            raise ValueError(f"{v} should be of type {EventRange}")
         if k != v.eventRangeID:
-            raise Exception(
+            raise KeyError(
                 f"Specified key '{k}' should be equals to the event range id '{v.eventRangeID}' "
             )
         if k in self.event_ranges_by_id:
@@ -416,7 +413,7 @@ class EventRangeQueue:
             the updated event range
         """
         if range_id not in self.event_ranges_by_id:
-            raise Exception(
+            raise KeyError(
                 f"Trying to update non-existing eventrange {range_id}"
             )
 
@@ -718,7 +715,7 @@ class EventRangeUpdate:
         else:
             for v in range_update.values():
                 if not isinstance(v, list):
-                    raise Exception(f"Expecting type list for element {v}")
+                    raise ValueError(f"Expecting type list for element {v}")
             self.range_update: dict[str, HarvesterEventRangeUpdateDef] = (
                 range_update
             )
@@ -737,7 +734,7 @@ class EventRangeUpdate:
 
     def __setitem__(self, k: str, v: HarvesterEventRangeUpdateDef) -> None:
         if not isinstance(v, list):
-            raise Exception(f"Expecting type list for element {v}")
+            raise ValueError(f"Expecting type list for element {v}")
         self.range_update[k] = v
 
     def merge_update(self, other: "EventRangeUpdate") -> None:
@@ -1061,6 +1058,11 @@ class PandaJob:
             the job worker_id
         """
         return self["PandaID"]
+
+    def get(self, k: str, default: Any = "") -> Builtin:
+        if k in self.job:
+            return self.job[k]
+        return default
 
     def __str__(self) -> str:
         return json.dumps(self.job)

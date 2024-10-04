@@ -7,7 +7,7 @@ import stat
 from asyncio import Event, Queue, QueueEmpty
 from collections.abc import Iterable, Mapping
 from subprocess import DEVNULL, Popen
-from typing import Callable, Optional, dict, list
+from typing import Callable, Optional
 from urllib.parse import parse_qs
 
 import uvloop

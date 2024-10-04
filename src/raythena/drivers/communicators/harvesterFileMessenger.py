@@ -1,4 +1,5 @@
 import configparser
+import contextlib
 import json
 import os
 import shutil
@@ -133,14 +134,10 @@ class HarvesterFileCommunicator(BaseCommunicator):
             with open(self.jobspecfile) as f:
                 job = json.load(f)
 
-        try:
+        with contextlib.suppress(FileNotFoundError):
             os.remove(self.jobrequestfile)
-        except FileNotFoundError:
-            pass
-        try:
+        with contextlib.suppress(FileNotFoundError):
             os.rename(self.jobspecfile, f"{self.jobspecfile}.read")
-        except FileNotFoundError:
-            pass
         if job:
             self.job_queue.put(job)
 
@@ -189,10 +186,8 @@ class HarvesterFileCommunicator(BaseCommunicator):
                 ):
                     self.ranges_requests_count += 1
 
-        try:
+        with contextlib.suppress(FileNotFoundError):
             os.remove(self.eventrequestfile)
-        except FileNotFoundError:
-            pass
 
         self.ranges_requests_count += 1
         self.event_ranges_queue.put(ranges)

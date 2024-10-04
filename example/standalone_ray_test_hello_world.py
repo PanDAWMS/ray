@@ -47,8 +47,8 @@ def main(redis_ip: str, redis_port: str, redis_password: str):
     redis_address = f"{redis_ip}:{redis_port}"
     ray.init(
         ignore_reinit_error=True,
-        address="%s" % redis_address,
-        _redis_password="%s" % redis_password,
+        address=f"{redis_address}",
+        _redis_password=f"{redis_password}",
     )
 
     # show the ray cluster
@@ -83,10 +83,10 @@ if __name__ == "__main__":
         description="Wait on ray head node or workers to connect"
     )
     parser.add_argument(
-        "--redis-ip", default="%s" % (os.environ["RAYTHENA_RAY_HEAD_IP"])
+        "--redis-ip", default="{}".format(os.environ["RAYTHENA_RAY_HEAD_IP"])
     )
     parser.add_argument(
-        "--redis-port", default="%s" % (os.environ["RAYTHENA_RAY_REDIS_PORT"])
+        "--redis-port", default="{}".format(os.environ["RAYTHENA_RAY_REDIS_PORT"])
     )
     parser.add_argument(
         "--redis-password", default=os.environ["RAYTHENA_RAY_REDIS_PASSWORD"]
