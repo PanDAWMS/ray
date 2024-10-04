@@ -11,8 +11,7 @@ class BasePayload(ABC):
     panda job specification and are responsible to handle the execution of the
     """
 
-    def __init__(self, worker_id: str,
-                 config: Config) -> None:
+    def __init__(self, worker_id: str, config: Config) -> None:
         """
         Setup base payload attributes
 

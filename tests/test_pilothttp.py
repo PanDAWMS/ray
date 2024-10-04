@@ -8,7 +8,6 @@ from raythena.utils.eventservice import EventRange, PandaJob
 
 
 class MockPopen:
-
     def __init__(self, returncode):
         self.returncode = returncode
 
@@ -25,18 +24,16 @@ class MockPopen:
 
 
 class MockPayload(PilotHttpPayload):
-
     def _start_payload(self):
         self.pilot_process = MockPopen(None)
 
 
 @pytest.mark.usefixtures("requires_ray")
 class TestPilotHttp:
-
     def wait_server_start(self):
         while True:
             try:
-                requests.post('http://127.0.0.1:8080')
+                requests.post("http://127.0.0.1:8080")
             except requests.exceptions.ConnectionError:
                 time.sleep(0.5)
             else:
@@ -48,7 +45,7 @@ class TestPilotHttp:
     @pytest.fixture
     def payload(self, tmpdir, config, sample_job):
         cwd = os.getcwd()
-        config.ray['workdir'] = str(tmpdir)
+        config.ray["workdir"] = str(tmpdir)
         os.chdir(tmpdir)
         job_dict = list(sample_job.values())[0]
         job = PandaJob(job_dict)
@@ -64,18 +61,25 @@ class TestPilotHttp:
             pytest.skip()
         job_dict = list(sample_job.values())[0]
         job = PandaJob(job_dict)
-        res = requests.post('http://127.0.0.1:8080/server/panda/getJob').json()
-        assert job['PandaID'] == PandaJob(res)['PandaID']
+        res = requests.post("http://127.0.0.1:8080/server/panda/getJob").json()
+        assert job["PandaID"] == PandaJob(res)["PandaID"]
 
-        assert requests.post(
-            'http://127.0.0.1:8080/unknown').json()['StatusCode'] == 500
+        assert (
+            requests.post("http://127.0.0.1:8080/unknown").json()["StatusCode"]
+            == 500
+        )
 
         payload.stop()
         assert payload.is_complete()
         assert payload.return_code() == payload.pilot_process.returncode
 
     def endpoint_not_implemented(self, endpoint):
-        assert requests.post(f'http://127.0.0.1:8080/server/panda/{endpoint}').json()['StatusCode'] == 500
+        assert (
+            requests.post(
+                f"http://127.0.0.1:8080/server/panda/{endpoint}"
+            ).json()["StatusCode"]
+            == 500
+        )
 
     @pytest.mark.usefixtures("payload")
     def test_updateJobsInBulk(self):
@@ -94,28 +98,43 @@ class TestPilotHttp:
             pytest.skip()
 
         assert not payload.fetch_job_update()
-        data = {"pilotErrorCode": '0'}
-        res = requests.post('http://127.0.0.1:8080/server/panda/updateJob',
-                            data=data).json()
-        assert res['StatusCode'] == 0
+        data = {"pilotErrorCode": "0"}
+        res = requests.post(
+            "http://127.0.0.1:8080/server/panda/updateJob", data=data
+        ).json()
+        assert res["StatusCode"] == 0
         # Disabled as job update are currently not forwarded to the driver
         # job_update = payload.fetch_job_update()
         # assert job_update['pilotErrorCode'][0] == data['pilotErrorCode']
 
-    def test_rangesUpdate(self, payload, config, is_eventservice, sample_job,
-                          sample_ranges, nevents):
+    def test_rangesUpdate(
+        self,
+        payload,
+        config,
+        is_eventservice,
+        sample_job,
+        sample_ranges,
+        nevents,
+    ):
         if not is_eventservice:
             pytest.skip()
 
         assert not payload.fetch_ranges_update()
         data = {"pilotErrorCode": 0}
         res = requests.post(
-            'http://127.0.0.1:8080/server/panda/updateEventRanges',
-            data=data).json()
-        assert res['StatusCode'] == 0
+            "http://127.0.0.1:8080/server/panda/updateEventRanges", data=data
+        ).json()
+        assert res["StatusCode"] == 0
 
-    def test_getranges(self, payload, config, is_eventservice, sample_job,
-                       sample_ranges, nevents):
+    def test_getranges(
+        self,
+        payload,
+        config,
+        is_eventservice,
+        sample_job,
+        sample_ranges,
+        nevents,
+    ):
         if not is_eventservice:
             pytest.skip()
 
@@ -126,11 +145,12 @@ class TestPilotHttp:
             "pandaID": job["PandaID"],
             "nRanges": nevents,
             "jobsetID": job["jobsetID"],
-            "taskID": job["taskID"]
+            "taskID": job["taskID"],
         }
         res = requests.post(
-            'http://127.0.0.1:8080/server/panda/getEventRanges').json()
-        assert res['StatusCode'] == 500
+            "http://127.0.0.1:8080/server/panda/getEventRanges"
+        ).json()
+        assert res["StatusCode"] == 500
         assert payload.should_request_more_ranges()
         ranges = list()
         for r in list(sample_ranges.values())[0]:
@@ -138,17 +158,22 @@ class TestPilotHttp:
         payload.submit_new_ranges(ranges)
         payload.submit_new_ranges(None)
 
-        res = requests.post('http://127.0.0.1:8080/server/panda/getEventRanges',
-                            data=data).json()
-        assert res['StatusCode'] == 0
-        assert len(res['eventRanges']) == nevents
+        res = requests.post(
+            "http://127.0.0.1:8080/server/panda/getEventRanges", data=data
+        ).json()
+        assert res["StatusCode"] == 0
+        assert len(res["eventRanges"]) == nevents
 
-        res = requests.post('http://127.0.0.1:8080/server/panda/getEventRanges',
-                            data=data).json()
-        assert res['StatusCode'] == 0
-        assert len(res['eventRanges']) == 0
+        res = requests.post(
+            "http://127.0.0.1:8080/server/panda/getEventRanges", data=data
+        ).json()
+        assert res["StatusCode"] == 0
+        assert len(res["eventRanges"]) == 0
         assert not payload.should_request_more_ranges()
         data["pandaID"] = "None"
-        assert requests.post(
-            'http://127.0.0.1:8080/server/panda/getEventRanges',
-            data=data).json()['StatusCode'] == -1
+        assert (
+            requests.post(
+                "http://127.0.0.1:8080/server/panda/getEventRanges", data=data
+            ).json()["StatusCode"]
+            == -1
+        )

@@ -14,7 +14,13 @@ from raythena.utils.eventservice import (
     PandaJobUpdate,
 )
 
-RequestData = Union[PandaJobRequest, EventRangeUpdate, JobReport, EventRangeRequest, PandaJobUpdate]
+RequestData = Union[
+    PandaJobRequest,
+    EventRangeUpdate,
+    JobReport,
+    EventRangeRequest,
+    PandaJobUpdate,
+]
 
 
 class BaseCommunicator(ABC):
@@ -23,8 +29,13 @@ class BaseCommunicator(ABC):
     to be implemented by different communicators as well as setting up queues used to communicate with other threads.
     """
 
-    def __init__(self, requests_queue: 'Queue[RequestData]', job_queue: 'Queue[Mapping[str, JobDef]]',
-                 event_ranges_queue: 'Queue[Mapping[str, Sequence[EventRangeDef]]]', config: Config) -> None:
+    def __init__(
+        self,
+        requests_queue: "Queue[RequestData]",
+        job_queue: "Queue[Mapping[str, JobDef]]",
+        event_ranges_queue: "Queue[Mapping[str, Sequence[EventRangeDef]]]",
+        config: Config,
+    ) -> None:
         """
         Base constructor setting up queues and application config
 
@@ -36,7 +47,9 @@ class BaseCommunicator(ABC):
         """
         self.requests_queue: Queue[RequestData] = requests_queue
         self.job_queue: Queue[Mapping[str, JobDef]] = job_queue
-        self.event_ranges_queue: Queue[Mapping[str, Sequence[EventRangeDef]]] = event_ranges_queue
+        self.event_ranges_queue: Queue[
+            Mapping[str, Sequence[EventRangeDef]]
+        ] = event_ranges_queue
         self.config = config
 
     @abstractmethod

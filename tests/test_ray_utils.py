@@ -10,11 +10,9 @@ from raythena.utils.ray import (
 
 @pytest.mark.usefixtures("requires_ray")
 class TestRayUtils:
-
     def test_build_nodes_resource_list(self, config):
         constraints = build_nodes_resource_list(config)
-        assert len(
-            constraints) == cluster_size()
+        assert len(constraints) == cluster_size()
 
     def test_cluster_size(self):
         assert cluster_size() > 0

@@ -16,18 +16,13 @@ JobDef = Dict[str, Builtin]
 EventRangeDef = MutableMapping[str, Builtin]
 FileInfo = Mapping[str, Builtin]
 PilotEventRangeUpdateDef = Mapping[
-    str,
-    Union[
-        Builtin,
-        FileInfo,
-        Sequence[
-            EventRangeDef
-        ]
-    ]
+    str, Union[Builtin, FileInfo, Sequence[EventRangeDef]]
 ]
 
 HarvesterEventRangeUpdateDef = Sequence[MutableMapping[str, Builtin]]
-EventRangeUpdateDef = Union[Sequence[PilotEventRangeUpdateDef], HarvesterEventRangeUpdateDef]
+EventRangeUpdateDef = Union[
+    Sequence[PilotEventRangeUpdateDef], HarvesterEventRangeUpdateDef
+]
 EventRangeRequestDef = Mapping[str, Mapping[str, Builtin]]
 
 
@@ -36,6 +31,7 @@ class Messages:
     """
     Defines messages exchanged between ray actors and the driver
     """
+
     REQUEST_NEW_JOB = 0
     REQUEST_EVENT_RANGES = 1
     UPDATE_JOB = 2
@@ -109,10 +105,10 @@ class PandaJobQueue:
         if jobs:
             self.add_jobs(jobs)
 
-    def __getitem__(self, k: str) -> 'PandaJob':
+    def __getitem__(self, k: str) -> "PandaJob":
         return self.jobs[k]
 
-    def __setitem__(self, k: str, v: 'PandaJob') -> None:
+    def __setitem__(self, k: str, v: "PandaJob") -> None:
         if isinstance(v, PandaJob):
             self.jobs[k] = v
         else:
@@ -127,7 +123,7 @@ class PandaJobQueue:
     def __contains__(self, k: str) -> bool:
         return self.has_job(k)
 
-    def next_job_to_process(self) -> Optional['PandaJob']:
+    def next_job_to_process(self) -> Optional["PandaJob"]:
         """
         Retrieve the next available job in the jobqueue. If the job is an eventservice job, it needs
         to have event ranges available otherwise it will not be considered as available
@@ -181,7 +177,7 @@ class PandaJobQueue:
         for jobID, jobDef in jobs.items():
             self.jobs[jobID] = PandaJob(jobDef)
 
-    def get_event_ranges(self, panda_id: str) -> 'EventRangeQueue':
+    def get_event_ranges(self, panda_id: str) -> "EventRangeQueue":
         """
         Retrieve the EventRangeQueue for the given panda job
 
@@ -194,8 +190,9 @@ class PandaJobQueue:
         if panda_id in self.jobs:
             return self[panda_id].event_ranges_queue
 
-    def process_event_ranges_update(self,
-                                    ranges_update: 'EventRangeUpdate') -> None:
+    def process_event_ranges_update(
+        self, ranges_update: "EventRangeUpdate"
+    ) -> None:
         """
         Update the range status
         Args:
@@ -207,7 +204,9 @@ class PandaJobQueue:
         for pandaID in ranges_update:
             self.get_event_ranges(pandaID).update_ranges(ranges_update[pandaID])
 
-    def process_event_ranges_reply(self, reply: Mapping[str, HarvesterEventRangeUpdateDef]) -> None:
+    def process_event_ranges_reply(
+        self, reply: Mapping[str, HarvesterEventRangeUpdateDef]
+    ) -> None:
         """
         Process an event ranges reply from harvester by adding ranges to each corresponding job already present in the
         queue. If an empty event list is received for a job, assume that no more events will be provided for this job
@@ -224,11 +223,14 @@ class PandaJobQueue:
             if not ranges:
                 self[pandaID].no_more_ranges = True
             else:
-                ranges_obj = [EventRange.build_from_dict(range_dict) for range_dict in ranges]
+                ranges_obj = [
+                    EventRange.build_from_dict(range_dict)
+                    for range_dict in ranges
+                ]
                 self.get_event_ranges(pandaID).add_new_event_ranges(ranges_obj)
 
     @staticmethod
-    def build_from_dict(jobs_dict: Mapping[str, JobDef]) -> 'PandaJobQueue':
+    def build_from_dict(jobs_dict: Mapping[str, JobDef]) -> "PandaJobQueue":
         """
         Convert dict of jobs returned by harvester to a PandaJobQueue.
         Args:
@@ -361,14 +363,16 @@ class EventRangeQueue:
     def __len__(self) -> int:
         return len(self.event_ranges_by_id)
 
-    def __getitem__(self, k: str) -> 'EventRange':
+    def __getitem__(self, k: str) -> "EventRange":
         return self.event_ranges_by_id[k]
 
-    def __setitem__(self, k: str, v: 'EventRange') -> None:
+    def __setitem__(self, k: str, v: "EventRange") -> None:
         if not isinstance(v, EventRange):
             raise Exception(f"{v} should be of type {EventRange}")
         if k != v.eventRangeID:
-            raise Exception(f"Specified key '{k}' should be equals to the event range id '{v.eventRangeID}' ")
+            raise Exception(
+                f"Specified key '{k}' should be equals to the event range id '{v.eventRangeID}' "
+            )
         if k in self.event_ranges_by_id:
             self.rangesID_by_state[v.status].remove(k)
             if v.PFN in self.rangesID_by_file:
@@ -381,7 +385,9 @@ class EventRangeQueue:
         return k in self.event_ranges_by_id
 
     @staticmethod
-    def build_from_list(ranges_list: Iterable[EventRangeDef]) -> 'EventRangeQueue':
+    def build_from_list(
+        ranges_list: Iterable[EventRangeDef],
+    ) -> "EventRangeQueue":
         """
         Build an EventRangeQueue from a list of event ranges sent by harvester
 
@@ -399,7 +405,7 @@ class EventRangeQueue:
     def _get_file_from_id(self, range_id: str) -> str:
         return os.path.basename(self.event_ranges_by_id[range_id].PFN)
 
-    def update_range_state(self, range_id: str, new_state: str) -> 'EventRange':
+    def update_range_state(self, range_id: str, new_state: str) -> "EventRange":
         """
         Update the status of an event range
         Args:
@@ -411,10 +417,14 @@ class EventRangeQueue:
         """
         if range_id not in self.event_ranges_by_id:
             raise Exception(
-                f"Trying to update non-existing eventrange {range_id}")
+                f"Trying to update non-existing eventrange {range_id}"
+            )
 
         event_range = self.event_ranges_by_id[range_id]
-        if new_state != EventRange.READY and event_range.status == EventRange.READY:
+        if (
+            new_state != EventRange.READY
+            and event_range.status == EventRange.READY
+        ):
             self.rangesID_by_file[event_range.PFN].remove(range_id)
         elif new_state == EventRange.READY:
             self.rangesID_by_file[event_range.PFN].add(range_id)
@@ -427,7 +437,7 @@ class EventRangeQueue:
         # rangesID_by_file only hold ids of ranges that are ready to be assigned
         return event_range
 
-    def assign_ready_ranges(self, n_ranges=1) -> List['EventRange']:
+    def assign_ready_ranges(self, n_ranges=1) -> List["EventRange"]:
         n_ranges = min(self.nranges_available(), n_ranges)
         if not n_ranges:
             return list()
@@ -467,8 +477,8 @@ class EventRangeQueue:
             None
         """
         for r in ranges_update:
-            range_id = r['eventRangeID']
-            range_status = r['eventStatus']
+            range_id = r["eventRangeID"]
+            range_status = r["eventStatus"]
             if range_id not in self.event_ranges_by_id:
                 raise Exception()
             self.update_range_state(range_id, range_status)
@@ -483,8 +493,9 @@ class EventRangeQueue:
         Returns:
             Number of event ranges which are not finished or failed
         """
-        return len(self.event_ranges_by_id) - (self.nranges_done() +
-                                               self.nranges_failed())
+        return len(self.event_ranges_by_id) - (
+            self.nranges_done() + self.nranges_failed()
+        )
 
     def nranges_available(self) -> int:
         """
@@ -522,7 +533,7 @@ class EventRangeQueue:
         """
         return self._get_ranges_count(EventRange.DONE)
 
-    def append(self, event_range: Union[EventRangeDef, 'EventRange']) -> None:
+    def append(self, event_range: Union[EventRangeDef, "EventRange"]) -> None:
         """
         Append a single event range to the queue
 
@@ -543,9 +554,11 @@ class EventRangeQueue:
             self.rangesID_by_file[event_range.PFN].add(event_range.eventRangeID)
         self.event_ranges_count[event_range.status] += 1
 
-    def add_new_event_ranges(self, ranges: Sequence['EventRange']) -> None:
+    def add_new_event_ranges(self, ranges: Sequence["EventRange"]) -> None:
         # PRE: all ranges in the list are in state ready
-        self.rangesID_by_state[EventRange.READY].update(map(lambda e: e.eventRangeID, ranges))
+        self.rangesID_by_state[EventRange.READY].update(
+            map(lambda e: e.eventRangeID, ranges)
+        )
         self.event_ranges_count[EventRange.READY] += len(ranges)
         for r in ranges:
             self.event_ranges_by_id[r.eventRangeID] = r
@@ -553,7 +566,9 @@ class EventRangeQueue:
                 self.rangesID_by_file[r.PFN] = set()
             self.rangesID_by_file[r.PFN].add(r.eventRangeID)
 
-    def concat(self, ranges: Sequence[Union[EventRangeDef, 'EventRange']]) -> None:
+    def concat(
+        self, ranges: Sequence[Union[EventRangeDef, "EventRange"]]
+    ) -> None:
         """
         Concatenate a list of event ranges to the queue
 
@@ -566,7 +581,7 @@ class EventRangeQueue:
         for r in ranges:
             self.append(r)
 
-    def get_next_ranges(self, nranges: int) -> List['EventRange']:
+    def get_next_ranges(self, nranges: int) -> List["EventRange"]:
         """
         Dequeue event ranges. Event ranges which were dequeued are updated to the 'ASSIGNED' status
         and should be assigned to workers to be processed. In case more ranges are requested
@@ -686,7 +701,12 @@ class EventRangeUpdate:
 
     """
 
-    def __init__(self, range_update: Dict[str, List[MutableMapping[str, Union[str, int]]]] = None) -> None:
+    def __init__(
+        self,
+        range_update: Dict[
+            str, List[MutableMapping[str, Union[str, int]]]
+        ] = None,
+    ) -> None:
         """
         Wraps the range update dict in an object. The range update should be in the harvester-supported format.
 
@@ -699,7 +719,9 @@ class EventRangeUpdate:
             for v in range_update.values():
                 if not isinstance(v, list):
                     raise Exception(f"Expecting type list for element {v}")
-            self.range_update: Dict[str, HarvesterEventRangeUpdateDef] = range_update
+            self.range_update: Dict[str, HarvesterEventRangeUpdateDef] = (
+                range_update
+            )
 
     def __len__(self) -> int:
         return len(self.range_update)
@@ -718,7 +740,7 @@ class EventRangeUpdate:
             raise Exception(f"Expecting type list for element {v}")
         self.range_update[k] = v
 
-    def merge_update(self, other: 'EventRangeUpdate') -> None:
+    def merge_update(self, other: "EventRangeUpdate") -> None:
         for pandaID in other:
             if pandaID in self:
                 self[pandaID] += other[pandaID]
@@ -726,8 +748,9 @@ class EventRangeUpdate:
                 self[pandaID] = other[pandaID]
 
     @staticmethod
-    def build_from_dict(panda_id: str,
-                        range_update: Sequence[PilotEventRangeUpdateDef]) -> 'EventRangeUpdate':
+    def build_from_dict(
+        panda_id: str, range_update: Sequence[PilotEventRangeUpdateDef]
+    ) -> "EventRangeUpdate":
         """
         Parses a range_update dict to a format adapted to be sent to harvester.
 
@@ -740,23 +763,29 @@ class EventRangeUpdate:
         """
         update_dict = dict()
         update_dict[panda_id] = list()
-        if isinstance(
-                range_update, dict
-        ) and "zipFile" not in range_update and "esOutput" not in range_update \
-                and "eventRangeID" not in range_update:
-            range_update: Sequence[PilotEventRangeUpdateDef] = json.loads(range_update['eventRanges'][0])
+        if (
+            isinstance(range_update, dict)
+            and "zipFile" not in range_update
+            and "esOutput" not in range_update
+            and "eventRangeID" not in range_update
+        ):
+            range_update: Sequence[PilotEventRangeUpdateDef] = json.loads(
+                range_update["eventRanges"][0]
+            )
 
         for range_elt in range_update:
             if "zipFile" in range_elt and range_elt["zipFile"]:
                 range_update_type = "zipFile"
-                file_info: FileInfo = range_elt.get('zipFile', None)
+                file_info: FileInfo = range_elt.get("zipFile", None)
             elif "esOutput" in range_elt and range_elt["esOutput"]:
                 range_update_type = "esOutput"
-                file_info: FileInfo = range_elt.get('esOutput', None)
+                file_info: FileInfo = range_elt.get("esOutput", None)
             else:
                 range_update_type = None
                 file_info: None = None
-            ranges_info: Sequence[EventRangeDef] = range_elt.get('eventRanges', None)
+            ranges_info: Sequence[EventRangeDef] = range_elt.get(
+                "eventRanges", None
+            )
             file_data = dict()
 
             if file_info:
@@ -764,30 +793,30 @@ class EventRangeUpdate:
                     ftype = "es_output"
                 else:
                     ftype = "zip_output"
-                    file_data['path'] = file_info['lfn']
-                    file_data['chksum'] = file_info['adler32']
-                    file_data['fsize'] = file_info['fsize']
-                file_data['type'] = ftype
+                    file_data["path"] = file_info["lfn"]
+                    file_data["chksum"] = file_info["adler32"]
+                    file_data["fsize"] = file_info["fsize"]
+                file_data["type"] = ftype
 
             if ranges_info:
                 for rangeInfo in ranges_info:
                     elt = dict()
-                    elt['eventRangeID'] = rangeInfo['eventRangeID']
-                    elt['eventStatus'] = rangeInfo['eventStatus']
+                    elt["eventRangeID"] = rangeInfo["eventRangeID"]
+                    elt["eventStatus"] = rangeInfo["eventStatus"]
                     if range_update_type == "esOutput":
-                        elt['path'] = rangeInfo['pfn']
-                        elt['chksum'] = rangeInfo['adler32']
-                        elt['fsize'] = rangeInfo['fsize']
+                        elt["path"] = rangeInfo["pfn"]
+                        elt["chksum"] = rangeInfo["adler32"]
+                        elt["fsize"] = rangeInfo["fsize"]
                     elt.update(file_data)
                     update_dict[panda_id].append(elt)
             else:
                 elt = dict()
-                elt['eventRangeID'] = range_elt['eventRangeID']
-                elt['eventStatus'] = range_elt['eventStatus']
+                elt["eventRangeID"] = range_elt["eventRangeID"]
+                elt["eventStatus"] = range_elt["eventStatus"]
                 if range_update_type == "esOutput":
-                    elt['path'] = range_elt['pfn']
-                    elt['chksum'] = range_elt['adler32']
-                    elt['fsize'] = range_elt['fsize']
+                    elt["path"] = range_elt["pfn"]
+                    elt["chksum"] = range_elt["adler32"]
+                    elt["fsize"] = range_elt["fsize"]
                 elt.update(file_data)
                 update_dict[panda_id].append(elt)
 
@@ -814,17 +843,19 @@ class PandaJobRequest:
     Note that harvester will ignore the content of the job request file and simply check if it exists
     """
 
-    def __init__(self,
-                 node: str = None,
-                 disk_space: str = None,
-                 working_group: str = None,
-                 prod_source_label: str = None,
-                 computing_element: str = None,
-                 site_name: str = None,
-                 resource_type: str = None,
-                 mem: str = None,
-                 cpu: str = None,
-                 allow_other_country: str = None) -> None:
+    def __init__(
+        self,
+        node: str = None,
+        disk_space: str = None,
+        working_group: str = None,
+        prod_source_label: str = None,
+        computing_element: str = None,
+        site_name: str = None,
+        resource_type: str = None,
+        mem: str = None,
+        cpu: str = None,
+        allow_other_country: str = None,
+    ) -> None:
         self.node = node
         self.diskSpace = disk_space
         self.workingGroup = working_group
@@ -873,7 +904,9 @@ class EventRangeRequest:
     def __str__(self) -> str:
         return json.dumps(self.request)
 
-    def add_event_request(self, panda_id: str, n_ranges: int, task_id: str, jobset_id: str) -> None:
+    def add_event_request(
+        self, panda_id: str, n_ranges: int, task_id: str, jobset_id: str
+    ) -> None:
         """
         Adds a job for which event ranges should be requested to the request object
 
@@ -887,14 +920,16 @@ class EventRangeRequest:
 
         """
         self.request[panda_id] = {
-            'pandaID': panda_id,
-            'nRanges': n_ranges,
-            'taskID': task_id,
-            'jobsetID': jobset_id
+            "pandaID": panda_id,
+            "nRanges": n_ranges,
+            "taskID": task_id,
+            "jobsetID": jobset_id,
         }
 
     @staticmethod
-    def build_from_dict(request_dict: Mapping[str, Dict[str, Builtin]]) -> 'EventRangeRequest':
+    def build_from_dict(
+        request_dict: Mapping[str, Dict[str, Builtin]],
+    ) -> "EventRangeRequest":
         """
         Build a request object from a dict parsed from its json representation
 
@@ -1002,7 +1037,7 @@ class PandaJob:
         """
         return self.event_ranges_queue.nranges_available()
 
-    def get_next_ranges(self, nranges: int) -> List['EventRange']:
+    def get_next_ranges(self, nranges: int) -> List["EventRange"]:
         """
         See Also:
             EventRangeQueue.get_next_ranges()
@@ -1016,7 +1051,7 @@ class PandaJob:
         Returns:
             Name of the panda queue from which harvester is retrieving jobs
         """
-        return self['destinationSE']
+        return self["destinationSE"]
 
     def get_id(self) -> str:
         """
@@ -1025,7 +1060,7 @@ class PandaJob:
         Returns:
             the job worker_id
         """
-        return self['PandaID']
+        return self["PandaID"]
 
     def __str__(self) -> str:
         return json.dumps(self.job)
@@ -1073,8 +1108,15 @@ class EventRange:
     FATAL = "fatal"
     STATES = [READY, ASSIGNED, DONE, FAILED, FATAL]
 
-    def __init__(self, event_range_id: str, start_event: int, last_event: int,
-                 pfn: str, guid: str, scope: str) -> None:
+    def __init__(
+        self,
+        event_range_id: str,
+        start_event: int,
+        last_event: int,
+        pfn: str,
+        guid: str,
+        scope: str,
+    ) -> None:
         """
         Initialize the range
 
@@ -1140,7 +1182,7 @@ class EventRange:
         """
         return json.dumps(self.to_dict())
 
-    def __eq__(self, o: 'EventRange') -> bool:
+    def __eq__(self, o: "EventRange") -> bool:
         if not isinstance(o, EventRange):
             return False
         return self.eventRangeID == o.eventRangeID
@@ -1153,15 +1195,15 @@ class EventRange:
             dict serialization of the range
         """
         return {
-            'PFN': self.PFN,
-            'lastEvent': self.lastEvent,
-            'eventRangeID': self.eventRangeID,
-            'startEvent': self.startEvent,
-            'GUID': self.GUID
+            "PFN": self.PFN,
+            "lastEvent": self.lastEvent,
+            "eventRangeID": self.eventRangeID,
+            "startEvent": self.startEvent,
+            "GUID": self.GUID,
         }
 
     @staticmethod
-    def build_from_dict(event_ranges_dict: EventRangeDef) -> 'EventRange':
+    def build_from_dict(event_ranges_dict: EventRangeDef) -> "EventRange":
         """
         Construct an event range from a dict returned by harvester
 
@@ -1172,10 +1214,13 @@ class EventRange:
             EventRange object
         """
         return EventRange(
-            event_ranges_dict['eventRangeID'], event_ranges_dict['startEvent'],
-            event_ranges_dict['lastEvent'],
-            event_ranges_dict.get('PFN', event_ranges_dict.get('LFN', None)),
-            event_ranges_dict['GUID'], event_ranges_dict['scope'])
+            event_ranges_dict["eventRangeID"],
+            event_ranges_dict["startEvent"],
+            event_ranges_dict["lastEvent"],
+            event_ranges_dict.get("PFN", event_ranges_dict.get("LFN", None)),
+            event_ranges_dict["GUID"],
+            event_ranges_dict["scope"],
+        )
 
 
 class JobReport:
@@ -1190,10 +1235,9 @@ class JobReport:
 
     """
 
-    def __init__(self,
-                 exitCode: int = 0,
-                 exitMsg: str = None,
-                 exitMsgExtra: str = None) -> None:
+    def __init__(
+        self, exitCode: int = 0, exitMsg: str = None, exitMsgExtra: str = None
+    ) -> None:
         self.exitCode = exitCode
         self.exitMsg = exitMsg
         self.exitMsgExtra = exitMsgExtra

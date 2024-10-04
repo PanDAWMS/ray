@@ -18,7 +18,7 @@ class ErrorCodes:
         STAGEIN_FAILED: "Failed to stagein data",
         STAGEOUT_FAILED: "Failed to stageout data",
         PAYLOAD_FAILED: "Payload execution failed",
-        UNKNOWN: "Unknown error"
+        UNKNOWN: "Unknown error",
     }
 
     @staticmethod
@@ -105,7 +105,9 @@ class BaseRaythenaException(Exception):
     Base class for raythena exception
     """
 
-    def __init__(self, worker_id: str, error_code: int, message: str = None) -> None:
+    def __init__(
+        self, worker_id: str, error_code: int, message: str = None
+    ) -> None:
         """
         Initialize worker_id, error code and message
 
@@ -116,8 +118,9 @@ class BaseRaythenaException(Exception):
         """
         self.worker_id = worker_id
         self.error_code = error_code
-        self.message = message if message else ErrorCodes.get_error_message(
-            error_code)
+        self.message = (
+            message if message else ErrorCodes.get_error_message(error_code)
+        )
         super().__init__(self.message)
 
     def __reduce__(self):
@@ -129,13 +132,22 @@ class IllegalWorkerState(BaseRaythenaException):
     Raised when the worker state tries to transition to a state he shouldn't be able to from its current state.
     """
 
-    def __init__(self, worker_id: str, src_state: str, dst_state: str, message: str = None) -> None:
+    def __init__(
+        self,
+        worker_id: str,
+        src_state: str,
+        dst_state: str,
+        message: str = None,
+    ) -> None:
         super().__init__(worker_id, ErrorCodes.ILLEGAL_WORKER_STATE, message)
         self.src_state = src_state
         self.dst_state = dst_state
 
     def __reduce__(self):
-        return (self.__class__, (self.worker_id, self.src_state, self.dst_state, self.message))
+        return (
+            self.__class__,
+            (self.worker_id, self.src_state, self.dst_state, self.message),
+        )
 
 
 class StageInFailed(BaseRaythenaException):
@@ -192,7 +204,9 @@ class WrappedException(BaseRaythenaException):
     """
 
     def __init__(self, worker_id: str, e: Exception) -> None:
-        super().__init__(worker_id, ErrorCodes.UNKNOWN, f"Wrapped exception {e}")
+        super().__init__(
+            worker_id, ErrorCodes.UNKNOWN, f"Wrapped exception {e}"
+        )
         self.wrapped_exception = e
 
     def __reduce__(self):

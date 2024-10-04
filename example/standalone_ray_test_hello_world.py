@@ -19,7 +19,7 @@ def build_nodes_resource_list(redis_ip: str):
     nodes = ray.nodes()
     resource_list = list()
     for node in nodes:
-        naddr = node['NodeManagerAddress']
+        naddr = node["NodeManagerAddress"]
         if naddr == redis_ip:
             continue
         else:
@@ -33,7 +33,9 @@ class actor:
         self.pid = os.getpid()
         self.hostname = platform.node()
         self.ip = ray._private.services.get_node_ip_address()
-        print(f"Initial message from PID - {self.pid} Running on host - {self.hostname} {self.ip}")
+        print(
+            f"Initial message from PID - {self.pid} Running on host - {self.hostname} {self.ip}"
+        )
 
     def ping(self):
         print(f"{self.pid} {self.hostname} {self.ip} - ping")
@@ -43,8 +45,11 @@ class actor:
 
 def main(redis_ip: str, redis_port: str, redis_password: str):
     redis_address = f"{redis_ip}:{redis_port}"
-    ray.init(ignore_reinit_error=True,
-             address="%s" % redis_address, _redis_password="%s" % redis_password)
+    ray.init(
+        ignore_reinit_error=True,
+        address="%s" % redis_address,
+        _redis_password="%s" % redis_password,
+    )
 
     # show the ray cluster
     print(f"Ray Cluster resources : {ray.cluster_resources()}")
@@ -74,10 +79,18 @@ def main(redis_ip: str, redis_port: str, redis_password: str):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Wait on ray head node or workers to connect')
-    parser.add_argument('--redis-ip', default="%s" % (os.environ["RAYTHENA_RAY_HEAD_IP"]))
-    parser.add_argument('--redis-port', default="%s" % (os.environ["RAYTHENA_RAY_REDIS_PORT"]))
-    parser.add_argument('--redis-password', default=os.environ["RAYTHENA_RAY_REDIS_PASSWORD"])
+    parser = argparse.ArgumentParser(
+        description="Wait on ray head node or workers to connect"
+    )
+    parser.add_argument(
+        "--redis-ip", default="%s" % (os.environ["RAYTHENA_RAY_HEAD_IP"])
+    )
+    parser.add_argument(
+        "--redis-port", default="%s" % (os.environ["RAYTHENA_RAY_REDIS_PORT"])
+    )
+    parser.add_argument(
+        "--redis-password", default=os.environ["RAYTHENA_RAY_REDIS_PASSWORD"]
+    )
     args = parser.parse_args()
     print(f"args : {args}")
     main(args.redis_ip, args.redis_port, args.redis_password)

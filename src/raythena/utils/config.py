@@ -16,7 +16,7 @@ class Config:
     """
 
     required_conf_settings = {
-        'payload': {
+        "payload": {
             "pandaqueue": str,
             "logfilename": str,
             "extrasetup": str,
@@ -30,29 +30,29 @@ class Config:
             "pilotkilltime": int,
             "timemonitorfile": str,
         },
-        'harvester': {
-            'endpoint': str,
-            'harvesterconf': str,
+        "harvester": {
+            "endpoint": str,
+            "harvesterconf": str,
         },
-        'ray': {
-            'workdir': str,
-            'taskprogressbasedir': str,
-            'headip': str,
-            'redisport': int,
-            'redispassword': str,
-            'timeoutinterval': int,
-            'mergemaxprocesses': int,
-            'cachesizefactor': int,
+        "ray": {
+            "workdir": str,
+            "taskprogressbasedir": str,
+            "headip": str,
+            "redisport": int,
+            "redispassword": str,
+            "timeoutinterval": int,
+            "mergemaxprocesses": int,
+            "cachesizefactor": int,
         },
-        'resources': {
-            'corepernode': int,
+        "resources": {
+            "corepernode": int,
         },
-        'logging': {
-            'level': str,
-            'driverlogfile': str,
-            'workerlogfile': str,
-            'copyraylogs': bool
-        }
+        "logging": {
+            "level": str,
+            "driverlogfile": str,
+            "workerlogfile": str,
+            "copyraylogs": bool,
+        },
     }
 
     def __init__(self, config_path: str, *args, **kwargs) -> None:
@@ -89,11 +89,18 @@ class Config:
         """
         return str(self.__dict__)
 
-    def _parse_cli_args(self, config: str, debug: bool,
-                        ray_head_ip: str,
-                        ray_redis_password: str, ray_redis_port: str,
-                        ray_workdir: str, harvester_endpoint: str,
-                        panda_queue: str, core_per_node: int) -> None:
+    def _parse_cli_args(
+        self,
+        config: str,
+        debug: bool,
+        ray_head_ip: str,
+        ray_redis_password: str,
+        ray_redis_port: str,
+        ray_workdir: str,
+        harvester_endpoint: str,
+        panda_queue: str,
+        core_per_node: int,
+    ) -> None:
         """
         Overrides config settings with settings specified via cli / env vars
 
@@ -114,24 +121,28 @@ class Config:
             None
         """
         if debug:
-            self.logging['level'] = 'debug'
+            self.logging["level"] = "debug"
         if ray_head_ip:
-            self.ray['headip'] = ray_head_ip
+            self.ray["headip"] = ray_head_ip
         if ray_redis_port:
-            self.ray['redispassword'] = ray_redis_password
+            self.ray["redispassword"] = ray_redis_password
         if ray_redis_port:
-            self.ray['redisport'] = ray_redis_port
+            self.ray["redisport"] = ray_redis_port
         if ray_workdir:
-            self.ray['workdir'] = ray_workdir
+            self.ray["workdir"] = ray_workdir
         if harvester_endpoint:
-            self.harvester['endpoint'] = harvester_endpoint
+            self.harvester["endpoint"] = harvester_endpoint
         if panda_queue:
-            self.payload['pandaqueue'] = panda_queue
+            self.payload["pandaqueue"] = panda_queue
         if core_per_node:
-            self.resources['corepernode'] = int(core_per_node)
+            self.resources["corepernode"] = int(core_per_node)
 
-    def _validate_section(self, template_section_name: str,
-                          section_params: dict, template_params: dict) -> None:
+    def _validate_section(
+        self,
+        template_section_name: str,
+        section_params: dict,
+        template_params: dict,
+    ) -> None:
         """
         Validate one section of the config file
 
@@ -152,8 +163,11 @@ class Config:
                     f"Param '{name}' not found in conf section '{template_section_name}'"
                 )
             if isinstance(value, dict):
-                self._validate_section(f"{template_section_name}.{name}",
-                                       section_params.get(name), value)
+                self._validate_section(
+                    f"{template_section_name}.{name}",
+                    section_params.get(name),
+                    value,
+                )
 
     def _validate(self) -> None:
         """
@@ -166,12 +180,15 @@ class Config:
             Exception: config file is invalid
         """
         # validate pilot section
-        for template_section, template_params in Config.required_conf_settings.items(
-        ):
+        for (
+            template_section,
+            template_params,
+        ) in Config.required_conf_settings.items():
             section_params = getattr(self, template_section, None)
             if section_params is None:
                 raise Exception(
                     f"Malformed configuration file: section '{template_section}' not found"
                 )
-            self._validate_section(template_section, section_params,
-                                   template_params)
+            self._validate_section(
+                template_section, section_params, template_params
+            )

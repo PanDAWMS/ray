@@ -20,16 +20,18 @@ def requires_ray(config_base):
 
 @pytest.fixture(scope="class")
 def config_base(config_path):
-    return Config(config_path,
-                  config=None,
-                  debug=False,
-                  ray_head_ip=None,
-                  ray_redis_password=None,
-                  ray_redis_port=None,
-                  ray_workdir=None,
-                  harvester_endpoint=None,
-                  panda_queue=None,
-                  core_per_node=None)
+    return Config(
+        config_path,
+        config=None,
+        debug=False,
+        ray_head_ip=None,
+        ray_redis_password=None,
+        ray_redis_port=None,
+        ray_workdir=None,
+        harvester_endpoint=None,
+        panda_queue=None,
+        core_per_node=None,
+    )
 
 
 @pytest.fixture
@@ -58,7 +60,7 @@ def pandaids(njobs):
     res = []
     for i in range(njobs):
         hash = hashlib.md5()
-        hash.update(str(time.time()).encode('utf-8'))
+        hash.update(str(time.time()).encode("utf-8"))
         res.append(hash.hexdigest())
     return res
 
@@ -80,7 +82,11 @@ def nhits_per_file(nevents_per_file):
 
 @pytest.fixture
 def range_ids(nfiles, nevents_per_file):
-    return [f"EVNT_{file}.pool.root.1-{event}" for event in range(1, nevents_per_file + 1) for file in range(nfiles)]
+    return [
+        f"EVNT_{file}.pool.root.1-{event}"
+        for event in range(1, nevents_per_file + 1)
+        for file in range(nfiles)
+    ]
 
 
 @pytest.fixture
@@ -94,41 +100,42 @@ def sample_ranges(range_ids, pandaids, input_output_file_list):
         range_list = list()
         res[pandaID] = range_list
         for i in range(nevents):
-            range_list.append({
-                'lastEvent': i,
-                'eventRangeID': range_ids[i],
-                'startEvent': i,
-                'scope': '13Mev',
-                'LFN': files[i % nfiles],
-                'GUID': '0'
-            })
+            range_list.append(
+                {
+                    "lastEvent": i,
+                    "eventRangeID": range_ids[i],
+                    "startEvent": i,
+                    "scope": "13Mev",
+                    "LFN": files[i % nfiles],
+                    "GUID": "0",
+                }
+            )
     return res
 
 
 @pytest.fixture
 def sample_rangeupdate(range_ids):
-    return [{
-        "zipFile": {
-            "numEvents": len(range_ids),
-            "lfn": "EventService_premerge_Range-00000.tar",
-            "adler32": "36503831",
-            "objstoreID": 1641,
-            "fsize": 860160,
-            "pathConvention": 1000
-        },
-        "eventRanges": [{
-            "eventRangeID": r,
-            "eventStatus": "finished"
-        } for r in range_ids]
-    }]
+    return [
+        {
+            "zipFile": {
+                "numEvents": len(range_ids),
+                "lfn": "EventService_premerge_Range-00000.tar",
+                "adler32": "36503831",
+                "objstoreID": 1641,
+                "fsize": 860160,
+                "pathConvention": 1000,
+            },
+            "eventRanges": [
+                {"eventRangeID": r, "eventStatus": "finished"}
+                for r in range_ids
+            ],
+        }
+    ]
 
 
 @pytest.fixture
 def sample_failed_rangeupdate(range_ids):
-    return [{
-        "eventRangeID": r,
-        "eventStatus": "failed"
-    } for r in range_ids]
+    return [{"eventRangeID": r, "eventStatus": "failed"} for r in range_ids]
 
 
 @pytest.fixture
@@ -147,159 +154,120 @@ def input_output_file_list(nfiles, nhits_per_file, nevents_per_file):
 
 
 @pytest.fixture
-def sample_multijobs(request, input_output_file_list, is_eventservice, pandaids, nhits_per_file, nevents_per_file):
+def sample_multijobs(
+    request,
+    input_output_file_list,
+    is_eventservice,
+    pandaids,
+    nhits_per_file,
+    nevents_per_file,
+):
     res = {}
     (input_files, output_files) = input_output_file_list
     for pandaID in pandaids:
         hash = hashlib.md5()
 
-        hash.update(str(time.time()).encode('utf-8'))
+        hash.update(str(time.time()).encode("utf-8"))
         log_guid = hash.hexdigest()
 
-        hash.update(str(time.time()).encode('utf-8'))
+        hash.update(str(time.time()).encode("utf-8"))
         job_name = hash.hexdigest()
 
-        jobsetId = '0'
-        taskId = '0'
-        ncores = '8'
-        guid = '0'
+        jobsetId = "0"
+        taskId = "0"
+        ncores = "8"
+        guid = "0"
         scope = "13Mev"
         panda_queue_name = f"pandaqueue_{hash.hexdigest()}"
         inFiles = ",".join(input_files)
         outFiles = ",".join(output_files)
         outFilesShort = f"[{','.join([str(i) for i in range(len(outFiles))])}]"
         res[pandaID] = {
-            'jobsetID':
-                jobsetId,
-            'nEventsPerInputFile': nevents_per_file,
-            'esmergeSpec': {
+            "jobsetID": jobsetId,
+            "nEventsPerInputFile": nevents_per_file,
+            "esmergeSpec": {
                 "transPath": "",
                 "jobParameters": "",
-                "nEventsPerOutputFile": nhits_per_file
+                "nEventsPerOutputFile": nhits_per_file,
             },
-            'logGUID':
-                log_guid,
-            'cmtConfig':
-                'x86_64-slc6-gcc49-opt',
-            'prodDBlocks':
-                'user.mlassnig:user.mlassnig.pilot.test.single.hits',
-            'dispatchDBlockTokenForOut':
-                'NULL,NULL',
-            'destinationDBlockToken':
-                'NULL,NULL',
-            'destinationSE':
-                panda_queue_name,
-            'realDatasets':
-                job_name,
-            'prodUserID':
-                'no_one',
-            'GUID':
-                ",".join([f"{guid}{i}" for i in range(len(input_files))]),
-            'realDatasetsIn':
-                'user.mlassnig:user.mlassnig.pilot.test.single.hits',
-            'nSent':
-                0,
-            'eventService':
-                str(is_eventservice),
-            'cloud':
-                'US',
-            'StatusCode':
-                0,
-            'homepackage':
-                'AtlasOffline/21.0.15',
-            'inFiles':
-                inFiles,
-            'processingType':
-                'pilot-ptest',
-            'ddmEndPointOut':
-                'UTA_SWT2_DATADISK,UTA_SWT2_DATADISK',
-            'fsize':
-                '118612262',
-            'fileDestinationSE':
-                f"{panda_queue_name},{panda_queue_name}",
-            'scopeOut':
-                'panda',
-            'minRamCount':
-                0,
-            'jobDefinitionID':
-                7932,
-            'maxWalltime':
-                'NULL',
-            'scopeLog':
-                'panda',
-            'transformation':
-                'Sim_tf.py',
-            'maxDiskCount':
-                0,
-            'coreCount':
-                ncores,
-            'prodDBlockToken':
-                'NULL',
-            'transferType':
-                'NULL',
-            'destinationDblock':
-                job_name,
-            'dispatchDBlockToken':
-                'NULL',
-            'jobPars': (
+            "logGUID": log_guid,
+            "cmtConfig": "x86_64-slc6-gcc49-opt",
+            "prodDBlocks": "user.mlassnig:user.mlassnig.pilot.test.single.hits",
+            "dispatchDBlockTokenForOut": "NULL,NULL",
+            "destinationDBlockToken": "NULL,NULL",
+            "destinationSE": panda_queue_name,
+            "realDatasets": job_name,
+            "prodUserID": "no_one",
+            "GUID": ",".join([f"{guid}{i}" for i in range(len(input_files))]),
+            "realDatasetsIn": "user.mlassnig:user.mlassnig.pilot.test.single.hits",
+            "nSent": 0,
+            "eventService": str(is_eventservice),
+            "cloud": "US",
+            "StatusCode": 0,
+            "homepackage": "AtlasOffline/21.0.15",
+            "inFiles": inFiles,
+            "processingType": "pilot-ptest",
+            "ddmEndPointOut": "UTA_SWT2_DATADISK,UTA_SWT2_DATADISK",
+            "fsize": "118612262",
+            "fileDestinationSE": f"{panda_queue_name},{panda_queue_name}",
+            "scopeOut": "panda",
+            "minRamCount": 0,
+            "jobDefinitionID": 7932,
+            "maxWalltime": "NULL",
+            "scopeLog": "panda",
+            "transformation": "Sim_tf.py",
+            "maxDiskCount": 0,
+            "coreCount": ncores,
+            "prodDBlockToken": "NULL",
+            "transferType": "NULL",
+            "destinationDblock": job_name,
+            "dispatchDBlockToken": "NULL",
+            "jobPars": (
                 '--eventService=%s --skipEvents=0 --firstEvent=1 --preExec "from AthenaCommon.DetFlags '
-                'import DetFlags;DetFlags.ID_setOn();DetFlags.Calo_setOff();'
+                "import DetFlags;DetFlags.ID_setOn();DetFlags.Calo_setOff();"
                 'DetFlags.Muon_setOff();DetFlags.Lucid_setOff();DetFlags.Truth_setOff() "'
-                '--athenaopts=--preloadlib=${ATLASMKLLIBDIR_PRELOAD}/libimf.so '
-                '--preInclude sim:SimulationJobOptions/preInclude.FrozenShowersFCalOnly.py,SimulationJobOptions/preInclude.BeamPipeKill.py '
-                '--geometryVersion ATLAS-R2-2016-01-00-00_VALIDATION --physicsList QGSP_BERT --randomSeed 1234 --conditionsTag OFLCOND-MC12-SIM-00 '
-                '--maxEvents=-1 --inputEvgenFile %s --outputHitsFile HITS_%s.pool.root)'
-                % (str(is_eventservice), inFiles, outFilesShort)),
-            'attemptNr':
-                0,
-            'swRelease':
-                'Atlas-21.0.15',
-            'nucleus':
-                'NULL',
-            'maxCpuCount':
-                0,
-            'outFiles':
-                outFiles,
-            'currentPriority':
-                1000,
-            'scopeIn':
-                scope,
-            'PandaID':
-                pandaID,
-            'sourceSite':
-                'NULL',
-            'dispatchDblock':
-                'NULL',
-            'prodSourceLabel':
-                'ptest',
-            'checksum':
-                'ad:5d000974',
-            'jobName':
-                job_name,
-            'ddmEndPointIn':
-                'UTA_SWT2_DATADISK',
-            'taskID':
-                taskId,
-            'logFile':
-                '%s.job.log.tgz' % job_name
+                "--athenaopts=--preloadlib=${ATLASMKLLIBDIR_PRELOAD}/libimf.so "
+                "--preInclude sim:SimulationJobOptions/preInclude.FrozenShowersFCalOnly.py,SimulationJobOptions/preInclude.BeamPipeKill.py "
+                "--geometryVersion ATLAS-R2-2016-01-00-00_VALIDATION --physicsList QGSP_BERT --randomSeed 1234 --conditionsTag OFLCOND-MC12-SIM-00 "
+                "--maxEvents=-1 --inputEvgenFile %s --outputHitsFile HITS_%s.pool.root)"
+                % (str(is_eventservice), inFiles, outFilesShort)
+            ),
+            "attemptNr": 0,
+            "swRelease": "Atlas-21.0.15",
+            "nucleus": "NULL",
+            "maxCpuCount": 0,
+            "outFiles": outFiles,
+            "currentPriority": 1000,
+            "scopeIn": scope,
+            "PandaID": pandaID,
+            "sourceSite": "NULL",
+            "dispatchDblock": "NULL",
+            "prodSourceLabel": "ptest",
+            "checksum": "ad:5d000974",
+            "jobName": job_name,
+            "ddmEndPointIn": "UTA_SWT2_DATADISK",
+            "taskID": taskId,
+            "logFile": "%s.job.log.tgz" % job_name,
         }
     return res
 
 
 @pytest.fixture
-def sample_job(is_eventservice, input_output_file_list, nhits_per_file, nevents_per_file):
+def sample_job(
+    is_eventservice, input_output_file_list, nhits_per_file, nevents_per_file
+):
     hash = hashlib.md5()
     (input_files, output_files) = input_output_file_list
-    hash.update(str(time.time()).encode('utf-8'))
+    hash.update(str(time.time()).encode("utf-8"))
     log_guid = hash.hexdigest()
 
-    hash.update(str(time.time()).encode('utf-8'))
+    hash.update(str(time.time()).encode("utf-8"))
     job_name = hash.hexdigest()
-    pandaID = '0'
-    jobsetId = '0'
-    taskId = '0'
-    ncores = '8'
-    guid = '0'
+    pandaID = "0"
+    jobsetId = "0"
+    taskId = "0"
+    ncores = "8"
+    guid = "0"
     scope = "13Mev"
     panda_queue_name = "pandaqueue"
     inFiles = ",".join(input_files)
@@ -307,118 +275,70 @@ def sample_job(is_eventservice, input_output_file_list, nhits_per_file, nevents_
     outFilesShort = f"[{','.join([str(i) for i in range(len(outFiles))])}]"
     return {
         pandaID: {
-            'jobsetID':
-                jobsetId,
-            'logGUID':
-                log_guid,
-            'nEventsPerInputFile': nevents_per_file,
-            'esmergeSpec': {
+            "jobsetID": jobsetId,
+            "logGUID": log_guid,
+            "nEventsPerInputFile": nevents_per_file,
+            "esmergeSpec": {
                 "transPath": "",
                 "jobParameters": "",
-                "nEventsPerOutputFile": nhits_per_file
+                "nEventsPerOutputFile": nhits_per_file,
             },
-            'cmtConfig':
-                'x86_64-slc6-gcc49-opt',
-            'prodDBlocks':
-                'user.mlassnig:user.mlassnig.pilot.test.single.hits',
-            'dispatchDBlockTokenForOut':
-                'NULL,NULL',
-            'destinationDBlockToken':
-                'NULL,NULL',
-            'destinationSE':
-                panda_queue_name,
-            'realDatasets':
-                job_name,
-            'prodUserID':
-                'no_one',
-            'GUID':
-                guid,
-            'realDatasetsIn':
-                'user.mlassnig:user.mlassnig.pilot.test.single.hits',
-            'nSent':
-                0,
-            'eventService':
-                str(is_eventservice),
-            'cloud':
-                'US',
-            'StatusCode':
-                0,
-            'homepackage':
-                'AtlasOffline/21.0.15',
-            'inFiles':
-                inFiles,
-            'processingType':
-                'pilot-ptest',
-            'ddmEndPointOut':
-                'UTA_SWT2_DATADISK,UTA_SWT2_DATADISK',
-            'fsize':
-                '118612262',
-            'fileDestinationSE':
-                f"{panda_queue_name},{panda_queue_name}",
-            'scopeOut':
-                'panda',
-            'minRamCount':
-                0,
-            'jobDefinitionID':
-                7932,
-            'maxWalltime':
-                'NULL',
-            'scopeLog':
-                'panda',
-            'transformation':
-                'Sim_tf.py',
-            'maxDiskCount':
-                0,
-            'coreCount':
-                ncores,
-            'prodDBlockToken':
-                'NULL',
-            'transferType':
-                'NULL',
-            'destinationDblock':
-                job_name,
-            'dispatchDBlockToken':
-                'NULL',
-            'jobPars': (
+            "cmtConfig": "x86_64-slc6-gcc49-opt",
+            "prodDBlocks": "user.mlassnig:user.mlassnig.pilot.test.single.hits",
+            "dispatchDBlockTokenForOut": "NULL,NULL",
+            "destinationDBlockToken": "NULL,NULL",
+            "destinationSE": panda_queue_name,
+            "realDatasets": job_name,
+            "prodUserID": "no_one",
+            "GUID": guid,
+            "realDatasetsIn": "user.mlassnig:user.mlassnig.pilot.test.single.hits",
+            "nSent": 0,
+            "eventService": str(is_eventservice),
+            "cloud": "US",
+            "StatusCode": 0,
+            "homepackage": "AtlasOffline/21.0.15",
+            "inFiles": inFiles,
+            "processingType": "pilot-ptest",
+            "ddmEndPointOut": "UTA_SWT2_DATADISK,UTA_SWT2_DATADISK",
+            "fsize": "118612262",
+            "fileDestinationSE": f"{panda_queue_name},{panda_queue_name}",
+            "scopeOut": "panda",
+            "minRamCount": 0,
+            "jobDefinitionID": 7932,
+            "maxWalltime": "NULL",
+            "scopeLog": "panda",
+            "transformation": "Sim_tf.py",
+            "maxDiskCount": 0,
+            "coreCount": ncores,
+            "prodDBlockToken": "NULL",
+            "transferType": "NULL",
+            "destinationDblock": job_name,
+            "dispatchDBlockToken": "NULL",
+            "jobPars": (
                 '--eventService=%s --skipEvents=0 --firstEvent=1 --preExec "from AthenaCommon.DetFlags '
-                'import DetFlags;DetFlags.ID_setOn();DetFlags.Calo_setOff();'
+                "import DetFlags;DetFlags.ID_setOn();DetFlags.Calo_setOff();"
                 'DetFlags.Muon_setOff();DetFlags.Lucid_setOff();DetFlags.Truth_setOff() "'
-                '--athenaopts=--preloadlib=${ATLASMKLLIBDIR_PRELOAD}/libimf.so '
-                '--preInclude sim:SimulationJobOptions/preInclude.FrozenShowersFCalOnly.py,SimulationJobOptions/preInclude.BeamPipeKill.py '
-                '--geometryVersion ATLAS-R2-2016-01-00-00_VALIDATION --physicsList QGSP_BERT --randomSeed 1234 --conditionsTag OFLCOND-MC12-SIM-00 '
-                '--maxEvents=-1 --inputEvgenFile %s --outputHitsFile HITS_%s.pool.root)'
-                % (str(is_eventservice), inFiles, outFilesShort)),
-            'attemptNr':
-                0,
-            'swRelease':
-                'Atlas-21.0.15',
-            'nucleus':
-                'NULL',
-            'maxCpuCount':
-                0,
-            'outFiles':
-                outFiles,
-            'currentPriority':
-                1000,
-            'scopeIn':
-                scope,
-            'PandaID':
-                pandaID,
-            'sourceSite':
-                'NULL',
-            'dispatchDblock':
-                'NULL',
-            'prodSourceLabel':
-                'ptest',
-            'checksum':
-                'ad:5d000974',
-            'jobName':
-                job_name,
-            'ddmEndPointIn':
-                'UTA_SWT2_DATADISK',
-            'taskID':
-                taskId,
-            'logFile':
-                '%s.job.log.tgz' % job_name
+                "--athenaopts=--preloadlib=${ATLASMKLLIBDIR_PRELOAD}/libimf.so "
+                "--preInclude sim:SimulationJobOptions/preInclude.FrozenShowersFCalOnly.py,SimulationJobOptions/preInclude.BeamPipeKill.py "
+                "--geometryVersion ATLAS-R2-2016-01-00-00_VALIDATION --physicsList QGSP_BERT --randomSeed 1234 --conditionsTag OFLCOND-MC12-SIM-00 "
+                "--maxEvents=-1 --inputEvgenFile %s --outputHitsFile HITS_%s.pool.root)"
+                % (str(is_eventservice), inFiles, outFilesShort)
+            ),
+            "attemptNr": 0,
+            "swRelease": "Atlas-21.0.15",
+            "nucleus": "NULL",
+            "maxCpuCount": 0,
+            "outFiles": outFiles,
+            "currentPriority": 1000,
+            "scopeIn": scope,
+            "PandaID": pandaID,
+            "sourceSite": "NULL",
+            "dispatchDblock": "NULL",
+            "prodSourceLabel": "ptest",
+            "checksum": "ad:5d000974",
+            "jobName": job_name,
+            "ddmEndPointIn": "UTA_SWT2_DATADISK",
+            "taskID": taskId,
+            "logFile": "%s.job.log.tgz" % job_name,
         }
     }

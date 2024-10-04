@@ -83,16 +83,20 @@ class ESDriver(BaseDriver):
         self.id = "Driver"
         self._logger = make_logger(self.config, self.id)
         self.session_log_dir = os.path.join(self.session_dir, "logs")
-        self.nodes = build_nodes_resource_list(self.config, run_actor_on_head=False)
+        self.nodes = build_nodes_resource_list(
+            self.config, run_actor_on_head=False
+        )
 
         self.requests_queue: Queue[RequestData] = Queue()
         self.jobs_queue: Queue[Mapping[str, JobDef]] = Queue()
-        self.event_ranges_queue: Queue[Mapping[str, Sequence[EventRangeDef]]] = Queue()
+        self.event_ranges_queue: Queue[
+            Mapping[str, Sequence[EventRangeDef]]
+        ] = Queue()
 
-        workdir = os.path.expandvars(self.config.ray.get('workdir'))
+        workdir = os.path.expandvars(self.config.ray.get("workdir"))
         if not workdir or not os.path.exists(workdir):
             workdir = os.getcwd()
-        self.config.ray['workdir'] = workdir
+        self.config.ray["workdir"] = workdir
         self.workdir = workdir
         self.output_dir = ""
         self.merged_files_dir = ""
@@ -102,16 +106,20 @@ class ESDriver(BaseDriver):
             # TODO removing stdout on the root logger will also disable ray logging and collected stdout from actors
             disable_stdout_logging()
 
-        self._logger.debug(f"Raythena v{__version__} initializing, running Ray {ray.__version__} on {gethostname()}")
+        self._logger.debug(
+            f"Raythena v{__version__} initializing, running Ray {ray.__version__} on {gethostname()}"
+        )
 
         self.task_workdir_path_file = f"{workdir}/task_workdir_path.txt"
         # self.cpu_monitor = CPUMonitor(os.path.join(workdir, "cpu_monitor_driver.json"))
         # self.cpu_monitor.start()
 
-        self.communicator: BaseCommunicator = HarvesterFileCommunicator(self.requests_queue,
-                                                                        self.jobs_queue,
-                                                                        self.event_ranges_queue,
-                                                                        self.config)
+        self.communicator: BaseCommunicator = HarvesterFileCommunicator(
+            self.requests_queue,
+            self.jobs_queue,
+            self.event_ranges_queue,
+            self.config,
+        )
         self.communicator.start()
         self.requests_queue.put(PandaJobRequest())
         self.actors: Dict[str, ESWorker] = dict()
@@ -124,42 +132,67 @@ class ESDriver(BaseDriver):
         self.max_retries_error_failed_tasks = 3
         self.first_event_range_request = True
         self.no_more_events = False
-        self.cache_size_factor = self.config.ray.get('cachesizefactor', 3)
-        self.cores_per_node = self.config.resources.get('corepernode', os.cpu_count())
+        self.cache_size_factor = self.config.ray.get("cachesizefactor", 3)
+        self.cores_per_node = self.config.resources.get(
+            "corepernode", os.cpu_count()
+        )
         self.n_actors = len(self.nodes)
-        self.events_cache_size = self.cores_per_node * self.n_actors * self.cache_size_factor
-        self.timeoutinterval = self.config.ray['timeoutinterval']
-        self.max_running_merge_transforms = self.config.ray['mergemaxprocesses']
+        self.events_cache_size = (
+            self.cores_per_node * self.n_actors * self.cache_size_factor
+        )
+        self.timeoutinterval = self.config.ray["timeoutinterval"]
+        self.max_running_merge_transforms = self.config.ray["mergemaxprocesses"]
         self.panda_taskid = None
-        self.pandaqueue = self.config.payload['pandaqueue']
+        self.pandaqueue = self.config.payload["pandaqueue"]
         parser = configparser.ConfigParser()
-        harvester_config = self.config.harvester['harvesterconf']
+        harvester_config = self.config.harvester["harvesterconf"]
         self.queuedata_file = ""
         self.container_options = ""
         self.container_type = ""
         self.jobreport_name = ""
         if not os.path.isfile(harvester_config):
-            self._logger.warning(f"Couldn't find harvester config file {harvester_config}")
+            self._logger.warning(
+                f"Couldn't find harvester config file {harvester_config}"
+            )
         else:
             parser.read(harvester_config)
-            queuedata_config = [queue.split('|')[-1] for queue in parser["cacher"]["data"].splitlines() if queue.startswith(self.pandaqueue)]
+            queuedata_config = [
+                queue.split("|")[-1]
+                for queue in parser["cacher"]["data"].splitlines()
+                if queue.startswith(self.pandaqueue)
+            ]
             self.jobreport_name = parser["payload_interaction"]["jobReportFile"]
             if not queuedata_config:
-                self._logger.warning(f"No queuedata config found for {self.pandaqueue}")
+                self._logger.warning(
+                    f"No queuedata config found for {self.pandaqueue}"
+                )
             elif not os.path.isfile(queuedata_config[0]):
-                self._logger.warning(f"cached queudata file not found: {queuedata_config[0]}")
+                self._logger.warning(
+                    f"cached queudata file not found: {queuedata_config[0]}"
+                )
             else:
                 self.queuedata_file = queuedata_config[0]
                 with open(self.queuedata_file) as f:
                     queuedata = json.load(f)
                     self.container_options = queuedata["container_options"]
-                    self.container_type = queuedata["container_type"].split(":")[0]
-                    if self.container_type != self.config.payload['containerengine']:
-                        self._logger.warning("Mismatch between pandaqueue and raythena container type. Overriding raythena config")
-                        self.config.payload['containerengine'] = self.container_type
+                    self.container_type = queuedata["container_type"].split(
+                        ":"
+                    )[0]
+                    if (
+                        self.container_type
+                        != self.config.payload["containerengine"]
+                    ):
+                        self._logger.warning(
+                            "Mismatch between pandaqueue and raythena container type. Overriding raythena config"
+                        )
+                        self.config.payload["containerengine"] = (
+                            self.container_type
+                        )
 
         # {input_filename, {merged_output_filename, ([(event_range_id, EventRange)], subprocess handle)}}
-        self.running_merge_transforms: Dict[str, Tuple[List[Tuple[str, EventRange]], Popen, str]] = dict()
+        self.running_merge_transforms: Dict[
+            str, Tuple[List[Tuple[str, EventRange]], Popen, str]
+        ] = dict()
         self.total_running_merge_transforms = 0
         self.failed_actor_tasks_count = dict()
         self.available_events_per_actor = 0
@@ -205,32 +238,41 @@ class ESDriver(BaseDriver):
         Returns:
             None
         """
-        events_per_actor = min(self.available_events_per_actor, self.cores_per_node)
+        events_per_actor = min(
+            self.available_events_per_actor, self.cores_per_node
+        )
         for i, node in enumerate(self.nodes):
-            nodeip = node['NodeManagerAddress']
+            nodeip = node["NodeManagerAddress"]
             node_constraint = f"node:{nodeip}"
             actor_id = f"Actor_{i}"
             kwargs = {
-                'actor_id': actor_id,
-                'config': self.config_remote,
-                'session_log_dir': self.session_log_dir,
-                'actor_no': i,
-                'actor_count': self.n_actors,
+                "actor_id": actor_id,
+                "config": self.config_remote,
+                "session_log_dir": self.session_log_dir,
+                "actor_no": i,
+                "actor_count": self.n_actors,
             }
             job = self.bookKeeper.assign_job_to_actor(actor_id)
             if job:
-                job_remote = self.remote_jobdef_byid[job['PandaID']]
-                kwargs['job'] = job_remote
-                event_ranges = self.bookKeeper.fetch_event_ranges(actor_id, events_per_actor)
+                job_remote = self.remote_jobdef_byid[job["PandaID"]]
+                kwargs["job"] = job_remote
+                event_ranges = self.bookKeeper.fetch_event_ranges(
+                    actor_id, events_per_actor
+                )
                 if event_ranges:
-                    kwargs['event_ranges'] = event_ranges
+                    kwargs["event_ranges"] = event_ranges
                     self._logger.debug(
-                        f"Prefetched job {job['PandaID']} and {len(event_ranges)} event ranges for {actor_id}")
+                        f"Prefetched job {job['PandaID']} and {len(event_ranges)} event ranges for {actor_id}"
+                    )
 
-            actor = ESWorker.options(resources={node_constraint: 1}).remote(**kwargs)
+            actor = ESWorker.options(resources={node_constraint: 1}).remote(
+                **kwargs
+            )
             self.actors[actor_id] = actor
 
-    def retrieve_actors_messages(self, ready: Sequence[ObjectRef]) -> Iterator[WorkerResponse]:
+    def retrieve_actors_messages(
+        self, ready: Sequence[ObjectRef]
+    ) -> Iterator[WorkerResponse]:
         """
         Given a list of ready futures from actors, unwrap them and return an interable over the result of each future.
         In case one of the futures raised an exception, the exception is handled by this function and not propagated to the caller.
@@ -253,7 +295,9 @@ class ESDriver(BaseDriver):
                 except RayActorError as e:
                     self._logger.error(f"RayActorError: {e.error_msg}")
                 except Exception as e:
-                    self._logger.error(f"Caught exception while fetching result from {self.pending_objectref_to_actor[r]}: {e}")
+                    self._logger.error(
+                        f"Caught exception while fetching result from {self.pending_objectref_to_actor[r]}: {e}"
+                    )
                 else:
                     yield actor_id, message, data
         else:
@@ -274,13 +318,19 @@ class ESDriver(BaseDriver):
         new_messages, self.actors_message_queue = self.wait_on_messages()
         total_sent = 0
         while new_messages and self.running:
-            for actor_id, message, data in self.retrieve_actors_messages(new_messages):
+            for actor_id, message, data in self.retrieve_actors_messages(
+                new_messages
+            ):
                 if message == Messages.IDLE or message == Messages.REPLY_OK:
-                    self.enqueue_actor_call(actor_id, self[actor_id].get_message.remote())
+                    self.enqueue_actor_call(
+                        actor_id, self[actor_id].get_message.remote()
+                    )
                 elif message == Messages.REQUEST_NEW_JOB:
                     self.handle_job_request(actor_id)
                 elif message == Messages.REQUEST_EVENT_RANGES:
-                    total_sent = self.handle_request_event_ranges(actor_id, data, total_sent)
+                    total_sent = self.handle_request_event_ranges(
+                        actor_id, data, total_sent
+                    )
                 elif message == Messages.UPDATE_JOB:
                     self.handle_update_job(actor_id, data)
                 elif message == Messages.UPDATE_EVENT_RANGES:
@@ -290,7 +340,9 @@ class ESDriver(BaseDriver):
             self.on_tick()
             new_messages, self.actors_message_queue = self.wait_on_messages()
 
-        self._logger.debug("Finished handling the Actors. Raythena will shutdown now.")
+        self._logger.debug(
+            "Finished handling the Actors. Raythena will shutdown now."
+        )
 
     def wait_on_messages(self) -> Tuple[List[ObjectRef], List[ObjectRef]]:
         """
@@ -308,13 +360,22 @@ class ESDriver(BaseDriver):
             timeoutinterval = None
 
         messages, queue = ray.wait(
-            self.actors_message_queue, num_returns=max(1, len(self.actors_message_queue) // 2), timeout=1)
+            self.actors_message_queue,
+            num_returns=max(1, len(self.actors_message_queue) // 2),
+            timeout=1,
+        )
         if not messages:
             messages, queue = ray.wait(
-                self.actors_message_queue, num_returns=max(1, len(self.actors_message_queue) // 10), timeout=1)
+                self.actors_message_queue,
+                num_returns=max(1, len(self.actors_message_queue) // 10),
+                timeout=1,
+            )
         if not messages:
             messages, queue = ray.wait(
-                self.actors_message_queue, num_returns=1, timeout=timeoutinterval)
+                self.actors_message_queue,
+                num_returns=1,
+                timeout=timeoutinterval,
+            )
         return messages, queue
 
     def handle_actor_done(self, actor_id: str) -> bool:
@@ -332,7 +393,9 @@ class ESDriver(BaseDriver):
         # TODO: Temporary hack
         has_jobs = False
         if has_jobs:
-            self.enqueue_actor_call(actor_id, self[actor_id].mark_new_job.remote())
+            self.enqueue_actor_call(
+                actor_id, self[actor_id].mark_new_job.remote()
+            )
         else:
             self.terminated.append(actor_id)
             self.bookKeeper.process_actor_end(actor_id)
@@ -340,7 +403,9 @@ class ESDriver(BaseDriver):
             # do not get new messages from this actor
         return has_jobs
 
-    def handle_update_event_ranges(self, actor_id: str, data: EventRangeUpdate) -> None:
+    def handle_update_event_ranges(
+        self, actor_id: str, data: EventRangeUpdate
+    ) -> None:
         """
         Handle worker update event ranges
 
@@ -367,7 +432,9 @@ class ESDriver(BaseDriver):
         """
         self.enqueue_actor_call(actor_id, self[actor_id].get_message.remote())
 
-    def handle_request_event_ranges(self, actor_id: str, data: EventRangeRequest, total_sent: int) -> int:
+    def handle_request_event_ranges(
+        self, actor_id: str, data: EventRangeRequest, total_sent: int
+    ) -> int:
         """
         Handle event ranges request. Event ranges are distributed evenly amongst workers,
         the number of events returned in a single request is capped to the number of local events
@@ -388,10 +455,11 @@ class ESDriver(BaseDriver):
         panda_id = self.bookKeeper.get_actor_job(actor_id)
 
         # get the min between requested ranges and what is available for each actor
-        n_ranges = min(data[panda_id]['nRanges'], self.available_events_per_actor)
+        n_ranges = min(
+            data[panda_id]["nRanges"], self.available_events_per_actor
+        )
 
-        evt_range = self.bookKeeper.fetch_event_ranges(
-            actor_id, n_ranges)
+        evt_range = self.bookKeeper.fetch_event_ranges(actor_id, n_ranges)
         # did not fetch enough events and harvester might have more, needs to get more events now
         # while (len(evt_range) < n_ranges and
         #        not self.bookKeeper.is_flagged_no_more_events(
@@ -402,9 +470,15 @@ class ESDriver(BaseDriver):
         #         actor_id, n_ranges)
         if evt_range:
             total_sent += len(evt_range)
-        self.enqueue_actor_call(actor_id, self[actor_id].receive_event_ranges.remote(
-            Messages.REPLY_OK if evt_range else
-            Messages.REPLY_NO_MORE_EVENT_RANGES, evt_range))
+        self.enqueue_actor_call(
+            actor_id,
+            self[actor_id].receive_event_ranges.remote(
+                Messages.REPLY_OK
+                if evt_range
+                else Messages.REPLY_NO_MORE_EVENT_RANGES,
+                evt_range,
+            ),
+        )
         self._logger.info(f"Sending {len(evt_range)} events to {actor_id}")
         return total_sent
 
@@ -424,8 +498,13 @@ class ESDriver(BaseDriver):
             # self.request_event_ranges(block=True)
             # job = self.bookKeeper.assign_job_to_actor(actor_id)
 
-        self.enqueue_actor_call(actor_id, self[actor_id].receive_job.remote(Messages.REPLY_OK
-                                if job else Messages.REPLY_NO_MORE_JOBS, self.remote_jobdef_byid[job['PandaID']]))
+        self.enqueue_actor_call(
+            actor_id,
+            self[actor_id].receive_job.remote(
+                Messages.REPLY_OK if job else Messages.REPLY_NO_MORE_JOBS,
+                self.remote_jobdef_byid[job["PandaID"]],
+            ),
+        )
 
     def request_event_ranges(self, block: bool = False) -> None:
         """
@@ -451,13 +530,17 @@ class ESDriver(BaseDriver):
                 n_available_ranges = self.bookKeeper.n_ready(pandaID)
                 job = self.bookKeeper.jobs[pandaID]
                 if n_available_ranges < self.events_cache_size:
-                    event_request.add_event_request(pandaID,
-                                                    self.events_cache_size,
-                                                    job['taskID'],
-                                                    job['jobsetID'])
+                    event_request.add_event_request(
+                        pandaID,
+                        self.events_cache_size,
+                        job["taskID"],
+                        job["jobsetID"],
+                    )
 
             if len(event_request) > 0:
-                self._logger.debug(f"Sending event ranges request to harvester for {self.events_cache_size} events")
+                self._logger.debug(
+                    f"Sending event ranges request to harvester for {self.events_cache_size} events"
+                )
                 self.requests_queue.put(event_request)
                 self.n_eventsrequest += 1
 
@@ -467,13 +550,17 @@ class ESDriver(BaseDriver):
                 n_received_events = 0
                 for pandaID, ranges_list in ranges.items():
                     n_received_events += len(ranges_list)
-                    self._logger.debug(f"got event ranges for job {pandaID}: {len(ranges_list)}")
+                    self._logger.debug(
+                        f"got event ranges for job {pandaID}: {len(ranges_list)}"
+                    )
                 if self.first_event_range_request:
                     self.first_event_range_request = False
                     if n_received_events == 0:
                         self.stop()
                 self.bookKeeper.add_event_ranges(ranges)
-                self.available_events_per_actor = max(1, ceil(self.bookKeeper.n_ready(pandaID) / self.n_actors))
+                self.available_events_per_actor = max(
+                    1, ceil(self.bookKeeper.n_ready(pandaID) / self.n_actors)
+                )
                 self.n_eventsrequest -= 1
             except Empty:
                 pass
@@ -506,8 +593,11 @@ class ESDriver(BaseDriver):
         ray.get(handles)
 
     def setup_dirs(self):
-        self.output_dir = os.path.join(os.path.expandvars(self.config.ray.get("taskprogressbasedir")), str(self.panda_taskid))
-        with open(self.task_workdir_path_file, 'w') as f:
+        self.output_dir = os.path.join(
+            os.path.expandvars(self.config.ray.get("taskprogressbasedir")),
+            str(self.panda_taskid),
+        )
+        with open(self.task_workdir_path_file, "w") as f:
             f.write(self.output_dir)
 
         self.config.ray["outputdir"] = self.output_dir
@@ -547,7 +637,9 @@ class ESDriver(BaseDriver):
         # gets initial jobs and send an eventranges request for each jobs
         jobs = self.jobs_queue.get()
         if not jobs:
-            self._logger.critical("No jobs provided by communicator, stopping...")
+            self._logger.critical(
+                "No jobs provided by communicator, stopping..."
+            )
             return
         if len(jobs) > 1:
             self._logger.critical("Raythena can only handle one job")
@@ -568,7 +660,9 @@ class ESDriver(BaseDriver):
         elif self.cmt_config:
             self.the_platform = self.cmt_config
         else:
-            self._logger.warning(f"No container or CmtConfig found, using default platform {self.the_platform}")
+            self._logger.warning(
+                f"No container or CmtConfig found, using default platform {self.the_platform}"
+            )
             self.cmt_config = job["cmtConfig"] = self.the_platform
         self.setup_dirs()
         self._logger.debug("Adding job and generating event ranges...")
@@ -581,13 +675,17 @@ class ESDriver(BaseDriver):
             self.bookKeeper.stop_cleaner_thread()
             self.bookKeeper.stop_saver_thread()
             self.communicator.stop()
-            self._logger.critical("Couldn't fetch a job with event ranges, stopping...")
+            self._logger.critical(
+                "Couldn't fetch a job with event ranges, stopping..."
+            )
             return
         job_id = self.bookKeeper.jobs.next_job_id_to_process()
         total_events = self.bookKeeper.n_ready(job_id)
-        os.makedirs(os.path.join(self.config.ray['workdir'], job_id))
+        os.makedirs(os.path.join(self.config.ray["workdir"], job_id))
         if total_events:
-            self.available_events_per_actor = max(1, ceil(total_events / self.n_actors))
+            self.available_events_per_actor = max(
+                1, ceil(total_events / self.n_actors)
+            )
             for pandaID in self.bookKeeper.jobs:
                 cjob = self.bookKeeper.jobs[pandaID]
                 self.remote_jobdef_byid[pandaID] = ray.put(cjob)
@@ -600,16 +698,22 @@ class ESDriver(BaseDriver):
                 self.handle_actors()
             except Exception as e:
                 self._logger.error(f"{traceback.format_exc()}")
-                self._logger.error(f"Error while handling actors: {e}. stopping...")
+                self._logger.error(
+                    f"Error while handling actors: {e}. stopping..."
+                )
 
-            if self.config.logging.get('copyraylogs', False):
+            if self.config.logging.get("copyraylogs", False):
                 ray_logs = os.path.join(self.workdir, "ray_logs")
                 try:
                     shutil.copytree(self.session_log_dir, ray_logs)
                 except Exception as e:
-                    self._logger.error(f"Failed to copy ray logs to workdir: {e}")
+                    self._logger.error(
+                        f"Failed to copy ray logs to workdir: {e}"
+                    )
         else:
-            self._logger.info("No events to process, check for remaining merge jobs...")
+            self._logger.info(
+                "No events to process, check for remaining merge jobs..."
+            )
         self._logger.debug("Waiting on merge transforms")
         # Workers might have sent event ranges update since last check, create possible merge jobs
         self.bookKeeper.stop_saver_thread()
@@ -631,7 +735,11 @@ class ESDriver(BaseDriver):
         # need to explicitely save as we stopped saver_thread
         self.bookKeeper.save_status()
         task_status = self.bookKeeper.taskstatus.get(self.panda_taskid, None)
-        if task_status and task_status.get_nmerged() + task_status.get_nfailed() == task_status.total_events():
+        if (
+            task_status
+            and task_status.get_nmerged() + task_status.get_nfailed()
+            == task_status.total_events()
+        ):
             assert job_id
             output_map = self.bookKeeper.remap_output_files(job_id)
             self.rename_output_files(output_map)
@@ -650,11 +758,18 @@ class ESDriver(BaseDriver):
                 new_filename = output_map[file]
             except KeyError:
                 # read the commit log to recover the correct name. If we get another KeyError, we can't recover
-                new_filename = output_map.get(self.bookKeeper.recover_outputfile_name(file))
+                new_filename = output_map.get(
+                    self.bookKeeper.recover_outputfile_name(file)
+                )
             if not new_filename:
-                self._logger.warning(f"Couldn't find new name for {file}, will not be staged out correctly")
+                self._logger.warning(
+                    f"Couldn't find new name for {file}, will not be staged out correctly"
+                )
                 continue
-            os.rename(os.path.join(self.merged_files_dir, file), os.path.join(self.merged_files_dir, new_filename))
+            os.rename(
+                os.path.join(self.merged_files_dir, file),
+                os.path.join(self.merged_files_dir, new_filename),
+            )
 
     def produce_final_report(self, output_map: Dict[str, str]):
         """
@@ -676,30 +791,40 @@ class ESDriver(BaseDriver):
             new_filename = output_map[old_filename]
         except KeyError:
             # read the commit log to recover the correct name. If we get another KeyError, we can't recover
-            new_filename = output_map[self.bookKeeper.recover_outputfile_name(old_filename)]
+            new_filename = output_map[
+                self.bookKeeper.recover_outputfile_name(old_filename)
+            ]
         output_file_entry["name"] = new_filename
-        with open(os.path.join(self.job_reports_dir, files[0]), 'w') as f:
+        with open(os.path.join(self.job_reports_dir, files[0]), "w") as f:
             json.dump(final_report, f)
 
         for file in files[1:]:
             current_file = os.path.join(self.job_reports_dir, file)
             with open(current_file) as f:
                 current_report = json.load(f)
-            final_report_files["input"].append(current_report["files"]["input"][0])
-            output_file_entry = current_report["files"]["output"][0]["subFiles"][0]
+            final_report_files["input"].append(
+                current_report["files"]["input"][0]
+            )
+            output_file_entry = current_report["files"]["output"][0][
+                "subFiles"
+            ][0]
             old_filename = output_file_entry["name"]
             try:
                 new_filename = output_map[old_filename]
             except KeyError:
                 # read the commit log to recover the correct name. If we get another KeyError, we can't recover
-                new_filename = output_map[self.bookKeeper.recover_outputfile_name(old_filename)]
+                new_filename = output_map[
+                    self.bookKeeper.recover_outputfile_name(old_filename)
+                ]
             output_file_entry["name"] = new_filename
-            final_report_files["output"][0]["subFiles"].append(output_file_entry)
-            with open(current_file, 'w') as f:
+            final_report_files["output"][0]["subFiles"].append(
+                output_file_entry
+            )
+            with open(current_file, "w") as f:
                 json.dump(current_report, f)
 
         tmp = os.path.join(self.workdir, self.jobreport_name + ".tmp")
-        with open(tmp, 'w') as f:
+        with open(tmp, "w") as f:
             json.dump(final_report, f)
         shutil.move(tmp, os.path.join(self.workdir, self.jobreport_name))
 
@@ -736,11 +861,20 @@ class ESDriver(BaseDriver):
             self.failed_actor_tasks_count[actor_id] = 0
 
         self.failed_actor_tasks_count[actor_id] += 1
-        if self.failed_actor_tasks_count[actor_id] < self.max_retries_error_failed_tasks:
-            self.enqueue_actor_call(actor_id, self[actor_id].get_message.remote())
-            self._logger.warning(f"{actor_id} failed {self.failed_actor_tasks_count[actor_id]} times. Retrying...")
+        if (
+            self.failed_actor_tasks_count[actor_id]
+            < self.max_retries_error_failed_tasks
+        ):
+            self.enqueue_actor_call(
+                actor_id, self[actor_id].get_message.remote()
+            )
+            self._logger.warning(
+                f"{actor_id} failed {self.failed_actor_tasks_count[actor_id]} times. Retrying..."
+            )
         else:
-            self._logger.warning(f"{actor_id} failed too many times. No longer fetching messages from it")
+            self._logger.warning(
+                f"{actor_id} failed too many times. No longer fetching messages from it"
+            )
             if actor_id not in self.terminated:
                 self.terminated.append(actor_id)
 
@@ -751,7 +885,9 @@ class ESDriver(BaseDriver):
         with open(job_report_file) as f:
             job_report = json.load(f)
             try:
-                guid = job_report["files"]["output"][0]["subFiles"][0]["file_guid"]
+                guid = job_report["files"]["output"][0]["subFiles"][0][
+                    "file_guid"
+                ]
             except KeyError:
                 guid = None
             return guid
@@ -769,23 +905,41 @@ class ESDriver(BaseDriver):
         """
 
         new_transforms = False
-        if self.total_running_merge_transforms < self.max_running_merge_transforms:
+        if (
+            self.total_running_merge_transforms
+            < self.max_running_merge_transforms
+        ):
             self.bookKeeper.check_mergeable_files()
             merge_files = self.bookKeeper.get_file_to_merge()
             while merge_files:
                 (output_filename, event_ranges) = merge_files
                 assert len(event_ranges) > 0
-                (sub_process, job_report_file) = self.hits_merge_transform([e[0] for e in event_ranges], output_filename)
-                self._logger.debug(f"Starting merge transform for {output_filename}")
-                self.running_merge_transforms[output_filename] = (event_ranges, sub_process, job_report_file)
+                (sub_process, job_report_file) = self.hits_merge_transform(
+                    [e[0] for e in event_ranges], output_filename
+                )
+                self._logger.debug(
+                    f"Starting merge transform for {output_filename}"
+                )
+                self.running_merge_transforms[output_filename] = (
+                    event_ranges,
+                    sub_process,
+                    job_report_file,
+                )
                 self.total_running_merge_transforms += 1
                 new_transforms = True
-                if self.total_running_merge_transforms >= self.max_running_merge_transforms:
+                if (
+                    self.total_running_merge_transforms
+                    >= self.max_running_merge_transforms
+                ):
                     break
                 merge_files = self.bookKeeper.get_file_to_merge()
 
         to_remove = []
-        for output_filename, (event_ranges, sub_process, job_report_file) in self.running_merge_transforms.items():
+        for output_filename, (
+            event_ranges,
+            sub_process,
+            job_report_file,
+        ) in self.running_merge_transforms.items():
             if wait_for_completion:
                 while sub_process.poll() is None:
                     time.sleep(5)
@@ -793,20 +947,37 @@ class ESDriver(BaseDriver):
                 to_remove.append(output_filename)
                 self.total_running_merge_transforms -= 1
                 if sub_process.returncode == 0:
-                    self._logger.debug(f"Merge transform for file {output_filename} finished.")
+                    self._logger.debug(
+                        f"Merge transform for file {output_filename} finished."
+                    )
                     event_ranges_map = {}
                     guid = self.get_output_file_guid(job_report_file)
-                    for (event_range_output, event_range) in event_ranges:
-                        event_ranges_map[event_range.eventRangeID] = TaskStatus.build_eventrange_dict(event_range, event_range_output)
-                    self.bookKeeper.report_merged_file(self.panda_taskid, output_filename, event_ranges_map, guid)
+                    for event_range_output, event_range in event_ranges:
+                        event_ranges_map[event_range.eventRangeID] = (
+                            TaskStatus.build_eventrange_dict(
+                                event_range, event_range_output
+                            )
+                        )
+                    self.bookKeeper.report_merged_file(
+                        self.panda_taskid,
+                        output_filename,
+                        event_ranges_map,
+                        guid,
+                    )
                 else:
-                    self.bookKeeper.report_failed_merge_transform(self.panda_taskid, output_filename)
-                    self._logger.debug(f"Merge transform for {output_filename} failed with return code {sub_process.returncode}")
+                    self.bookKeeper.report_failed_merge_transform(
+                        self.panda_taskid, output_filename
+                    )
+                    self._logger.debug(
+                        f"Merge transform for {output_filename} failed with return code {sub_process.returncode}"
+                    )
         for o in to_remove:
             del self.running_merge_transforms[o]
         return new_transforms
 
-    def hits_merge_transform(self, input_files: Iterable[str], output_file: str) -> Tuple[Popen, str]:
+    def hits_merge_transform(
+        self, input_files: Iterable[str], output_file: str
+    ) -> Tuple[Popen, str]:
         """
         Prepare the shell command for the merging subprocess and starts it.
 
@@ -821,47 +992,94 @@ class ESDriver(BaseDriver):
             return
         tmp_dir = tempfile.mkdtemp()
         file_list = "\n".join(input_files)
-        job_report_name = os.path.join(self.job_reports_dir, output_file) + ".json"
+        job_report_name = (
+            os.path.join(self.job_reports_dir, output_file) + ".json"
+        )
         output_file = os.path.join(self.merged_files_dir, output_file)
 
         file_list_path = os.path.join(tmp_dir, "file_list.txt")
-        with open(file_list_path, 'w') as f:
+        with open(file_list_path, "w") as f:
             f.write(file_list)
 
-        transform_params = re.sub(r"@inputFor_\$\{OUTPUT0\}", f"@/srv/{os.path.basename(file_list_path)}", self.merge_transform_params)
-        transform_params = re.sub(r"--inputHitsFile=", "--inputHitsFile ", transform_params)
-        transform_params = re.sub(r"--inputHITSFile=", "--inputHITSFile ", transform_params)
-        transform_params = re.sub(r"\$\{OUTPUT0\}", output_file, transform_params, count=1)
-        transform_params = re.sub(r"--autoConfiguration=everything", "", transform_params)
+        transform_params = re.sub(
+            r"@inputFor_\$\{OUTPUT0\}",
+            f"@/srv/{os.path.basename(file_list_path)}",
+            self.merge_transform_params,
+        )
+        transform_params = re.sub(
+            r"--inputHitsFile=", "--inputHitsFile ", transform_params
+        )
+        transform_params = re.sub(
+            r"--inputHITSFile=", "--inputHITSFile ", transform_params
+        )
+        transform_params = re.sub(
+            r"\$\{OUTPUT0\}", output_file, transform_params, count=1
+        )
+        transform_params = re.sub(
+            r"--autoConfiguration=everything", "", transform_params
+        )
         transform_params = re.sub(r"--DBRelease=current", "", transform_params)
 
-        endtoken = "" if self.config.payload['containerextrasetup'].strip().endswith(";") else ";"
+        endtoken = (
+            ""
+            if self.config.payload["containerextrasetup"].strip().endswith(";")
+            else ";"
+        )
         container_script = f"{self.config.payload['containerextrasetup']}{endtoken}{self.merge_transform} {transform_params}"
         merge_script_path = os.path.join(tmp_dir, "merge_transform.sh")
-        with open(merge_script_path, 'w') as f:
+        with open(merge_script_path, "w") as f:
             f.write(container_script)
-        os.chmod(merge_script_path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH)
+        os.chmod(
+            merge_script_path,
+            stat.S_IRUSR
+            | stat.S_IWUSR
+            | stat.S_IXUSR
+            | stat.S_IRGRP
+            | stat.S_IXGRP
+            | stat.S_IROTH
+            | stat.S_IXOTH,
+        )
 
         setup_script_path = os.path.join(tmp_dir, "release_setup.sh")
-        setup_script = f"asetup Athena,{self.release},notest --platform {self.cmt_config} --makeflags=\'$MAKEFLAGS\'"
+        setup_script = f"asetup Athena,{self.release},notest --platform {self.cmt_config} --makeflags='$MAKEFLAGS'"
         self._logger.debug(f"Setting up release with: {setup_script}")
-        with open(setup_script_path, 'w') as f:
+        with open(setup_script_path, "w") as f:
             f.write(setup_script)
-        os.chmod(setup_script_path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH)
+        os.chmod(
+            setup_script_path,
+            stat.S_IRUSR
+            | stat.S_IWUSR
+            | stat.S_IXUSR
+            | stat.S_IRGRP
+            | stat.S_IXGRP
+            | stat.S_IROTH
+            | stat.S_IXOTH,
+        )
 
         cmd = ""
         cmd += "export ATLAS_LOCAL_ROOT_BASE=/cvmfs/atlas.cern.ch/repo/ATLASLocalRootBase;"
 
-        cmd += f"export thePlatform=\"{self.the_platform}\";"
-        endtoken = "" if self.config.payload['containerextraargs'].strip().endswith(";") else ";"
-        cmd += (f"{self.config.payload['containerextraargs']}{endtoken}"
-                f"source ${{ATLAS_LOCAL_ROOT_BASE}}/user/atlasLocalSetup.sh --swtype {self.config.payload['containerengine']}"
-                f" -c $thePlatform -s /srv/release_setup.sh -r /srv/merge_transform.sh -e \"{self.container_options}\";"
-                f"RETURN_VAL=$?;if [ \"$RETURN_VAL\" -eq 0 ]; then cp jobReport.json {job_report_name};fi;exit $RETURN_VAL;")
-        return (Popen(cmd,
-                      stdin=DEVNULL,
-                      stdout=DEVNULL,
-                      stderr=DEVNULL,
-                      shell=True,
-                      cwd=tmp_dir,
-                      close_fds=True), job_report_name)
+        cmd += f'export thePlatform="{self.the_platform}";'
+        endtoken = (
+            ""
+            if self.config.payload["containerextraargs"].strip().endswith(";")
+            else ";"
+        )
+        cmd += (
+            f"{self.config.payload['containerextraargs']}{endtoken}"
+            f"source ${{ATLAS_LOCAL_ROOT_BASE}}/user/atlasLocalSetup.sh --swtype {self.config.payload['containerengine']}"
+            f" -c $thePlatform -s /srv/release_setup.sh -r /srv/merge_transform.sh -e \"{self.container_options}\";"
+            f"RETURN_VAL=$?;if [ \"$RETURN_VAL\" -eq 0 ]; then cp jobReport.json {job_report_name};fi;exit $RETURN_VAL;"
+        )
+        return (
+            Popen(
+                cmd,
+                stdin=DEVNULL,
+                stdout=DEVNULL,
+                stderr=DEVNULL,
+                shell=True,
+                cwd=tmp_dir,
+                close_fds=True,
+            ),
+            job_report_name,
+        )
