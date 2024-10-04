@@ -64,3 +64,8 @@ select = [
   # isort
   "I"
 ]
+
+ignore = [
+  # pycodestyle
+  "E501",
+]
