@@ -65,10 +65,5 @@ select = [
   "I"
 ]
 
-# ignore = [
-#   # pycodestyle
-#   "E501",
-# ]
-
 [tool.ruff.lint.isort]
 no-lines-before = ["third-party", "first-party", "standard-library"]
