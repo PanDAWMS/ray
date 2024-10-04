@@ -46,7 +46,7 @@ class TestPilotHttp:
         cwd = os.getcwd()
         config.ray["workdir"] = str(tmpdir)
         os.chdir(tmpdir)
-        job_dict = list(sample_job.values())[0]
+        job_dict = next(iter(sample_job.values()))
         job = PandaJob(job_dict)
         payload = self.setup_payload(config)
         payload.start(job)
@@ -58,7 +58,7 @@ class TestPilotHttp:
     def test_getjob(self, payload, is_eventservice, config, sample_job):
         if not is_eventservice:
             pytest.skip()
-        job_dict = list(sample_job.values())[0]
+        job_dict = next(iter(sample_job.values()))
         job = PandaJob(job_dict)
         res = requests.post("http://127.0.0.1:8080/server/panda/getJob").json()
         assert job["PandaID"] == PandaJob(res)["PandaID"]
@@ -125,7 +125,7 @@ class TestPilotHttp:
         if not is_eventservice:
             pytest.skip()
 
-        job_dict = list(sample_job.values())[0]
+        job_dict = next(iter(sample_job.values()))
         job = PandaJob(job_dict)
 
         data = {
@@ -138,7 +138,7 @@ class TestPilotHttp:
         assert res["StatusCode"] == 500
         assert payload.should_request_more_ranges()
         ranges = list()
-        for r in list(sample_ranges.values())[0]:
+        for r in next(iter(sample_ranges.values())):
             ranges.append(EventRange.build_from_dict(r))
         payload.submit_new_ranges(ranges)
         payload.submit_new_ranges(None)

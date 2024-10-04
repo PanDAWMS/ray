@@ -48,6 +48,8 @@ dependencies = [
 line-length = 120
 indent-width = 4
 
+target-version = "py39"
+
 [tool.ruff.lint]
 
 select = [
@@ -62,7 +64,9 @@ select = [
   # flake8-simplify
   "SIM",
   # isort
-  "I"
+  "I",
+  # Ruff
+  "RUF",
 ]
 
 [tool.ruff.lint.isort]

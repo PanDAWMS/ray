@@ -159,7 +159,7 @@ class TaskStatus:
         return len(self._update_queue) > 0
 
     @staticmethod
-    def build_eventrange_dict(eventrange: EventRange, output_file: str = None) -> dict[str, Any]:
+    def build_eventrange_dict(eventrange: EventRange, output_file: Optional[str] = None) -> dict[str, Any]:
         """
         Takes an EventRange object and retuns the dict representation which should be saved in the state file
 
@@ -377,7 +377,7 @@ class BookKeeper:
         self._logger = make_logger(self.config, "BookKeeper")
         self.actors: dict[str, Optional[str]] = dict()
         self.rangesID_by_actor: dict[str, set[str]] = dict()
-        #  Output files for which we are ready to launch a merge transform
+        # Output files for which we are ready to launch a merge transform
         self.files_ready_to_merge: dict[str, list[tuple[str, EventRange]]] = dict()
         # Event ranges for a given input file which have been simulated and a ready to be merged
         self.ranges_to_merge: dict[str, list[tuple[str, EventRange]]] = dict()

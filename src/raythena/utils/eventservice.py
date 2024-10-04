@@ -91,7 +91,7 @@ class PandaJobQueue:
     See PandaJob doc for the <jobspec> format
     """
 
-    def __init__(self, jobs: Mapping[str, JobDef] = None) -> None:
+    def __init__(self, jobs: Optional[Mapping[str, JobDef]] = None) -> None:
         self.jobs: dict[str, PandaJob] = dict()
         self.distributed_jobs_ids = list()
 
@@ -676,7 +676,7 @@ class EventRangeUpdate:
 
     def __init__(
         self,
-        range_update: dict[str, list[MutableMapping[str, Union[str, int]]]] = None,
+        range_update: Optional[dict[str, list[MutableMapping[str, Union[str, int]]]]] = None,
     ) -> None:
         """
         Wraps the range update dict in an object. The range update should be in the harvester-supported format.
@@ -739,10 +739,10 @@ class EventRangeUpdate:
             range_update: Sequence[PilotEventRangeUpdateDef] = json.loads(range_update["eventRanges"][0])
 
         for range_elt in range_update:
-            if "zipFile" in range_elt and range_elt["zipFile"]:
+            if range_elt.get("zipFile"):
                 range_update_type = "zipFile"
                 file_info: FileInfo = range_elt.get("zipFile", None)
-            elif "esOutput" in range_elt and range_elt["esOutput"]:
+            elif range_elt.get("esOutput"):
                 range_update_type = "esOutput"
                 file_info: FileInfo = range_elt.get("esOutput", None)
             else:
@@ -808,16 +808,16 @@ class PandaJobRequest:
 
     def __init__(
         self,
-        node: str = None,
-        disk_space: str = None,
-        working_group: str = None,
-        prod_source_label: str = None,
-        computing_element: str = None,
-        site_name: str = None,
-        resource_type: str = None,
-        mem: str = None,
-        cpu: str = None,
-        allow_other_country: str = None,
+        node: str = "",
+        disk_space: str = "",
+        working_group: str = "",
+        prod_source_label: str = "",
+        computing_element: str = "",
+        site_name: str = "",
+        resource_type: str = "",
+        mem: str = "",
+        cpu: str = "",
+        allow_other_country: str = "",
     ) -> None:
         self.node = node
         self.diskSpace = disk_space
@@ -1201,7 +1201,7 @@ class JobReport:
 
     """
 
-    def __init__(self, exitCode: int = 0, exitMsg: str = None, exitMsgExtra: str = None) -> None:
+    def __init__(self, exitCode: int = 0, exitMsg: Optional[str] = None, exitMsgExtra: Optional[str] = None) -> None:
         self.exitCode = exitCode
         self.exitMsg = exitMsg
         self.exitMsgExtra = exitMsgExtra

@@ -83,7 +83,7 @@ class TestEventRangeQueue:
     def test_new(self, nevents, sample_job, sample_ranges):
         ranges_queue = EventRangeQueue()
         assert len(ranges_queue) == 0
-        ranges = list(sample_ranges.values())[0]
+        ranges = next(iter(sample_ranges.values()))
         ranges_queue = EventRangeQueue.build_from_list(ranges)
         assert (
             len(ranges)
@@ -104,7 +104,7 @@ class TestEventRangeQueue:
 
     def test_concat(self, nevents, sample_job, sample_ranges):
         ranges_queue = EventRangeQueue()
-        ranges = list(sample_ranges.values())[0]
+        ranges = next(iter(sample_ranges.values()))
         ranges_queue.concat(ranges)
         assert (
             len(ranges)
@@ -127,7 +127,7 @@ class TestEventRangeQueue:
         sample_failed_rangeupdate,
     ):
         pandaID = "0"
-        ranges = list(sample_ranges.values())[0]
+        ranges = next(iter(sample_ranges.values()))
         ranges_queue = EventRangeQueue.build_from_list(ranges)
 
         nsuccess = int(nevents / 2)
@@ -152,7 +152,7 @@ class TestEventRangeQueue:
     def test_get_next(self, sample_job, sample_ranges):
         ranges_queue = EventRangeQueue()
         assert not ranges_queue.get_next_ranges(10)
-        ranges = list(sample_ranges.values())[0]
+        ranges = next(iter(sample_ranges.values()))
         ranges_queue.concat(ranges)
         nranges = len(ranges_queue)
         nranges_requested = max(1, int(nranges / 3))
@@ -300,12 +300,12 @@ class TestPandaJobQueue:
 
 class TestPandaJob:
     def test_build_pandajob(self, sample_job):
-        job_dict = list(sample_job.values())[0]
+        job_dict = next(iter(sample_job.values()))
         job = PandaJob(job_dict)
         for k in job_dict:
             assert k in job
             assert job_dict[k] == job[k]
-        assert job.get_id() == list(sample_job.keys())[0]
+        assert job.get_id() == next(iter(sample_job.keys()))
         job["k"] = "v"
         assert job["k"] == "v"
 

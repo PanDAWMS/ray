@@ -586,7 +586,7 @@ class ESDriver(BaseDriver):
         if len(jobs) > 1:
             self._logger.critical("Raythena can only handle one job")
             return
-        job = list(jobs.values())[0]
+        job = next(iter(jobs.values()))
         job["eventService"] = "true"
         job["jobPars"] = f"--eventService=True {job['jobPars']}"
         self.panda_taskid = job["taskID"]

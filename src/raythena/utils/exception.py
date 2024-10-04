@@ -1,5 +1,6 @@
 import threading
 from queue import Empty, Queue
+from typing import Optional
 
 
 class ErrorCodes:
@@ -105,7 +106,7 @@ class BaseRaythenaException(Exception):
     Base class for raythena exception
     """
 
-    def __init__(self, worker_id: str, error_code: int, message: str = None) -> None:
+    def __init__(self, worker_id: str, error_code: int, message: Optional[str] = None) -> None:
         """
         Initialize worker_id, error code and message
 
@@ -133,7 +134,7 @@ class IllegalWorkerState(BaseRaythenaException):
         worker_id: str,
         src_state: str,
         dst_state: str,
-        message: str = None,
+        message: str = "",
     ) -> None:
         super().__init__(worker_id, ErrorCodes.ILLEGAL_WORKER_STATE, message)
         self.src_state = src_state
@@ -151,7 +152,7 @@ class StageInFailed(BaseRaythenaException):
     Raised when the worker was unable to stage-in data
     """
 
-    def __init__(self, worker_id: str, message: str = None) -> None:
+    def __init__(self, worker_id: str, message: Optional[str] = None) -> None:
         super().__init__(worker_id, ErrorCodes.STAGEIN_FAILED, message)
 
     def __reduce__(self):
@@ -163,7 +164,7 @@ class StageOutFailed(BaseRaythenaException):
     Raised when the worker was unable to stage-out data
     """
 
-    def __init__(self, worker_id: str, message: str = None) -> None:
+    def __init__(self, worker_id: str, message: Optional[str] = None) -> None:
         super().__init__(worker_id, ErrorCodes.STAGEOUT_FAILED, message)
 
     def __reduce__(self):
@@ -175,7 +176,7 @@ class FailedPayload(BaseRaythenaException):
     Raised when the worker payload failed
     """
 
-    def __init__(self, worker_id: str, message: str = None) -> None:
+    def __init__(self, worker_id: str, message: Optional[str] = None) -> None:
         super().__init__(worker_id, ErrorCodes.PAYLOAD_FAILED, message)
 
     def __reduce__(self):
@@ -187,7 +188,7 @@ class UnknownException(BaseRaythenaException):
     Raised when no other exception type applies
     """
 
-    def __init__(self, worker_id: str, message: str = None) -> None:
+    def __init__(self, worker_id: str, message: Optional[str] = None) -> None:
         super().__init__(worker_id, ErrorCodes.UNKNOWN, message)
 
     def __reduce__(self):

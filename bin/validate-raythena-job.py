@@ -24,7 +24,7 @@ def validate_job(job_dir, job_state_file):
     with open(job_state_file) as f:
         job_state = json.load(f)
     merged_input_files = job_state["merged"]
-    merged_output_files = set([list(x.keys())[0] for x in merged_input_files.values()])
+    merged_output_files = set([next(iter(x.keys())) for x in merged_input_files.values()])
     event_numbers = set()
     for output_file in merged_output_files:
         output_file_abs = path.join(job_dir, "final", output_file)

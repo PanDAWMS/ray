@@ -215,7 +215,7 @@ def sample_multijobs(
             "destinationDblock": job_name,
             "dispatchDBlockToken": "NULL",
             "jobPars": (
-                f"--eventService={str(is_eventservice)} --skipEvents=0 --firstEvent=1 "
+                f"--eventService={is_eventservice!s} --skipEvents=0 --firstEvent=1 "
                 '--preExec "from AthenaCommon.DetFlags '
                 "import DetFlags;DetFlags.ID_setOn();DetFlags.Calo_setOff();"
                 'DetFlags.Muon_setOff();DetFlags.Lucid_setOff();DetFlags.Truth_setOff() "'
@@ -307,7 +307,7 @@ def sample_job(is_eventservice, input_output_file_list, nhits_per_file, nevents_
             "destinationDblock": job_name,
             "dispatchDBlockToken": "NULL",
             "jobPars": (
-                f"--eventService={str(is_eventservice)} --skipEvents=0 --firstEvent=1 "
+                f"--eventService={is_eventservice!s} --skipEvents=0 --firstEvent=1 "
                 '--preExec "from AthenaCommon.DetFlags '
                 "import DetFlags;DetFlags.ID_setOn();DetFlags.Calo_setOff();"
                 'DetFlags.Muon_setOff();DetFlags.Lucid_setOff();DetFlags.Truth_setOff() "'

@@ -100,7 +100,7 @@ class ESWorker:
         actor_no: int,
         actor_count: int,
         job: PandaJob = None,
-        event_ranges: Sequence[EventRange] = None,
+        event_ranges: Optional[Sequence[EventRange]] = None,
     ) -> None:
         """
         Initialize attributes, instantiate a payload and setup the workdir
@@ -260,7 +260,7 @@ class ESWorker:
                 self.start_time = int(start_time[0]) * 3600 + int(start_time[1]) * 60 + int(start_time[2])
                 time_limit = time_limit_monitor.readline().split(":")
                 if len(time_limit) < 3:
-                    time_limit = ["0"] + time_limit
+                    time_limit = ["0", *time_limit]
                 self.time_limit = int(time_limit[0]) * 3600 + int(time_limit[1]) * 60 + int(time_limit[2])
             timer_thread = threading.Thread(name="timer", target=self.check_time, daemon=True)
             timer_thread.start()
@@ -502,7 +502,7 @@ class ESWorker:
             if range_update["eventStatus"] == "failed":
                 self._logger.warning("event range failed, will not stage-out")
                 continue
-            if "path" in range_update and range_update["path"]:
+            if range_update.get("path"):
                 cfile_key = "path"
             else:
                 raise StageOutFailed(self.id)
