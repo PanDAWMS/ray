@@ -76,6 +76,7 @@ TRANSITIONS = {
     DONE: [READY_FOR_JOB],
 }
 
+
 @ray.remote(num_cpus=1, max_restarts=1, max_task_retries=3)
 class ESWorker:
     """
@@ -323,9 +324,7 @@ class ESWorker:
             IllegalWorkerState if the transition isn't allowed
         """
         if dest not in self.transitions[self.state]:
-            self._logger.error(
-                f"Illegal transition from {STATES_NAME[self.state]} to {STATES_NAME[dest]}"
-            )
+            self._logger.error(f"Illegal transition from {STATES_NAME[self.state]} to {STATES_NAME[dest]}")
             raise IllegalWorkerState(
                 worker_id=self.id,
                 src_state=STATES_NAME[self.state],
@@ -576,9 +575,7 @@ class ESWorker:
                         self.transition_state(STAGE_OUT)
                         self.stageout()
                         return self.return_message(Messages.PROCESS_DONE)
-                elif self.is_event_service_job() and (
-                    self.state == READY_FOR_EVENTS or self.should_request_ranges()
-                ):
+                elif self.is_event_service_job() and (self.state == READY_FOR_EVENTS or self.should_request_ranges()):
                     req = EventRangeRequest()
                     req.add_event_request(
                         self.job["PandaID"],

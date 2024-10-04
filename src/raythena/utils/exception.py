@@ -9,12 +9,13 @@ PAYLOAD_FAILED = 50
 UNKNOWN = 0
 
 ERROR_CODES_GENRIC_MESSAGES = {
-        ILLEGAL_WORKER_STATE: "Illegal worker state transition",
-        STAGEIN_FAILED: "Failed to stagein data",
-        STAGEOUT_FAILED: "Failed to stageout data",
-        PAYLOAD_FAILED: "Payload execution failed",
-        UNKNOWN: "Unknown error",
-    }
+    ILLEGAL_WORKER_STATE: "Illegal worker state transition",
+    STAGEIN_FAILED: "Failed to stagein data",
+    STAGEOUT_FAILED: "Failed to stageout data",
+    PAYLOAD_FAILED: "Payload execution failed",
+    UNKNOWN: "Unknown error",
+}
+
 
 class ErrorCodes:
     """

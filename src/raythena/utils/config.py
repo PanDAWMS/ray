@@ -41,6 +41,7 @@ required_conf_settings = {
     },
 }
 
+
 class Config:
     """Class storing app configuration.
 
