@@ -14,12 +14,8 @@ from raythena.utils.ray import setup_ray, shutdown_ray
 @click.option("--config", required=True, help="raythena configuration file.")
 @click.option("-d", "--debug", is_flag=True, help="Debug log level")
 @click.option("--ray-head-ip", help="IP address of ray head node")
-@click.option(
-    "--ray-redis-port", help="Port of redis instance used by the ray cluster"
-)
-@click.option(
-    "--ray-redis-password", help="Redis password setup in the ray cluster"
-)
+@click.option("--ray-redis-port", help="Port of redis instance used by the ray cluster")
+@click.option("--ray-redis-password", help="Redis password setup in the ray cluster")
 @click.option("--ray-workdir", help="Workdirectory for ray actors")
 @click.option(
     "--harvester-endpoint",
@@ -45,21 +41,11 @@ def cli(*args, **kwargs):
         driver = ESDriver(config, cluster_config["session_dir"])
 
         signal.signal(signal.SIGINT, functools.partial(cleanup, config, driver))
-        signal.signal(
-            signal.SIGTERM, functools.partial(cleanup, config, driver)
-        )
-        signal.signal(
-            signal.SIGQUIT, functools.partial(cleanup, config, driver)
-        )
-        signal.signal(
-            signal.SIGSEGV, functools.partial(cleanup, config, driver)
-        )
-        signal.signal(
-            signal.SIGXCPU, functools.partial(cleanup, config, driver)
-        )
-        signal.signal(
-            signal.SIGUSR1, functools.partial(cleanup, config, driver)
-        )
+        signal.signal(signal.SIGTERM, functools.partial(cleanup, config, driver))
+        signal.signal(signal.SIGQUIT, functools.partial(cleanup, config, driver))
+        signal.signal(signal.SIGSEGV, functools.partial(cleanup, config, driver))
+        signal.signal(signal.SIGXCPU, functools.partial(cleanup, config, driver))
+        signal.signal(signal.SIGUSR1, functools.partial(cleanup, config, driver))
         signal.signal(signal.SIGBUS, functools.partial(cleanup, config, driver))
         driver.run()
     except Exception as e:

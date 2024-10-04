@@ -6,9 +6,7 @@ from raythena.utils.config import Config
 _initialized = False
 
 
-def make_logger(
-    config: Config, name: str, filepath: str = None
-) -> logging.Logger:
+def make_logger(config: Config, name: str, filepath: str = None) -> logging.Logger:
     global _initialized
     if not _initialized:
         configure_logger(config, filepath)

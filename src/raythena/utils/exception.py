@@ -105,9 +105,7 @@ class BaseRaythenaException(Exception):
     Base class for raythena exception
     """
 
-    def __init__(
-        self, worker_id: str, error_code: int, message: str = None
-    ) -> None:
+    def __init__(self, worker_id: str, error_code: int, message: str = None) -> None:
         """
         Initialize worker_id, error code and message
 
@@ -118,9 +116,7 @@ class BaseRaythenaException(Exception):
         """
         self.worker_id = worker_id
         self.error_code = error_code
-        self.message = (
-            message if message else ErrorCodes.get_error_message(error_code)
-        )
+        self.message = message if message else ErrorCodes.get_error_message(error_code)
         super().__init__(self.message)
 
     def __reduce__(self):
@@ -204,9 +200,7 @@ class WrappedException(BaseRaythenaException):
     """
 
     def __init__(self, worker_id: str, e: Exception) -> None:
-        super().__init__(
-            worker_id, ErrorCodes.UNKNOWN, f"Wrapped exception {e}"
-        )
+        super().__init__(worker_id, ErrorCodes.UNKNOWN, f"Wrapped exception {e}")
         self.wrapped_exception = e
 
     def __reduce__(self):

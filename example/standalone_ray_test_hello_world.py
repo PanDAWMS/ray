@@ -32,9 +32,7 @@ class actor:
         self.pid = os.getpid()
         self.hostname = platform.node()
         self.ip = ray._private.services.get_node_ip_address()
-        print(
-            f"Initial message from PID - {self.pid} Running on host - {self.hostname} {self.ip}"
-        )
+        print(f"Initial message from PID - {self.pid} Running on host - {self.hostname} {self.ip}")
 
     def ping(self):
         print(f"{self.pid} {self.hostname} {self.ip} - ping")
@@ -78,18 +76,10 @@ def main(redis_ip: str, redis_port: str, redis_password: str):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Wait on ray head node or workers to connect"
-    )
-    parser.add_argument(
-        "--redis-ip", default="{}".format(os.environ["RAYTHENA_RAY_HEAD_IP"])
-    )
-    parser.add_argument(
-        "--redis-port", default="{}".format(os.environ["RAYTHENA_RAY_REDIS_PORT"])
-    )
-    parser.add_argument(
-        "--redis-password", default=os.environ["RAYTHENA_RAY_REDIS_PASSWORD"]
-    )
+    parser = argparse.ArgumentParser(description="Wait on ray head node or workers to connect")
+    parser.add_argument("--redis-ip", default="{}".format(os.environ["RAYTHENA_RAY_HEAD_IP"]))
+    parser.add_argument("--redis-port", default="{}".format(os.environ["RAYTHENA_RAY_REDIS_PORT"]))
+    parser.add_argument("--redis-password", default=os.environ["RAYTHENA_RAY_REDIS_PASSWORD"])
     args = parser.parse_args()
     print(f"args : {args}")
     main(args.redis_ip, args.redis_port, args.redis_password)

@@ -44,18 +44,14 @@ class HarvesterFileCommunicator(BaseCommunicator):
             config: app config
         """
         super().__init__(requests_queue, job_queue, event_ranges_queue, config)
-        self.harvester_workdir = os.path.expandvars(
-            self.config.harvester["endpoint"]
-        )
+        self.harvester_workdir = os.path.expandvars(self.config.harvester["endpoint"])
         self.ranges_requests_count = 0
         self._parse_harvester_config()
         self.id = "HarvesterCommunicator"
         self._logger = make_logger(self.config, self.id)
         self.event_ranges_update_buffer = EventRangeUpdate()
         self.event_ranges_update_interval = 5 * 60
-        self.communicator_thread = ExThread(
-            target=self.run, name="communicator-thread"
-        )
+        self.communicator_thread = ExThread(target=self.run, name="communicator-thread")
 
     def _parse_harvester_config(self) -> None:
         """
@@ -72,9 +68,7 @@ class HarvesterFileCommunicator(BaseCommunicator):
         Raises:
             FileNotFoundError if the harvester config file doesn't exist
         """
-        self.harvester_conf_file = os.path.expandvars(
-            self.config.harvester["harvesterconf"]
-        )
+        self.harvester_conf_file = os.path.expandvars(self.config.harvester["harvesterconf"])
         if not os.path.isfile(self.harvester_conf_file):
             raise FileNotFoundError("Harvester config file not found")
         self.harvester_conf = configparser.ConfigParser()
@@ -152,23 +146,17 @@ class HarvesterFileCommunicator(BaseCommunicator):
         Returns:
             None
         """
-        if not os.path.isfile(self.eventrangesfile) and not os.path.exists(
-            self.eventrequestfile
-        ):
+        if not os.path.isfile(self.eventrangesfile) and not os.path.exists(self.eventrequestfile):
             event_request_file_tmp = f"{self.eventrequestfile}.tmp"
             with open(event_request_file_tmp, "w") as f:
                 json.dump(request.request, f)
             shutil.move(event_request_file_tmp, self.eventrequestfile)
-            self._logger.debug(
-                f"request_event_ranges: created new {self.eventrequestfile} file"
-            )
+            self._logger.debug(f"request_event_ranges: created new {self.eventrequestfile} file")
 
         while not os.path.isfile(self.eventrangesfile):
             time.sleep(1)
 
-        self._logger.debug(
-            f"request_event_ranges: found a {self.eventrangesfile} file"
-        )
+        self._logger.debug(f"request_event_ranges: found a {self.eventrangesfile} file")
         while os.path.isfile(self.eventrangesfile):
             try:
                 with open(self.eventrangesfile) as f:
@@ -180,9 +168,7 @@ class HarvesterFileCommunicator(BaseCommunicator):
                     )
             except Exception:
                 time.sleep(5)
-                if os.path.exists(
-                    f"{self.eventrangesfile}-{self.ranges_requests_count}"
-                ):
+                if os.path.exists(f"{self.eventrangesfile}-{self.ranges_requests_count}"):
                     self.ranges_requests_count += 1
 
         with contextlib.suppress(FileNotFoundError):
@@ -245,25 +231,17 @@ class HarvesterFileCommunicator(BaseCommunicator):
         try:
             shutil.move(tmp_status_dump_file, self.eventstatusdumpjsonfile)
         except Exception as e:
-            self._logger.critical(
-                f"Failed to move temporary event status file to harvester dump file: {e}"
-            )
+            self._logger.critical(f"Failed to move temporary event status file to harvester dump file: {e}")
 
-    def merge_write_dump_file(
-        self, request: EventRangeUpdate, tmp_status_dump_file: str
-    ) -> None:
+    def merge_write_dump_file(self, request: EventRangeUpdate, tmp_status_dump_file: str) -> None:
         if os.path.isfile(self.eventstatusdumpjsonfile):
-            self._logger.debug(
-                "Dump file already exists, merge with upcoming update"
-            )
+            self._logger.debug("Dump file already exists, merge with upcoming update")
             try:
                 shutil.move(self.eventstatusdumpjsonfile, tmp_status_dump_file)
                 with open(tmp_status_dump_file) as f:
                     current_update = json.load(f)
             except Exception as e:
-                self._logger.error(
-                    f"Failed to move and load existing dump file: {e} "
-                )
+                self._logger.error(f"Failed to move and load existing dump file: {e} ")
             else:
                 request.merge_update(EventRangeUpdate(current_update))
 
@@ -272,16 +250,12 @@ class HarvesterFileCommunicator(BaseCommunicator):
             with open(tmp_status_dump_file, "w") as f:
                 json.dump(request.range_update, f)
         except Exception as e:
-            self._logger.error(
-                f"Failed to write event update to temporary file: {e}"
-            )
+            self._logger.error(f"Failed to write event update to temporary file: {e}")
 
     def cleanup_tmp_files(self) -> None:
         tmp_status_dump_file = f"{self.eventstatusdumpjsonfile}.tmp"
         if os.path.isfile(tmp_status_dump_file):
-            self._logger.warning(
-                "About to quit with leftover temporary files... Last try to move it"
-            )
+            self._logger.warning("About to quit with leftover temporary files... Last try to move it")
             try:
                 with open(tmp_status_dump_file) as f:
                     current_update = json.load(f)
@@ -328,10 +302,7 @@ class HarvesterFileCommunicator(BaseCommunicator):
                 elif isinstance(request, EventRangeUpdate):
                     self.event_ranges_update_buffer.merge_update(request)
                     now = time.time()
-                    if (
-                        now - last_event_range_update
-                        > self.event_ranges_update_interval
-                    ):
+                    if now - last_event_range_update > self.event_ranges_update_interval:
                         self.update_events(self.event_ranges_update_buffer)
                         last_event_range_update = now
                         self.event_ranges_update_buffer = EventRangeUpdate()
@@ -340,9 +311,7 @@ class HarvesterFileCommunicator(BaseCommunicator):
                 else:  # if any other request is received, stop the thread
                     break
             except Exception as e:
-                self._logger.error(
-                    f"Exception occured while handling request: {e}"
-                )
+                self._logger.error(f"Exception occured while handling request: {e}")
 
         if self.event_ranges_update_buffer:
             self.update_events(self.event_ranges_update_buffer)
@@ -369,6 +338,4 @@ class HarvesterFileCommunicator(BaseCommunicator):
         if self.communicator_thread.is_alive():
             self.requests_queue.put(None)
             self.communicator_thread.join()
-            self.communicator_thread = ExThread(
-                target=self.run, name="communicator-thread"
-            )
+            self.communicator_thread = ExThread(target=self.run, name="communicator-thread")

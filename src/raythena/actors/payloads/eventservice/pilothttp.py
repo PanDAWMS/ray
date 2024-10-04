@@ -115,22 +115,12 @@ class PilotHttpPayload(ESPayload):
         self.router.register("/", self.handle_get_job)
         self.router.register("/server/panda/getJob", self.handle_get_job)
         self.router.register("/server/panda/updateJob", self.handle_update_job)
-        self.router.register(
-            "/server/panda/updateWorkerPilotStatus", self.handle_update_job
-        )
-        self.router.register(
-            "/server/panda/updateJobsInBulk", self.handle_update_jobs_in_bulk
-        )
+        self.router.register("/server/panda/updateWorkerPilotStatus", self.handle_update_job)
+        self.router.register("/server/panda/updateJobsInBulk", self.handle_update_jobs_in_bulk)
         self.router.register("/server/panda/getStatus", self.handle_get_status)
-        self.router.register(
-            "/server/panda/getEventRanges", self.handle_get_event_ranges
-        )
-        self.router.register(
-            "/server/panda/updateEventRanges", self.handle_update_event_ranges
-        )
-        self.router.register(
-            "/server/panda/getKeyPair", self.handle_get_key_pair
-        )
+        self.router.register("/server/panda/getEventRanges", self.handle_get_event_ranges)
+        self.router.register("/server/panda/updateEventRanges", self.handle_update_event_ranges)
+        self.router.register("/server/panda/getKeyPair", self.handle_get_key_pair)
 
     def _start_payload(self) -> None:
         """
@@ -149,9 +139,7 @@ class PilotHttpPayload(ESPayload):
             shell=True,
             close_fds=True,
         )
-        self._logger.info(
-            f"Pilot payload started with PID {self.pilot_process.pid}"
-        )
+        self._logger.info(f"Pilot payload started with PID {self.pilot_process.pid}")
 
     def _build_pilot_command(self) -> str:
         """
@@ -169,22 +157,16 @@ class PilotHttpPayload(ESPayload):
 
         extra_setup = self.config.payload.get("extrasetup", None)
         if extra_setup is not None:
-            cmd += (
-                f"{extra_setup}{';' if not extra_setup.endswith(';') else ''}"
-            )
+            cmd += f"{extra_setup}{';' if not extra_setup.endswith(';') else ''}"
 
         pilot_base = "pilot3"
 
         pilot_version = self.config.payload.get("pilotversion", "latest")
 
-        pilot_src = (
-            f"/cvmfs/atlas.cern.ch/repo/sw/PandaPilot/pilot3/{pilot_version}"
-        )
+        pilot_src = f"/cvmfs/atlas.cern.ch/repo/sw/PandaPilot/pilot3/{pilot_version}"
 
         if not os.path.isdir(pilot_src):
-            raise FailedPayload(
-                self.worker_id, f"Pilot release {pilot_src} not found"
-            )
+            raise FailedPayload(self.worker_id, f"Pilot release {pilot_src} not found")
 
         cmd += f"ln -s {pilot_src} {os.path.join(os.getcwd(), pilot_base)};"
 
@@ -196,8 +178,9 @@ class PilotHttpPayload(ESPayload):
             raise FailedPayload(self.worker_id)
 
         queue_escaped = shlex.quote(self.config.payload["pandaqueue"])
-        cmd += (f"{shlex.quote(pilotwrapper_bin)} --localpy --piloturl local "
-                f"-q {queue_escaped} -r {queue_escaped} -s {queue_escaped} "
+        cmd += (
+            f"{shlex.quote(pilotwrapper_bin)} --localpy --piloturl local "
+            f"-q {queue_escaped} -r {queue_escaped} -s {queue_escaped} "
         )
 
         cmd += "--pilotversion 3 --pythonversion 3 "
@@ -211,21 +194,14 @@ class PilotHttpPayload(ESPayload):
 
         extra_script = self.config.payload.get("extrapostpayload", None)
         if extra_script is not None:
-            cmd += (
-                f"{extra_script}{';' if not extra_script.endswith(';') else ''}"
-            )
+            cmd += f"{extra_script}{';' if not extra_script.endswith(';') else ''}"
         cmd_script = os.path.join(os.getcwd(), "payload.sh")
         with open(cmd_script, "w") as f:
             f.write(cmd)
         st = os.stat(cmd_script)
         os.chmod(cmd_script, st.st_mode | stat.S_IEXEC)
-        payload_log = shlex.quote(
-            self.config.payload.get("logfilename", "wrapper")
-        )
-        return (
-            f"/bin/bash {cmd_script} "
-            f"> {payload_log} 2> {payload_log}.stderr"
-        )
+        payload_log = shlex.quote(self.config.payload.get("logfilename", "wrapper"))
+        return f"/bin/bash {cmd_script} " f"> {payload_log} 2> {payload_log}.stderr"
 
     def stagein(self) -> None:
         """
@@ -234,25 +210,15 @@ class PilotHttpPayload(ESPayload):
         """
         cwd = os.getcwd()
 
-        ddm_endpoints_file = (
-            "/cvmfs/atlas.cern.ch/repo/sw/local/etc/cric_ddmendpoints.json"
-        )
+        ddm_endpoints_file = "/cvmfs/atlas.cern.ch/repo/sw/local/etc/cric_ddmendpoints.json"
         if os.path.isfile(ddm_endpoints_file):
-            os.symlink(
-                ddm_endpoints_file, os.path.join(cwd, "cric_ddmendpoints.json")
-            )
+            os.symlink(ddm_endpoints_file, os.path.join(cwd, "cric_ddmendpoints.json"))
 
-        pandaqueues_file = (
-            "/cvmfs/atlas.cern.ch/repo/sw/local/etc/cric_pandaqueues.json"
-        )
+        pandaqueues_file = "/cvmfs/atlas.cern.ch/repo/sw/local/etc/cric_pandaqueues.json"
         if os.path.isfile(pandaqueues_file):
-            os.symlink(
-                pandaqueues_file, os.path.join(cwd, "cric_pandaqueues.json")
-            )
+            os.symlink(pandaqueues_file, os.path.join(cwd, "cric_pandaqueues.json"))
 
-        queue_escaped = (
-            "/cvmfs/atlas.cern.ch/repo/sw/local/etc/agis_schedconf.json"
-        )
+        queue_escaped = "/cvmfs/atlas.cern.ch/repo/sw/local/etc/agis_schedconf.json"
         if os.path.isfile(queue_escaped):
             os.symlink(queue_escaped, os.path.join(cwd, "queuedata.json"))
 
@@ -270,10 +236,7 @@ class PilotHttpPayload(ESPayload):
         Returns:
             False if the payload has not finished yet, True otherwise
         """
-        return (
-            self.pilot_process is not None
-            and self.pilot_process.poll() is not None
-        )
+        return self.pilot_process is not None and self.pilot_process.poll() is not None
 
     def return_code(self) -> Optional[int]:
         """
@@ -313,27 +276,19 @@ class PilotHttpPayload(ESPayload):
                 self.pilot_process.terminate()
                 pexit = self.pilot_process.wait()
             self._logger.debug(f"Payload return code: {pexit}")
-            asyncio.run_coroutine_threadsafe(
-                self.notify_stop_server_task(), self.loop
-            )
+            asyncio.run_coroutine_threadsafe(self.notify_stop_server_task(), self.loop)
             self.server_thread.join()
 
-    def submit_new_range(
-        self, event_range: Optional[EventRange]
-    ) -> asyncio.Future:
+    def submit_new_range(self, event_range: Optional[EventRange]) -> asyncio.Future:
         """
         Submits a new evnet range to the payload thread by adding it to the event ranges queue.
 
         Args:
             event_range: range to forward to pilot
         """
-        return asyncio.run_coroutine_threadsafe(
-            self.ranges_queue.put(event_range), self.loop
-        )
+        return asyncio.run_coroutine_threadsafe(self.ranges_queue.put(event_range), self.loop)
 
-    def submit_new_ranges(
-        self, event_ranges: Optional[Iterable[EventRange]]
-    ) -> None:
+    def submit_new_ranges(self, event_ranges: Optional[Iterable[EventRange]]) -> None:
         """
         Wrapper for submit_new_range that accepts an iterable of event ranges.
 
@@ -406,9 +361,7 @@ class PilotHttpPayload(ESPayload):
         try:
             return await self.router.route(request.path, request=request)
         except Exception:
-            return web.json_response(
-                {"StatusCode": 500}, dumps=self.json_encoder
-            )
+            return web.json_response({"StatusCode": 500}, dumps=self.json_encoder)
 
     @staticmethod
     async def parse_qs_body(request: web.BaseRequest) -> dict[str, list[str]]:
@@ -459,9 +412,7 @@ class PilotHttpPayload(ESPayload):
         # self._logger.debug(f"job update queue size is {self.job_update.qsize()}")
         return web.json_response(res, dumps=self.json_encoder)
 
-    async def handle_get_event_ranges(
-        self, request: web.BaseRequest
-    ) -> web.Response:
+    async def handle_get_event_ranges(self, request: web.BaseRequest) -> web.Response:
         """
         Handler for getEventRanges call, retrieve event ranges from the queue and returns ranges to pilot.
         If not enough event ranges are available yet, wait until more ranges become available or a message indicating
@@ -493,9 +444,7 @@ class PilotHttpPayload(ESPayload):
         # self._logger.info(f"{len(res['eventRanges'])} ranges sent to pilot")
         return web.json_response(res, dumps=self.json_encoder)
 
-    async def handle_update_event_ranges(
-        self, request: web.BaseRequest
-    ) -> web.Response:
+    async def handle_update_event_ranges(self, request: web.BaseRequest) -> web.Response:
         """
          Handler for updateEventRanges call, adds the event ranges update to a queue to be retrieved by the worker
 
@@ -511,9 +460,7 @@ class PilotHttpPayload(ESPayload):
         # self._logger.debug(f"event ranges queue size is {self.ranges_update.qsize()}")
         return web.json_response(res, dumps=self.json_encoder)
 
-    async def handle_update_jobs_in_bulk(
-        self, request: web.BaseRequest
-    ) -> web.Response:
+    async def handle_update_jobs_in_bulk(self, request: web.BaseRequest) -> web.Response:
         """
         Not used by pilot in the current workflow
 
@@ -543,9 +490,7 @@ class PilotHttpPayload(ESPayload):
         """
         raise NotImplementedError(f"{request.path} handler not implemented")
 
-    async def handle_get_key_pair(
-        self, request: web.BaseRequest
-    ) -> web.Response:
+    async def handle_get_key_pair(self, request: web.BaseRequest) -> web.Response:
         """
          Not used by pilot in the current workflow
 

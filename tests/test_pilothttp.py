@@ -63,22 +63,14 @@ class TestPilotHttp:
         res = requests.post("http://127.0.0.1:8080/server/panda/getJob").json()
         assert job["PandaID"] == PandaJob(res)["PandaID"]
 
-        assert (
-            requests.post("http://127.0.0.1:8080/unknown").json()["StatusCode"]
-            == 500
-        )
+        assert requests.post("http://127.0.0.1:8080/unknown").json()["StatusCode"] == 500
 
         payload.stop()
         assert payload.is_complete()
         assert payload.return_code() == payload.pilot_process.returncode
 
     def endpoint_not_implemented(self, endpoint):
-        assert (
-            requests.post(
-                f"http://127.0.0.1:8080/server/panda/{endpoint}"
-            ).json()["StatusCode"]
-            == 500
-        )
+        assert requests.post(f"http://127.0.0.1:8080/server/panda/{endpoint}").json()["StatusCode"] == 500
 
     @pytest.mark.usefixtures("payload")
     def test_updateJobsInBulk(self):
@@ -98,9 +90,7 @@ class TestPilotHttp:
 
         assert not payload.fetch_job_update()
         data = {"pilotErrorCode": "0"}
-        res = requests.post(
-            "http://127.0.0.1:8080/server/panda/updateJob", data=data
-        ).json()
+        res = requests.post("http://127.0.0.1:8080/server/panda/updateJob", data=data).json()
         assert res["StatusCode"] == 0
         # Disabled as job update are currently not forwarded to the driver
         # job_update = payload.fetch_job_update()
@@ -120,9 +110,7 @@ class TestPilotHttp:
 
         assert not payload.fetch_ranges_update()
         data = {"pilotErrorCode": 0}
-        res = requests.post(
-            "http://127.0.0.1:8080/server/panda/updateEventRanges", data=data
-        ).json()
+        res = requests.post("http://127.0.0.1:8080/server/panda/updateEventRanges", data=data).json()
         assert res["StatusCode"] == 0
 
     def test_getranges(
@@ -146,9 +134,7 @@ class TestPilotHttp:
             "jobsetID": job["jobsetID"],
             "taskID": job["taskID"],
         }
-        res = requests.post(
-            "http://127.0.0.1:8080/server/panda/getEventRanges"
-        ).json()
+        res = requests.post("http://127.0.0.1:8080/server/panda/getEventRanges").json()
         assert res["StatusCode"] == 500
         assert payload.should_request_more_ranges()
         ranges = list()
@@ -157,22 +143,13 @@ class TestPilotHttp:
         payload.submit_new_ranges(ranges)
         payload.submit_new_ranges(None)
 
-        res = requests.post(
-            "http://127.0.0.1:8080/server/panda/getEventRanges", data=data
-        ).json()
+        res = requests.post("http://127.0.0.1:8080/server/panda/getEventRanges", data=data).json()
         assert res["StatusCode"] == 0
         assert len(res["eventRanges"]) == nevents
 
-        res = requests.post(
-            "http://127.0.0.1:8080/server/panda/getEventRanges", data=data
-        ).json()
+        res = requests.post("http://127.0.0.1:8080/server/panda/getEventRanges", data=data).json()
         assert res["StatusCode"] == 0
         assert len(res["eventRanges"]) == 0
         assert not payload.should_request_more_ranges()
         data["pandaID"] = "None"
-        assert (
-            requests.post(
-                "http://127.0.0.1:8080/server/panda/getEventRanges", data=data
-            ).json()["StatusCode"]
-            == -1
-        )
+        assert requests.post("http://127.0.0.1:8080/server/panda/getEventRanges", data=data).json()["StatusCode"] == -1

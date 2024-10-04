@@ -45,10 +45,7 @@ class TestBookKeeper:
                     assert job["PandaID"] == job_tmp["PandaID"]
                 job = job_tmp
             bookKeeper.fetch_event_ranges(actor_id, nevents)
-            assert (
-                bookKeeper.assign_job_to_actor(actor_id)["PandaID"]
-                == job["PandaID"]
-            )
+            assert bookKeeper.assign_job_to_actor(actor_id)["PandaID"] == job["PandaID"]
 
     def test_add_event_ranges(
         self,
@@ -70,9 +67,7 @@ class TestBookKeeper:
         assert bookKeeper.has_jobs_ready()
 
         for pandaID in sample_multijobs:
-            print(
-                bookKeeper.jobs[pandaID].event_ranges_queue.event_ranges_by_id
-            )
+            print(bookKeeper.jobs[pandaID].event_ranges_queue.event_ranges_by_id)
             assert bookKeeper.n_ready(pandaID) == nevents
 
     def test_fetch_event_ranges(
@@ -101,9 +96,7 @@ class TestBookKeeper:
         for wid in assigned_workers:
             job = bookKeeper.assign_job_to_actor(wid)
             assert job["PandaID"] in sample_multijobs
-            ranges = bookKeeper.fetch_event_ranges(
-                wid, int(nevents / len(assigned_workers))
-            )
+            ranges = bookKeeper.fetch_event_ranges(wid, int(nevents / len(assigned_workers)))
             assert ranges
         assert not bookKeeper.fetch_event_ranges(wid[0], 1)
 
@@ -152,37 +145,25 @@ class TestBookKeeper:
         bookKeeper.add_jobs(sample_multijobs, False)
         for _ in range(njobs):
             job = bookKeeper.assign_job_to_actor(actor_id)
-            print(
-                bookKeeper.jobs.get_event_ranges(
-                    job.get_id()
-                ).event_ranges_count
-            )
+            print(bookKeeper.jobs.get_event_ranges(job.get_id()).event_ranges_count)
             ranges = bookKeeper.fetch_event_ranges(actor_id, nevents)
             assert len(ranges) == nevents
             assert bookKeeper.rangesID_by_actor[actor_id]
-            bookKeeper.process_event_ranges_update(
-                actor_id, sample_failed_rangeupdate
-            )
+            bookKeeper.process_event_ranges_update(actor_id, sample_failed_rangeupdate)
             assert not bookKeeper.rangesID_by_actor[actor_id]
 
             assert job.event_ranges_queue.nranges_failed() == nevents
             assert not bookKeeper.rangesID_by_actor[actor_id]
             n_success = len(sample_rangeupdate[0]["eventRanges"]) // 2
-            sample_rangeupdate[0]["eventRanges"] = sample_rangeupdate[0][
-                "eventRanges"
-            ][:n_success]
-            bookKeeper.process_event_ranges_update(
-                actor_id, sample_rangeupdate[0]["eventRanges"]
-            )
+            sample_rangeupdate[0]["eventRanges"] = sample_rangeupdate[0]["eventRanges"][:n_success]
+            bookKeeper.process_event_ranges_update(actor_id, sample_rangeupdate[0]["eventRanges"])
             assert not bookKeeper.rangesID_by_actor[actor_id]
 
             assert job.event_ranges_queue.nranges_done() == n_success
             events = bookKeeper.fetch_event_ranges(actor_id, nevents)
             assert not bookKeeper.rangesID_by_actor[actor_id]
             assert not events
-            assert (
-                job.event_ranges_queue.nranges_failed() == nevents - n_success
-            )
+            assert job.event_ranges_queue.nranges_failed() == nevents - n_success
             assert job.event_ranges_queue.nranges_done() == n_success
             print(job.event_ranges_queue.rangesID_by_state)
             print(bookKeeper.rangesID_by_actor)

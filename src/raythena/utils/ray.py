@@ -4,9 +4,7 @@ import ray
 from raythena.utils.config import Config
 
 
-def build_nodes_resource_list(
-    config: Config, run_actor_on_head: bool = False
-) -> list[Mapping[str, Any]]:
+def build_nodes_resource_list(config: Config, run_actor_on_head: bool = False) -> list[Mapping[str, Any]]:
     """
     Build and setup ray custom resources.
     Actors should then be instantiated by requiring one of the resource in the returned list.
@@ -55,9 +53,7 @@ def is_external_cluster(config: Config) -> bool:
     Returns:
         True if raythena is connecting to an existing cluster, False otherwise
     """
-    return (
-        config.ray["headip"] is not None and config.ray["redisport"] is not None
-    )
+    return config.ray["headip"] is not None and config.ray["redisport"] is not None
 
 
 def setup_ray(config: Config) -> Any:

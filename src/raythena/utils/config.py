@@ -158,9 +158,7 @@ class Config:
         """
         for name, value in template_params.items():
             if name not in section_params:
-                raise Exception(
-                    f"Param '{name}' not found in conf section '{template_section_name}'"
-                )
+                raise Exception(f"Param '{name}' not found in conf section '{template_section_name}'")
             if isinstance(value, dict):
                 self._validate_section(
                     f"{template_section_name}.{name}",
@@ -185,9 +183,5 @@ class Config:
         ) in Config.required_conf_settings.items():
             section_params = getattr(self, template_section, None)
             if section_params is None:
-                raise Exception(
-                    f"Malformed configuration file: section '{template_section}' not found"
-                )
-            self._validate_section(
-                template_section, section_params, template_params
-            )
+                raise Exception(f"Malformed configuration file: section '{template_section}' not found")
+            self._validate_section(template_section, section_params, template_params)

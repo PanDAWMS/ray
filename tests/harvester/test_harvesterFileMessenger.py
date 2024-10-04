@@ -11,9 +11,7 @@ class TestHarvesterFileMessenger:
         for sample_ID, jobID in zip(sample_jobs, jobs):
             assert sample_ID == jobID
 
-    def test_get_job(
-        self, harvester_file_communicator, sample_job, request_queue, jobs_queue
-    ):
+    def test_get_job(self, harvester_file_communicator, sample_job, request_queue, jobs_queue):
         with open(harvester_file_communicator.jobspecfile, "w") as f:
             json.dump(sample_job, f)
 
@@ -22,9 +20,7 @@ class TestHarvesterFileMessenger:
         job_communicator = jobs_queue.get(timeout=5)
         self.check_job(job_communicator, sample_job)
 
-    def test_get_job_request(
-        self, harvester_file_communicator, sample_job, request_queue, jobs_queue
-    ):
+    def test_get_job_request(self, harvester_file_communicator, sample_job, request_queue, jobs_queue):
         harvester_file_communicator.start()
         request_queue.put(PandaJobRequest())
 
@@ -67,9 +63,7 @@ class TestHarvesterFileMessenger:
         n_events = 3
         evnt_request = EventRangeRequest()
         for pandaID, job in sample_job.items():
-            evnt_request.add_event_request(
-                pandaID, n_events, job["taskID"], job["jobsetID"]
-            )
+            evnt_request.add_event_request(pandaID, n_events, job["taskID"], job["jobsetID"])
         request_queue.put(evnt_request)
 
         while not os.path.isfile(harvester_file_communicator.eventrequestfile):
@@ -78,14 +72,9 @@ class TestHarvesterFileMessenger:
         ranges_res = {}
         with open(harvester_file_communicator.eventrequestfile) as f:
             communicator_request = json.load(f)
-            for pandaIDSent, pandaIDCom in zip(
-                evnt_request, communicator_request
-            ):
+            for pandaIDSent, pandaIDCom in zip(evnt_request, communicator_request):
                 assert pandaIDSent == pandaIDCom
-                assert (
-                    evnt_request[pandaIDSent]["nRanges"]
-                    == communicator_request[pandaIDSent]["nRanges"]
-                )
+                assert evnt_request[pandaIDSent]["nRanges"] == communicator_request[pandaIDSent]["nRanges"]
                 ranges_res[pandaIDSent] = [
                     {
                         "lastEvent": 0,
@@ -102,11 +91,7 @@ class TestHarvesterFileMessenger:
 
         for pandaIDSent, pandaIDCom in zip(ranges_res, ranges_com):
             assert pandaIDSent == pandaIDCom
-            assert (
-                len(ranges_res[pandaIDSent])
-                == len(ranges_com[pandaIDSent])
-                == n_events
-            )
+            assert len(ranges_res[pandaIDSent]) == len(ranges_com[pandaIDSent]) == n_events
 
         assert not os.path.isfile(harvester_file_communicator.eventrequestfile)
         assert not os.path.isfile(harvester_file_communicator.eventrangesfile)
@@ -122,8 +107,4 @@ class TestHarvesterFileMessenger:
         ranges_com = ranges_queue.get(timeout=5)
         for pandaIDSent, pandaIDCom in zip(ranges_res, ranges_com):
             assert pandaIDSent == pandaIDCom
-            assert (
-                len(ranges_res[pandaIDSent])
-                == len(ranges_com[pandaIDSent])
-                == 0
-            )
+            assert len(ranges_res[pandaIDSent]) == len(ranges_com[pandaIDSent]) == 0

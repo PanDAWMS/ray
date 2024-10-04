@@ -81,11 +81,7 @@ def nhits_per_file(nevents_per_file):
 
 @pytest.fixture
 def range_ids(nfiles, nevents_per_file):
-    return [
-        f"EVNT_{file}.pool.root.1-{event}"
-        for event in range(1, nevents_per_file + 1)
-        for file in range(nfiles)
-    ]
+    return [f"EVNT_{file}.pool.root.1-{event}" for event in range(1, nevents_per_file + 1) for file in range(nfiles)]
 
 
 @pytest.fixture
@@ -124,10 +120,7 @@ def sample_rangeupdate(range_ids):
                 "fsize": 860160,
                 "pathConvention": 1000,
             },
-            "eventRanges": [
-                {"eventRangeID": r, "eventStatus": "finished"}
-                for r in range_ids
-            ],
+            "eventRanges": [{"eventRangeID": r, "eventStatus": "finished"} for r in range_ids],
         }
     ]
 
@@ -254,9 +247,7 @@ def sample_multijobs(
 
 
 @pytest.fixture
-def sample_job(
-    is_eventservice, input_output_file_list, nhits_per_file, nevents_per_file
-):
+def sample_job(is_eventservice, input_output_file_list, nhits_per_file, nevents_per_file):
     hash = hashlib.md5()
     (input_files, output_files) = input_output_file_list
     hash.update(str(time.time()).encode("utf-8"))

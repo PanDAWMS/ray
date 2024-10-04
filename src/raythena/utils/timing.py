@@ -15,9 +15,7 @@ class CPUMonitor:
         self.process = psutil.Process(pid)
         self.log_file = log_file
         self.stop_event = Event()
-        self.monitor_thread = ExThread(
-            target=self.monitor_cpu, name="cpu_monitor"
-        )
+        self.monitor_thread = ExThread(target=self.monitor_cpu, name="cpu_monitor")
         self.write_interval = 10 * 60
         self.time_step = 1
 
@@ -41,14 +39,10 @@ class CPUMonitor:
         if not self.stop_event.is_set():
             self.stop_event.set()
             self.monitor_thread.join()
-            self.monitor_thread = ExThread(
-                target=self.monitor_cpu, name="cpu_monitor"
-            )
+            self.monitor_thread = ExThread(target=self.monitor_cpu, name="cpu_monitor")
             self.stop_event = Event()
 
-    def _log_to_file(
-        self, data: dict[str, Union[dict[str, list], list, int]]
-    ) -> None:
+    def _log_to_file(self, data: dict[str, Union[dict[str, list], list, int]]) -> None:
         """
         Write data to log file
 

@@ -37,13 +37,9 @@ def clean_files(files):
 
 
 @pytest.fixture
-def harvester_file_communicator(
-    tmpdir, config, request_queue, jobs_queue, ranges_queue
-):
+def harvester_file_communicator(tmpdir, config, request_queue, jobs_queue, ranges_queue):
     config.harvester["endpoint"] = str(tmpdir)
-    communicator = HarvesterFileCommunicator(
-        request_queue, jobs_queue, ranges_queue, config
-    )
+    communicator = HarvesterFileCommunicator(request_queue, jobs_queue, ranges_queue, config)
     yield communicator
     communicator.stop()
     clean_files(

@@ -35,9 +35,7 @@ class HarvesterMock(BaseCommunicator):
         """
         Initialize communicator thread, input files name, job worker_id, number of events to be distributed
         """
-        self.communicator_thread = ExThread(
-            target=self.run, name="communicator-thread"
-        )
+        self.communicator_thread = ExThread(target=self.run, name="communicator-thread")
         self.event_ranges = None
         self.pandaID = random.randint(0, 100)
         self.jobsetId = random.randint(0, 100)
@@ -122,12 +120,8 @@ class HarvesterMock(BaseCommunicator):
         for pandaID in request:
             range_list = list()
             request_dict = request[pandaID]
-            nranges = min(
-                self.nevents - self.served_events, request_dict["nRanges"]
-            )
-            for i in range(
-                self.served_events + 1, self.served_events + nranges + 1
-            ):
+            nranges = min(self.nevents - self.served_events, request_dict["nRanges"])
+            for i in range(self.served_events + 1, self.served_events + nranges + 1):
                 file_idx = self.served_events // self.nevents_per_file
                 range_id = f"Range-{i:05}"
                 range_list.append(

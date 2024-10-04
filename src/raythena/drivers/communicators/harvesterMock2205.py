@@ -25,9 +25,7 @@ class HarvesterMock2205(HarvesterMock):
         Initialize communicator thread, input files name, job worker_id, number of events to be distributed
         """
         super().__init__(requests_queue, job_queue, event_ranges_queue, config)
-        self.communicator_thread = ExThread(
-            target=self.run, name="communicator-thread"
-        )
+        self.communicator_thread = ExThread(target=self.run, name="communicator-thread")
         self.event_ranges = None
         self.pandaID = random.randint(0, 100)
         self.jobsetId = random.randint(0, 100)

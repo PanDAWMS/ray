@@ -46,9 +46,7 @@ class BaseCommunicator(ABC):
         """
         self.requests_queue: Queue[RequestData] = requests_queue
         self.job_queue: Queue[Mapping[str, JobDef]] = job_queue
-        self.event_ranges_queue: Queue[
-            Mapping[str, Sequence[EventRangeDef]]
-        ] = event_ranges_queue
+        self.event_ranges_queue: Queue[Mapping[str, Sequence[EventRangeDef]]] = event_ranges_queue
         self.config = config
 
     @abstractmethod

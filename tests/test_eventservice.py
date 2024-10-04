@@ -31,30 +31,16 @@ class TestEventRangeRequest:
         ranges_request = EventRangeRequest.build_from_dict(request_dict)
         ranges_request_init = EventRangeRequest()
         for pandaID, req in request_dict.items():
-            ranges_request_init.add_event_request(
-                pandaID, req["nRanges"], req["taskID"], req["jobsetID"]
-            )
-        assert (
-            len(request_dict) == len(ranges_request) == len(ranges_request_init)
-        )
-        for id1, id2, id3 in zip(
-            ranges_request, ranges_request_init, request_dict
-        ):
-            assert (
-                ranges_request[id1]["pandaID"]
-                == ranges_request_init[id2]["pandaID"]
-                == request_dict[id3]["pandaID"]
-            )
+            ranges_request_init.add_event_request(pandaID, req["nRanges"], req["taskID"], req["jobsetID"])
+        assert len(request_dict) == len(ranges_request) == len(ranges_request_init)
+        for id1, id2, id3 in zip(ranges_request, ranges_request_init, request_dict):
+            assert ranges_request[id1]["pandaID"] == ranges_request_init[id2]["pandaID"] == request_dict[id3]["pandaID"]
 
 
 class TestEventRangeUpdate:
-    def test_build_range_update(
-        self, nevents, sample_rangeupdate, sample_failed_rangeupdate
-    ):
+    def test_build_range_update(self, nevents, sample_rangeupdate, sample_failed_rangeupdate):
         pandaID = "0"
-        ranges_update = EventRangeUpdate.build_from_dict(
-            pandaID, sample_rangeupdate
-        )
+        ranges_update = EventRangeUpdate.build_from_dict(pandaID, sample_rangeupdate)
         assert pandaID in ranges_update
         ranges = ranges_update[pandaID]
         assert len(ranges) == nevents
@@ -69,9 +55,7 @@ class TestEventRangeUpdate:
                 and "fsize" in r
             )
 
-        ranges_update = EventRangeUpdate.build_from_dict(
-            pandaID, sample_failed_rangeupdate
-        )
+        ranges_update = EventRangeUpdate.build_from_dict(pandaID, sample_failed_rangeupdate)
         assert pandaID in ranges_update
         ranges = ranges_update[pandaID]
         assert len(ranges) == nevents
@@ -108,12 +92,7 @@ class TestEventRangeQueue:
             == ranges_queue.nranges_remaining()
             == nevents
         )
-        assert (
-            ranges_queue.nranges_assigned()
-            == ranges_queue.nranges_done()
-            == ranges_queue.nranges_failed()
-            == 0
-        )
+        assert ranges_queue.nranges_assigned() == ranges_queue.nranges_done() == ranges_queue.nranges_failed() == 0
 
         with pytest.raises(ValueError):
             ranges_queue["key"] = None
@@ -134,16 +113,8 @@ class TestEventRangeQueue:
             == ranges_queue.nranges_remaining()
             == nevents
         )
-        assert (
-            ranges_queue.nranges_assigned()
-            == ranges_queue.nranges_done()
-            == ranges_queue.nranges_failed()
-            == 0
-        )
-        assert (
-            ranges_queue[ranges[0]["eventRangeID"]].eventRangeID
-            == ranges[0]["eventRangeID"]
-        )
+        assert ranges_queue.nranges_assigned() == ranges_queue.nranges_done() == ranges_queue.nranges_failed() == 0
+        assert ranges_queue[ranges[0]["eventRangeID"]].eventRangeID == ranges[0]["eventRangeID"]
         for r in ranges:
             assert r["eventRangeID"] in ranges_queue
 
@@ -160,12 +131,8 @@ class TestEventRangeQueue:
         ranges_queue = EventRangeQueue.build_from_list(ranges)
 
         nsuccess = int(nevents / 2)
-        ranges_update = EventRangeUpdate.build_from_dict(
-            pandaID, sample_rangeupdate
-        )[pandaID][:nsuccess]
-        failed_ranges_update = EventRangeUpdate.build_from_dict(
-            pandaID, sample_failed_rangeupdate
-        )[pandaID][nsuccess:]
+        ranges_update = EventRangeUpdate.build_from_dict(pandaID, sample_rangeupdate)[pandaID][:nsuccess]
+        failed_ranges_update = EventRangeUpdate.build_from_dict(pandaID, sample_failed_rangeupdate)[pandaID][nsuccess:]
 
         ranges_queue.get_next_ranges(nevents)
         ranges_queue.update_ranges(ranges_update)
@@ -195,19 +162,12 @@ class TestEventRangeQueue:
         assert ranges_queue.nranges_remaining() == nranges
         assert ranges_queue.nranges_available() == nranges - nranges_requested
         for requested_range in requested_ranges:
-            assert (
-                ranges_queue[requested_range.eventRangeID].status
-                == EventRange.ASSIGNED
-            )
+            assert ranges_queue[requested_range.eventRangeID].status == EventRange.ASSIGNED
 
         requested_ranges = ranges_queue.get_next_ranges(nranges)
         assert len(requested_ranges) == nranges - nranges_requested
         assert ranges_queue.nranges_available() == 0
-        assert (
-            ranges_queue.nranges_assigned()
-            == ranges_queue.nranges_remaining()
-            == nranges
-        )
+        assert ranges_queue.nranges_assigned() == ranges_queue.nranges_remaining() == nranges
         assert len(ranges_queue.get_next_ranges(1)) == 0
 
 
@@ -252,14 +212,10 @@ class TestEventRanges:
 
 
 class TestPandaJobQueue:
-    def test_build_pandajob_queue(
-        self, is_eventservice, njobs, sample_multijobs
-    ):
+    def test_build_pandajob_queue(self, is_eventservice, njobs, sample_multijobs):
         assert len(sample_multijobs) == njobs
         pandajob_queue = PandaJobQueue()
-        pandajob_queue_fromdict = PandaJobQueue.build_from_dict(
-            sample_multijobs
-        )
+        pandajob_queue_fromdict = PandaJobQueue.build_from_dict(sample_multijobs)
         assert len(pandajob_queue) == 0
         assert not pandajob_queue.next_job_to_process()
 
@@ -288,9 +244,7 @@ class TestPandaJobQueue:
             pandajob_queue_2["key"] = job
             assert "key" in pandajob_queue_2
 
-    def test_pandajob_process_event_ranges_reply(
-        self, is_eventservice, njobs, sample_multijobs, sample_ranges
-    ):
+    def test_pandajob_process_event_ranges_reply(self, is_eventservice, njobs, sample_multijobs, sample_ranges):
         if not is_eventservice:
             pytest.skip("Not eventservice jobs")
         pandajob_queue = PandaJobQueue(sample_multijobs)
@@ -332,20 +286,14 @@ class TestPandaJobQueue:
 
         job = pandajob_queue.next_job_to_process()
         assert job == pandajob_queue.next_job_to_process()
-        ranges_update = EventRangeUpdate.build_from_dict(
-            job["PandaID"], sample_rangeupdate
-        )
+        ranges_update = EventRangeUpdate.build_from_dict(job["PandaID"], sample_rangeupdate)
 
         ranges_queue = pandajob_queue.get_event_ranges(job["PandaID"])
         _ = job.get_next_ranges(nevents)
         pandajob_queue.process_event_ranges_update(ranges_update)
         assert not job.no_more_ranges
         assert ranges_queue.nranges_done() == nevents
-        assert (
-            ranges_queue.nranges_remaining()
-            == ranges_queue.nranges_available()
-            == 0
-        )
+        assert ranges_queue.nranges_remaining() == ranges_queue.nranges_available() == 0
         job_2 = pandajob_queue.next_job_to_process()
         assert job["PandaID"] == job_2["PandaID"]
 
@@ -379,9 +327,7 @@ class TestPandaJobRequest:
         jobrequest = PandaJobRequest(**request_dict)
         assert jobrequest.diskSpace == request_dict["disk_space"]
         assert jobrequest.mem == request_dict["mem"]
-        assert (
-            jobrequest.allowOtherCountry == request_dict["allow_other_country"]
-        )
+        assert jobrequest.allowOtherCountry == request_dict["allow_other_country"]
 
 
 class TestPandaJobUpdate:
