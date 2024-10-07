@@ -1,13 +1,13 @@
 import logging
 import sys
 from time import gmtime
-
+from typing import Optional
 from raythena.utils.config import Config
 
 _initialized = False
 
 
-def make_logger(config: Config, name: str, filepath: str = None) -> logging.Logger:
+def make_logger(config: Config, name: str, filepath: Optional[str] = None) -> logging.Logger:
     global _initialized
     if not _initialized:
         configure_logger(config, filepath)
@@ -16,7 +16,7 @@ def make_logger(config: Config, name: str, filepath: str = None) -> logging.Logg
 
 
 def log_to_file(log_level, filepath: str):
-    fh = logging.FileHandler(filepath, mode='w')
+    fh = logging.FileHandler(filepath, mode="w")
     fh.setFormatter(logging.Formatter(*get_fmt(log_level)))
     logging.getLogger().addHandler(fh)
 
@@ -29,11 +29,11 @@ def disable_stdout_logging():
 
 
 def get_fmt(log_level):
-    if logging.DEBUG == logging.getLevelName(log_level):
+    if logging.getLevelName(log_level) == logging.DEBUG:
         fmt = "{asctime} | {levelname:8} | {name}:{funcName} | {message}"
     else:
         fmt = "{asctime} | {levelname:8} | {name} | {message}"
-    return fmt, "%Y-%m-%d %H:%M:%S", '{'
+    return fmt, "%Y-%m-%d %H:%M:%S", "{"
 
 
 def configure_logger(config: Config, filepath: str) -> None:
@@ -47,11 +47,11 @@ def configure_logger(config: Config, filepath: str) -> None:
     Returns:
         None
     """
-    log_level = config.logging.get('level', 'warning').upper()
+    log_level = config.logging.get("level", "warning").upper()
     logging.Formatter.converter = gmtime
     handlers = list()
     if filepath:
-        fh = logging.FileHandler(filepath, mode='w')
+        fh = logging.FileHandler(filepath, mode="w")
         handlers.append(fh)
     else:
         ch = logging.StreamHandler(sys.stdout)
@@ -62,4 +62,5 @@ def configure_logger(config: Config, filepath: str) -> None:
         style=style,
         datefmt=datefmt,
         level=logging.getLevelName(log_level),
-        handlers=handlers)
+        handlers=handlers,
+    )

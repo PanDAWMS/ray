@@ -3,14 +3,13 @@ from raythena.utils.eventservice import EventRange, PandaJob
 
 
 class TestTaskStatus:
-
     def test_save_restore_status(self, nfiles, tmp_path, config, sample_job, sample_ranges):
         config.ray["outputdir"] = tmp_path
-        job = PandaJob(list(sample_job.values())[0])
+        job = PandaJob(next(iter(sample_job.values())))
         ts = TaskStatus(job, tmp_path, config)
-        ranges = list(sample_ranges.values())[0]
-        hits_per_file = int(job['esmergeSpec']['nEventsPerOutputFile'])
-        events_per_file = int(job['nEventsPerInputFile'])
+        ranges = next(iter(sample_ranges.values()))
+        hits_per_file = int(job["esmergeSpec"]["nEventsPerOutputFile"])
+        events_per_file = int(job["nEventsPerInputFile"])
         assert events_per_file % hits_per_file == 0
         n_output_per_input_file = events_per_file // hits_per_file
         offset = nfiles
@@ -36,10 +35,10 @@ class TestTaskStatus:
 
     def test_set_processed(self, nfiles, nevents, tmp_path, config, sample_job, sample_ranges):
         config.ray["outputdir"] = tmp_path
-        job = PandaJob(list(sample_job.values())[0])
+        job = PandaJob(next(iter(sample_job.values())))
         ts = TaskStatus(job, tmp_path, config)
 
-        ranges_list = list(sample_ranges.values())[0]
+        ranges_list = next(iter(sample_ranges.values()))
         for r in ranges_list:
             ts.set_eventrange_simulated(EventRange.build_from_dict(r), "outputfile")
 
@@ -51,10 +50,10 @@ class TestTaskStatus:
 
     def test_set_failed(self, nfiles, nevents, tmp_path, config, sample_job, sample_ranges):
         config.ray["outputdir"] = tmp_path
-        job = PandaJob(list(sample_job.values())[0])
+        job = PandaJob(next(iter(sample_job.values())))
         ts = TaskStatus(job, tmp_path, config)
 
-        ranges_list = list(sample_ranges.values())[0]
+        ranges_list = next(iter(sample_ranges.values()))
         for r in ranges_list:
             ts.set_eventrange_failed(EventRange.build_from_dict(r))
 
@@ -66,16 +65,16 @@ class TestTaskStatus:
 
     def test_set_merged(self, nfiles, nevents, tmp_path, config, sample_job, sample_ranges):
         config.ray["outputdir"] = tmp_path
-        job = PandaJob(list(sample_job.values())[0])
+        job = PandaJob(next(iter(sample_job.values())))
         ts = TaskStatus(job, tmp_path, config)
 
-        ranges = list(sample_ranges.values())[0]
+        ranges = next(iter(sample_ranges.values()))
         for e in ranges:
             er = EventRange.build_from_dict(e)
             ts.set_eventrange_simulated(er, f"outputfile-{er.eventRangeID}")
 
-        hits_per_file = int(job['esmergeSpec']['nEventsPerOutputFile'])
-        events_per_file = int(job['nEventsPerInputFile'])
+        hits_per_file = int(job["esmergeSpec"]["nEventsPerOutputFile"])
+        events_per_file = int(job["nEventsPerInputFile"])
         assert events_per_file % hits_per_file == 0
         n_output_per_input_file = events_per_file // hits_per_file
         offset = nfiles
@@ -90,7 +89,9 @@ class TestTaskStatus:
             ranges_map = {}
             for r in ranges_list:
                 event_range = EventRange.build_from_dict(r)
-                ranges_map[event_range.eventRangeID] = TaskStatus.build_eventrange_dict(event_range, f"outputfile-{event_range.eventRangeID}")
+                ranges_map[event_range.eventRangeID] = TaskStatus.build_eventrange_dict(
+                    event_range, f"outputfile-{event_range.eventRangeID}"
+                )
 
             ts.set_file_merged([fname], outputfile, ranges_map, "guid")
         ts.save_status()
@@ -110,7 +111,9 @@ class TestTaskStatus:
             ranges_map = {}
             for r in ranges_list:
                 event_range = EventRange.build_from_dict(r)
-                ranges_map[event_range.eventRangeID] = TaskStatus.build_eventrange_dict(event_range, f"outputfile-{event_range.eventRangeID}")
+                ranges_map[event_range.eventRangeID] = TaskStatus.build_eventrange_dict(
+                    event_range, f"outputfile-{event_range.eventRangeID}"
+                )
             ts.set_file_merged([fname], outputfile, ranges_map, "guid")
         ts.save_status()
         print(ts._status)

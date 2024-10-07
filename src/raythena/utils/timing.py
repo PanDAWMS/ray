@@ -1,10 +1,8 @@
-import psutil
-import time
 import json
-
+import time
 from threading import Event
-from typing import Any, Dict, List, Union
-
+from typing import Any, Union
+import psutil
 from raythena.utils.exception import ExThread
 
 
@@ -12,6 +10,7 @@ class CPUMonitor:
     """
     Monitoring tools recording system cpu utilization as well as process cpu utilization to a file
     """
+
     def __init__(self, log_file: str, pid: Any = None) -> None:
         self.process = psutil.Process(pid)
         self.log_file = log_file
@@ -43,7 +42,7 @@ class CPUMonitor:
             self.monitor_thread = ExThread(target=self.monitor_cpu, name="cpu_monitor")
             self.stop_event = Event()
 
-    def _log_to_file(self, data: Dict[str, Union[Dict[str, List], List, int]]) -> None:
+    def _log_to_file(self, data: dict[str, Union[dict[str, list], list, int]]) -> None:
         """
         Write data to log file
 
@@ -53,7 +52,7 @@ class CPUMonitor:
         Returns:
             None
         """
-        with open(self.log_file, 'w') as f:
+        with open(self.log_file, "w") as f:
             json.dump(data, f)
 
     def monitor_cpu(self) -> None:
@@ -93,7 +92,7 @@ class CPUMonitor:
             "system_usage": system_usage,
             "process_usage": process_usage,
             "process_times": process_times,
-            "time_step": self.time_step
+            "time_step": self.time_step,
         }
 
         while not self.stop_event.is_set():
@@ -102,7 +101,7 @@ class CPUMonitor:
             process_usage.append(self.process.cpu_percent())
             process_cpu_times = self.process.cpu_times()
 
-            for k in process_times.keys():
+            for k in process_times:
                 process_times[k].append(getattr(process_cpu_times, k))
 
             if time.time() >= last_write + self.write_interval:
@@ -112,7 +111,6 @@ class CPUMonitor:
 
 
 class Timing:
-
     def __init__(self):
         self._timings = dict()
 

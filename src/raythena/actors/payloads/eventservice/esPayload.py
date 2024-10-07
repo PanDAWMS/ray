@@ -1,6 +1,6 @@
 from abc import abstractmethod
-from typing import Dict, Optional, Sequence
-
+from collections.abc import Sequence
+from typing import Optional
 from raythena.actors.payloads.basePayload import BasePayload
 from raythena.utils.config import Config
 from raythena.utils.eventservice import EventRange
@@ -32,12 +32,12 @@ class ESPayload(BasePayload):
         raise NotImplementedError("Base method not implemented")
 
     @abstractmethod
-    def fetch_ranges_update(self) -> Optional[Dict[str, str]]:
+    def fetch_ranges_update(self) -> Optional[dict[str, str]]:
         """
         Checks if event ranges update are available
 
         Returns:
-            Dict holding event range update of processed events, None if no update is available
+            dict holding event range update of processed events, None if no update is available
         """
         raise NotImplementedError("Base method not implemented")
 

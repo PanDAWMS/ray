@@ -9,16 +9,16 @@ This example uses placement_group API to spread work around
 import argparse
 import os
 import platform
+import time
 from pprint import pprint
 import ray
-import time
 
 
 def build_nodes_resource_list(redis_ip: str):
     nodes = ray.nodes()
     resource_list = list()
     for node in nodes:
-        naddr = node['NodeManagerAddress']
+        naddr = node["NodeManagerAddress"]
         if naddr == redis_ip:
             continue
         else:
@@ -27,7 +27,7 @@ def build_nodes_resource_list(redis_ip: str):
 
 
 @ray.remote
-class actor():
+class actor:
     def __init__(self) -> None:
         self.pid = os.getpid()
         self.hostname = platform.node()
@@ -42,8 +42,11 @@ class actor():
 
 def main(redis_ip: str, redis_port: str, redis_password: str):
     redis_address = f"{redis_ip}:{redis_port}"
-    ray.init(ignore_reinit_error=True,
-             address="%s" % redis_address, _redis_password="%s" % redis_password)
+    ray.init(
+        ignore_reinit_error=True,
+        address=f"{redis_address}",
+        _redis_password=f"{redis_password}",
+    )
 
     # show the ray cluster
     print(f"Ray Cluster resources : {ray.cluster_resources()}")
@@ -73,10 +76,10 @@ def main(redis_ip: str, redis_port: str, redis_password: str):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Wait on ray head node or workers to connect')
-    parser.add_argument('--redis-ip', default="%s" % (os.environ["RAYTHENA_RAY_HEAD_IP"]))
-    parser.add_argument('--redis-port', default="%s" % (os.environ["RAYTHENA_RAY_REDIS_PORT"]))
-    parser.add_argument('--redis-password', default=os.environ["RAYTHENA_RAY_REDIS_PASSWORD"])
+    parser = argparse.ArgumentParser(description="Wait on ray head node or workers to connect")
+    parser.add_argument("--redis-ip", default="{}".format(os.environ["RAYTHENA_RAY_HEAD_IP"]))
+    parser.add_argument("--redis-port", default="{}".format(os.environ["RAYTHENA_RAY_REDIS_PORT"]))
+    parser.add_argument("--redis-password", default=os.environ["RAYTHENA_RAY_REDIS_PASSWORD"])
     args = parser.parse_args()
     print(f"args : {args}")
     main(args.redis_ip, args.redis_port, args.redis_password)

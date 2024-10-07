@@ -1,12 +1,10 @@
-from typing import List, Mapping, Any
-
+from collections.abc import Mapping
+from typing import Any
 import ray
-
 from raythena.utils.config import Config
 
 
-def build_nodes_resource_list(config: Config,
-                              run_actor_on_head: bool = False) -> List[Mapping[str, Any]]:
+def build_nodes_resource_list(config: Config, run_actor_on_head: bool = False) -> list[Mapping[str, Any]]:
     """
     Build and setup ray custom resources.
     Actors should then be instantiated by requiring one of the resource in the returned list.
@@ -22,11 +20,11 @@ def build_nodes_resource_list(config: Config,
     nodes = ray.nodes()
     if len(nodes) == 1:  # only a head node
         run_actor_on_head = True
-    head_ip = config.ray['headip']
+    head_ip = config.ray["headip"]
     resource_list = list()
     for node in nodes:
-        naddr = node['NodeManagerAddress']
-        if not node['alive'] or (not run_actor_on_head and naddr == head_ip):
+        naddr = node["NodeManagerAddress"]
+        if not node["alive"] or (not run_actor_on_head and naddr == head_ip):
             continue
         else:
             resource_list.extend([node])
@@ -55,8 +53,7 @@ def is_external_cluster(config: Config) -> bool:
     Returns:
         True if raythena is connecting to an existing cluster, False otherwise
     """
-    return config.ray['headip'] is not None and config.ray[
-        'redisport'] is not None
+    return config.ray["headip"] is not None and config.ray["redisport"] is not None
 
 
 def setup_ray(config: Config) -> Any:
@@ -69,10 +66,14 @@ def setup_ray(config: Config) -> Any:
     Returns:
         dict of cluster params
     """
-    log_to_driver = True if not config.logging.get('workerlogfile', None) else False
+    log_to_driver = bool(not config.logging.get("workerlogfile", None))
     if is_external_cluster(config):
         ray_url = f"{config.ray['headip']}:{config.ray['redisport']}"
-        return ray.init(address=ray_url, _redis_password=config.ray['redispassword'], log_to_driver=log_to_driver)
+        return ray.init(
+            address=ray_url,
+            _redis_password=config.ray["redispassword"],
+            log_to_driver=log_to_driver,
+        )
     else:
         return ray.init(log_to_driver=log_to_driver)
 
